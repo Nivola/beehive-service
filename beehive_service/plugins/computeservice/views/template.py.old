@@ -1,0 +1,312 @@
+# SPDX-License-Identifier: EUPL-1.2
+#
+# (C) Copyright 2018-2022 CSI-Piemonte
+
+from flasgger import fields, Schema
+
+from beehive.common.apimanager import ApiView, SwaggerApiView
+from beehive.common.data import operation
+from beehive_service.model.base import SrvStatusType
+from beehive_service.views import ServiceApiView
+from marshmallow.validate import OneOf
+from beehive_service.plugins.computeservice.controller import ApiComputeService, \
+    ApiComputeTemplate
+from beecell.swagger import SwaggerHelper
+from beehive_service.service_util import __SRV_DEFAULT_TEMPLATE_TYPE__,\
+    __SRV_INSTANCE_TEMPLATE_STATUS__
+
+class InstanceTagSetResponseSchema(Schema):
+    key = fields.String(required=False, allow_none=True, description=u'tag key')
+    value = fields.String(required=False, allow_none=True, description=u'tag value')
+
+
+class InstancestatusReasonResponseSchema(Schema):
+    code = fields.String(required=False, allow_none=True,
+                         example=u'', description=u'reason code for the state change')
+    message = fields.String(required=False, allow_none=True,
+                            example=u'', description=u'message for the state change')
+
+
+class TemplateItemParameterResponseSchema(Schema):
+    creationDate = fields.DateTime(required=False, allow_none=True,
+                                   example=u'', description=u'template date creation')
+    name = fields.String(required=False, allow_none=True,
+                         example=u'', description=u'template name')
+    desc = fields.String(required=False, allow_none=True,
+                         example=u'', description=u'template description')
+    template_id = fields.String(required=False, allow_none=True, load_from=u'template-id',
+                                example=u'', description=u'template instance id')
+    template_owner_id = fields.String(required=False, allow_none=True, load_from=u'template-owner-id',
+                                      example=u'', description=u'template instance id')
+    template_owner_name = fields.String(required=False, allow_none=True, load_from=u'template-owner-name',
+                                        example=u'', description=u'template instance id')
+    state = fields.String(
+        required=False,
+        allow_none=True,
+        example=u'',
+        description=u'state of template',
+        validate=OneOf([getattr(ApiComputeTemplate.state_enum, x) for x in dir(ApiComputeTemplate.state_enum) if not x.startswith("__")]))
+    #    validate=OneOf(__SRV_INSTANCE_TEMPLATE_STATUS__)
+    tagSet = fields.Nested(InstanceTagSetResponseSchema,
+                           many=True, required=False, allow_none=True)
+    stateReason = fields.Nested(InstancestatusReasonResponseSchema, many=False, required=False, allow_none=False,
+                                description=u'array of status reason')
+    resource_id = fields.String(required=False, allow_none=True, example=u'',
+                                description=u'resource id', load_from=u'resource-id')
+
+class DescribeTemplatesResponse1Schema(Schema):
+    requestId = fields.String(required=True, allow_none=True,  example=u'', description=u'')
+    template_set = fields.Nested(TemplateItemParameterResponseSchema, many=True, required=False)
+    template_total = fields.Integer(required=True,  example=u'', description=u'',
+                                        load_from=u'template-total')
+
+
+class DescribeTemplatesResponseSchema(Schema):
+    DescribeTemplateResponse = fields.Nested(DescribeTemplatesResponse1Schema,
+                                        required=True, many=False, allow_none=False)
+
+
+class DescribeTemplatesRequestSchema(Schema):
+    template_id_N = fields.List(fields.String(example=u''), required=False, allow_none=True, context=u'query',
+                             collection_format=u'multi', load_from=u'template-id.N', description=u'template id')
+    name_N = fields.List(fields.String(example=u''), required=False, allow_none=True, context=u'query',
+                         collection_format=u'multi', load_from=u'name.N', description=u'template name')
+
+    owner_id_N = fields.List(fields.String(example=u''), required=False, allow_none=True, context=u'query',
+                             collection_format=u'multi', load_from=u'owner-id.N',
+                             description=u'account ID of the image owner')
+    state_N = fields.List(fields.String( example=u'', validate=OneOf([u'pending', u'available', u'failed'])),
+                        required=False, allow_none=True, context=u'query', collection_format=u'multi',
+                        load_from=u'state.N', description=u'state of the template (pending | available | failed)')
+#     tag_key_N = fields.List(fields.String(example=u''), required=False, allow_none=True, context=u'query',
+#                             collection_format=u'multi', load_from=u'tag-key.N',
+#                             descriptiom =u'value of a tag assigned to the resource')
+    size = fields.Integer(required=False, default=10, description=u'', context=u'query')
+    page = fields.String(required=False, default=u'0', description=u'',context=u'query')
+
+
+class DescribeTemplates(ServiceApiView):
+    tags = [u'computeservice']
+    definitions = {
+        u'DescribeTemplatesResponseSchema': DescribeTemplatesResponseSchema
+    }
+    parameters = SwaggerHelper().get_parameters(DescribeTemplatesRequestSchema)
+    parameters_schema = DescribeTemplatesRequestSchema
+    responses = ServiceApiView.setResponses({
+        200: {
+            u'description': u'success',
+            u'schema': DescribeTemplatesResponseSchema
+        }
+    })
+
+    def get(self, controller, data, *args, **kwargs):
+        """
+        Compute service image list
+        Compute service image list
+        """
+        data_search = {}
+        data_search[u'size'] = data.get(u'size', 10)
+        data_search[u'page'] = int(data.get(u'page', 0))
+
+        # check Account
+        account_id_list = data.get(u'owner_id_N', [])
+
+        # get instance identifier
+        instance_id_list = data.get(u'template_id_N', [])
+
+        # get instance name
+        instance_name_list = data.get(u'name_N', [])
+
+        # get tags
+        tag_values = data.get(u'tag_key_N', None)
+        # resource_tags = [u'nws$%s' % t for t in tag_values]
+
+        # get status
+        status_mapping = {
+            u'pending': SrvStatusType.PENDING,
+            u'available': SrvStatusType.ACTIVE,
+            u'failed': SrvStatusType.ERROR
+        }
+
+        status_name_list = None
+        status_list = data.get(u'state_N', None)
+        if status_list is not None:
+            status_name_list = [status_mapping[i] for i in status_list if i in status_mapping.keys()]
+
+        # get instances list
+        res, total = controller.get_service_type_plugins(service_uuid_list=instance_id_list,
+                                                         service_name_list=instance_name_list,
+                                                         account_id_list=account_id_list,
+                                                         servicetags_or=tag_values,
+                                                         service_status_name_list=status_name_list,
+                                                         plugintype=ApiComputeTemplate.plugintype,
+                                                         **data_search)
+
+        # format result
+        instances_set = [r.get_info() for r in res]
+
+        res = {
+            u'DescribeTemplateResponse': {
+                u'$xmlns': self.xmlns,
+                u'requestId': operation.id,
+                u'template-set': instances_set,
+                u'template-total': total
+            }
+        }
+        return res
+
+
+class CreateTemplateApiResponse1Schema(Schema):
+    template_id = fields.String(required=True, allow_none=False, load_from=u'template-id')
+    requestId = fields.String(required=True, allow_none=True)
+
+
+class CreateTemplateApiResponseSchema(Schema):
+    CreateTemplateResponse = fields.Nested(CreateTemplateApiResponse1Schema, required=True, allow_none=False)
+
+
+class CreateTemplateApiParamRequestSchema(Schema):
+    owner_id = fields.String(required=True, example=u'',
+                                description=u'account id', load_from=u'owner-id')
+    name = fields.String(required=True, example=u'',
+                                description=u'name of the template')
+    desc = fields.String(required=False, example=u'',
+                                description=u'description of the template')
+    template_type = fields.String(required=False, allow_none=True,
+                                description=u'template definition', load_from=u'template-type')
+    job_template_id = fields.String(required=True, example=u'', load_from=u'job-template-id',
+                                description=u'job template id')
+
+
+class CreateTemplateApiRequestSchema(Schema):
+    template = fields.Nested(CreateTemplateApiParamRequestSchema, context=u'body')
+
+
+class CreateTemplateApiBodyRequestSchema(Schema):
+    body = fields.Nested(CreateTemplateApiRequestSchema, context=u'body')
+
+
+class CreateTemplate(ServiceApiView):
+    """
+    """
+    tags = [u'computeservice']
+    definitions = {
+        u'CreateTemplateApiRequestSchema': CreateTemplateApiRequestSchema,
+        u'CreateTemplateApiResponseSchema': CreateTemplateApiResponseSchema
+    }
+    parameters = SwaggerHelper().get_parameters(CreateTemplateApiBodyRequestSchema)
+    parameters_schema = CreateTemplateApiRequestSchema
+    responses = ServiceApiView.setResponses({
+        202: {
+            u'description': u'success',
+            u'schema': CreateTemplateApiResponseSchema
+        }
+    })
+
+    def post(self, controller, data, *args, **kwargs):
+        """
+        Create template
+        Create template
+        """
+        inner_data = data.get(u'template')
+        service_definition_id = inner_data.get(u'template_type')
+        account_id = inner_data.get(u'owner_id')
+        name = inner_data.get(u'name')
+        desc = inner_data.get(u'desc', name)
+
+        # check account
+        account, parent_plugin = self.check_parent_service(controller, account_id,
+                                                           plugintype=ApiComputeService.plugintype)
+        # get definition
+        if service_definition_id is None:
+            service_definition = controller.get_default_service_def(ApiComputeTemplate.plugintype)
+            service_definition_id = service_definition.oid
+
+        data[u'computeZone'] = parent_plugin.resource_uuid
+        inst = controller.add_service_type_plugin(service_definition_id, account_id, name=name, desc=desc,
+                                                  parent_plugin=parent_plugin, instance_config=data)
+
+        res = {
+            u'CreateTemplateResponse': {
+                u'__xmlns': self.xmlns,
+                u'requestId': operation.id,
+                u'template-id': inst.instance.uuid
+            }
+        }
+        self.logger.debug(u'Service AWS response: %s' % res)
+
+        return res, 202
+
+class DeleteTemplateResponse1Schema(Schema):
+    return_ = fields.Boolean(required=True, dump_to=u'return')
+    requestId = fields.String(required=True, allow_none=True)
+
+
+class DeleteTemplateResponseSchema(Schema):
+    DeleteTemplateResponse = fields.Nested(
+        DeleteTemplateResponse1Schema,
+        required=True,
+        allow_none=False)
+
+
+class DeleteTemplateRequestSchema (Schema):
+#     template_id = fields.String(required=False, example=u'1', load_from=u'template-id',
+#                                   description=u'identifier template instance')
+    name = fields.String(
+        required=True,
+        example=u'',
+        description=u'name of the template')
+
+
+class DeleteTemplateBodyRequestSchema(Schema):
+    body = fields.Nested(DeleteTemplateRequestSchema, context=u'body')
+
+
+class DeleteTemplate(ServiceApiView):
+    """
+    """
+    tags = [u'computeservice']
+    definitions = {
+        u'DeleteTemplateRequestSchema': DeleteTemplateRequestSchema,
+        u'DeleteTemplateResponseSchema': DeleteTemplateResponseSchema
+    }
+    parameters = SwaggerHelper().get_parameters(DeleteTemplateBodyRequestSchema)
+    parameters_schema = DeleteTemplateRequestSchema
+    responses = SwaggerApiView.setResponses({
+        202: {
+            u'description': u'success',
+            u'schema': DeleteTemplateResponseSchema
+        }
+    })
+
+    def delete(self, controller, data, *args, **kwargs):
+        """
+        Delete template
+        Delete template
+        """
+        name = data.get(u'name')
+        # get Plugin
+        plugin = controller.get_service_type_plugin(
+            name, ApiComputeTemplate)
+        plugin.delete(name=name)
+        response = {
+            u'DeleteTemplateResponse': {
+                u'__xmlns': self.xmlns,
+                u'requestId': operation.id,
+                u'return': True
+            }
+        }
+
+        return response, 202
+
+class ComputeTemplateAPI(ApiView):
+    @staticmethod
+    def register_api(module, rules=None, version=None):
+        base = u'nws'
+        rules = [
+            (u'%s/computeservices/template/describetemplates' % base, u'GET', DescribeTemplates, {}),
+            (u'%s/computeservices/template/createtemplate' % base, u'POST', CreateTemplate, {}),
+            (u'%s/computeservices/template/deletetemplate' % base, u'DELETE', DeleteTemplate, {}),
+        ]
+
+        ApiView.register_api(module, rules)
