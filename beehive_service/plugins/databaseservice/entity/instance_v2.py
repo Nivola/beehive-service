@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from copy import deepcopy
 from ipaddress import IPv4Network
@@ -8,29 +8,44 @@ from ipaddress import IPv4Network
 import beehive_service.model.base
 from beehive.common.data import trace
 from beehive.common.apimanager import ApiManagerError
-from beehive_service.entity.service_type import ApiServiceTypePlugin, AsyncApiServiceTypePlugin
-from beehive_service.plugins.computeservice.controller import ApiComputeSubnet, ApiComputeSecurityGroup, \
-    ApiComputeVPC, ApiComputeKeyPairsHelper, ApiComputeService
+from beehive_service.entity.service_type import (
+    ApiServiceTypePlugin,
+    AsyncApiServiceTypePlugin,
+)
+from beehive_service.plugins.computeservice.controller import (
+    ApiComputeSubnet,
+    ApiComputeSecurityGroup,
+    ApiComputeVPC,
+    ApiComputeKeyPairsHelper,
+    ApiComputeService,
+)
 from six.moves.urllib.parse import urlencode
 from beehive_service.model.base import SrvStatusType
-from beecell.simple import format_date, truncate, obscure_data, random_password, dict_get
+from beecell.simple import (
+    format_date,
+    truncate,
+    obscure_data,
+    random_password,
+    dict_get,
+)
 from beecell.types.type_string import truncate, str2bool
 from beecell.types.type_date import format_date
 from beecell.types.type_dict import dict_get
 from beecell.password import obscure_data
 
 from logging import getLogger
+
 logger = getLogger(__name__)
 
 
 class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
-    plugintype = 'DatabaseInstance'
-    objname = 'dbinstance'
+    plugintype = "DatabaseInstance"
+    objname = "dbinstance"
 
     def __init__(self, *args, **kvargs):
         """ """
         ApiServiceTypePlugin.__init__(self, *args, **kvargs)
-        self.sql_stack_version = 'v2.0'
+        self.sql_stack_version = "v2.0"
 
         self.child_classes = []
 
@@ -40,9 +55,7 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        info = ApiServiceTypePlugin.info(self)
-        info.update({})
-        return info
+        return ApiServiceTypePlugin.info(self)
 
     @staticmethod
     def customize_list(controller, entities, *args, **kvargs):
@@ -56,50 +69,52 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         :return: None
         :raise ApiManagerError:
         """
-        account_idx = controller.get_account_idx()
-        subnet_idx = controller.get_service_instance_idx(ApiComputeSubnet.plugintype)
-        vpc_idx = controller.get_service_instance_idx(ApiComputeVPC.plugintype)
-        security_group_idx = controller.get_service_instance_idx(ApiComputeSecurityGroup.plugintype)
+        account_ids = {e.instance.account_id for e in entities}
+        account_idx = controller.get_account_idx(id_list=account_ids)
+        subnet_idx = controller.get_service_instance_idx(ApiComputeSubnet.plugintype, account_id_list=account_ids)
+        vpc_idx = controller.get_service_instance_idx(ApiComputeVPC.plugintype, account_id_list=account_ids)
+        security_group_idx = controller.get_service_instance_idx(
+            ApiComputeSecurityGroup.plugintype, account_id_list=account_ids
+        )
+        compute_service_idx = controller.get_service_instance_idx(
+            ApiComputeService.plugintype, index_key="account_id", account_id_list=account_ids
+        )
         instance_type_idx = controller.get_service_definition_idx(ApiDatabaseServiceInstanceV2.plugintype)
-        compute_service_idx = controller.get_service_instance_idx(ApiComputeService.plugintype, index_key='account_id')
-
         # get resources
-        zones = []
-        resources = []
+        resources = set()
+        zones = set()
         for entity in entities:
-            entity.account = account_idx.get(str(entity.instance.account_id))
-            entity.compute_service = compute_service_idx.get(str(entity.instance.account_id))
-            entity.subnet = subnet_idx.get(str(entity.get_config('dbinstance.DBSubnetGroupName')))
-            if entity.subnet is not None:
-                entity.subnet_vpc = vpc_idx.get(entity.subnet.get_parent_id())
-                entity.avzone = entity.subnet.get_config('site')
+            entity_instance = entity.instance
+            account_id_s = "%s" % entity_instance.account_id
+            entity.account = account_idx.get(account_id_s)
+            entity.compute_service = compute_service_idx.get(account_id_s)
+
+            subnet = subnet_idx.get("%s" % entity.get_config("dbinstance.DBSubnetGroupName"))
+            entity.subnet = subnet
+            if subnet is not None:
+                entity.subnet_vpc = vpc_idx.get(subnet.get_parent_id())
+                entity.avzone = subnet.get_config("site")
             else:
                 entity.subnet_vpc = None
                 entity.avzone = None
 
             # set security group indexes
             entity.security_group_idx = security_group_idx
-
             # get instance type
-            entity.instance_type = instance_type_idx.get(str(entity.instance.service_definition_id))
+            entity.instance_type = instance_type_idx.get("%s" % entity_instance.service_definition_id)
+            zones.add(entity.compute_service.resource_uuid)
+            if entity_instance.resource_uuid is not None:
+                resources.add(entity_instance.resource_uuid)
 
-            if entity.compute_service.resource_uuid not in zones:
-                zones.append(entity.compute_service.resource_uuid)
-            if entity.instance.resource_uuid is not None:
-                resources.append(entity.instance.resource_uuid)
-
-        if len(resources) == 0:
-            resources_idx = {}
-        else:
-            if len(resources) > 3:
-                resources = []
-            else:
-                zones = []
-            if len(zones) > 40:
-                zones = []
-            resources_list = ApiDatabaseServiceInstanceV2(controller).list_resources(zones=zones, uuids=resources)
-            resources_idx = {r['uuid']: r for r in resources_list}
-
+        resources_idx = {}
+        if len(resources) > 0 and len(zones) <= 3:
+            api_db_serv_inst = ApiDatabaseServiceInstanceV2(controller)
+            resources_list = api_db_serv_inst.list_resources(zones=zones, uuids=resources)
+            resources_idx = {r["uuid"]: r for r in resources_list}
+        elif len(resources) > 0:
+            api_db_serv_inst = ApiDatabaseServiceInstanceV2(controller)
+            resources_list = api_db_serv_inst.list_resources(uuids=resources)
+            resources_idx = {r["uuid"]: r for r in resources_list}
         # assign resources
         for entity in entities:
             entity.resource = resources_idx.get(entity.instance.resource_uuid)
@@ -113,10 +128,10 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         :raise ApiManagerError:
         """
         self.account = self.controller.get_account(str(self.instance.account_id))
-        if self.get_config('dbinstance.DBSubnetGroupName') is not None:
-            self.subnet = self.controller.get_service_instance(self.get_config('dbinstance.DBSubnetGroupName'))
+        if self.get_config("dbinstance.DBSubnetGroupName") is not None:
+            self.subnet = self.controller.get_service_instance(self.get_config("dbinstance.DBSubnetGroupName"))
             self.subnet_vpc = self.controller.get_service_instance(self.subnet.get_parent_id())
-            self.avzone = self.subnet.get_config('site')
+            self.avzone = self.subnet.get_config("site")
         else:
             self.subnet = None
             self.subnet_vpc = None
@@ -129,7 +144,7 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.instance_type = self.controller.get_service_def(self.instance.service_definition_id)
 
         # assign resources
-        if self.instance.resource_uuid is not None and self.instance.resource_uuid != '':
+        if self.instance.resource_uuid is not None and self.instance.resource_uuid != "":
             try:
                 self.resource = self.get_resource(uuid=self.instance.resource_uuid)
             except:
@@ -137,51 +152,44 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
 
     def state_mapping(self, state, runstate):
         mapping = {
-            SrvStatusType.PENDING: 'pending',
-            SrvStatusType.BUILDING: 'modifying',
-            SrvStatusType.CREATED: 'creating',
-            SrvStatusType.ACTIVE: 'available',
-            SrvStatusType.DELETED: 'deleting',
-            SrvStatusType.DELETING: 'deleting',
-            SrvStatusType.DRAFT: 'transient',
-            SrvStatusType.ERROR: 'failed',
-            SrvStatusType.ERROR_CREATION: 'failed',
-            SrvStatusType.TERMINATED: 'deleting',
-            SrvStatusType.UNKNOWN: 'failed',
-            SrvStatusType.UPDATING: 'modifying',
+            SrvStatusType.PENDING: "pending",
+            SrvStatusType.BUILDING: "modifying",
+            SrvStatusType.CREATED: "creating",
+            SrvStatusType.ACTIVE: "available",
+            SrvStatusType.DELETED: "deleting",
+            SrvStatusType.DELETING: "deleting",
+            SrvStatusType.DRAFT: "transient",
+            SrvStatusType.ERROR: "failed",
+            SrvStatusType.ERROR_CREATION: "failed",
+            SrvStatusType.TERMINATED: "deleting",
+            SrvStatusType.UNKNOWN: "failed",
+            SrvStatusType.UPDATING: "modifying",
         }
-        inst_state = mapping.get(state, 'unknown')
+        inst_state = mapping.get(state, "unknown")
 
-        if state == SrvStatusType.ACTIVE and runstate == 'poweredOn':
-            inst_state = 'available'
-        elif state == SrvStatusType.ACTIVE and runstate == 'poweredOff':
-            inst_state = 'stopped'
+        if state == SrvStatusType.ACTIVE and runstate == "poweredOn":
+            inst_state = "available"
+        elif state == SrvStatusType.ACTIVE and runstate == "poweredOff":
+            inst_state = "stopped"
         # elif state == SrvStatusType.ACTIVE and runstate == 'update':
         #     inst_state = 'modifying'
-            # manage rebooting, starting, stopping
+        # manage rebooting, starting, stopping
 
         return inst_state
 
-    def get_db_type(self)-> str :
-        flavor_resource_name = dict_get(self.resource, 'flavor.name')
-        ret = None
+    def get_db_type(self) -> str:
+        flavor_resource_name = dict_get(self.resource, "flavor.name")
+        flavor_name = None
         if flavor_resource_name is not None:
-            flavor_resource_name = flavor_resource_name.replace('vm.', 'db.')
-            # res = self.manager.get_service_definition_by_config('flavor', flavor_resource_name)
-            res = self.manager.get_service_definitions(name=flavor_resource_name)
-            if len(res) > 0:
-                ret = res[0].name
+            flavor_name = flavor_resource_name
         else:
             # NSP-1356
-            flavor_name = self.get_config('flavor')
-            if flavor_name is not None:
-                flavor_name = flavor_name.replace('vm.', 'db.')
-            res = self.manager.get_service_definitions(name=flavor_name)
-            if len(res) > 0:
-                ret = res[0].name
-        return ret
+            flavor_name = self.get_config("flavor")
+        if flavor_name is not None:
+            return flavor_name.replace("vm.", "db.")
+        return flavor_name
 
-    def aws_info(self, api_version='v1.0'):
+    def aws_info(self, api_version="v1.0"):
         """Get info as required by aws api
 
         :param api_version: api version
@@ -190,176 +198,170 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         instance_item = {}
 
         # get config
-        config = self.get_config('dbinstance')
+        config = self.get_config("dbinstance")
         if config is None:
             config = {}
 
         # get subnet
         subnet = self.subnet
         subnet_vpc = self.subnet_vpc
-        subnet_vpc_id = getattr(subnet_vpc, 'uuid', None)
-        # subnet_vpc_name = getattr(subnet_vpc, 'name', None)
+        subnet_vpc_id = getattr(subnet_vpc, "uuid")
         avzone = self.avzone
 
         if self.resource is None:
             self.resource = {}
 
-        # select correct resource stack version
-        attributes = self.resource.get('attributes', {})
-        outputs = attributes.get('outputs', None)
+        resource = self.resource
+        attributes = resource.get("attributes", {})
+        engine = attributes.get("engine")
+        version = attributes.get("version")
+        outputs = attributes.get("outputs")
 
+        # select correct resource stack version
         # new resource stack v2
         if outputs is not None:
-            engine = attributes.get('engine', None)
-            version = attributes.get('version', None)
-            # replica = attributes.get('replica', None)
-            address = dict_get(self.resource, 'listener.address')
-            port = dict_get(self.resource, 'listener.port')
-
+            # replica = attributes.get('replica')
+            address = dict_get(resource, "listener.address")
+            port = dict_get(resource, "listener.port")
             # get allocated storage
-            # allocated_storage = attributes.get('allocated_storage', int(config.get('AllocatedStorage', -1)))
-            allocated_storage = self.resource.get('allocated_storage', int(config.get('AllocatedStorage', -1)))
-
-            charset = attributes.get('charset')
-            timezone = attributes.get('timezone')
+            allocated_storage = resource.get("allocated_storage", int(config.get("AllocatedStorage", -1)))
+            charset = attributes.get("charset")
+            timezone = attributes.get("timezone")
 
         # old resource stack v1
         else:
-            stacks = self.resource.get('stacks', [])
-
-            # resource attributes
-            engine = attributes.get('engine', None)
-            version = attributes.get('version', None)
+            stacks = resource.get("stacks", [])
             # replica = config.get('MultiAZ')
-
             # resource stack ref
             avz_main_stack = {}
             if len(stacks) > 0:
                 avz_main_stack = stacks[0]
             address, port = None, None
-            if avz_main_stack.get('listener', ':') is not None:
-                address, port = avz_main_stack.get('listener', ':').split(':')
+            if avz_main_stack.get("listener", ":") is not None:
+                address, port = avz_main_stack.get("listener", ":").split(":")
 
             # get allocated storage
-            allocated_storage = int(config.get('AllocatedStorage', -1))
+            allocated_storage = int(config.get("AllocatedStorage", -1))
 
-            charset = config.get('CharacterSetName')
-            timezone = config.get('Timezone')
+            charset = config.get("CharacterSetName")
+            timezone = config.get("Timezone")
 
-        dbname = ''
-        if engine == 'mysql':
-            dbname = '%s:%s' % (address, port)
-        elif engine == 'postgresql':
-            dbname = dict_get(attributes, 'postgres:database')
-        elif engine == 'oracle':
-            dbname = dict_get(attributes, 'oracle:sid')
+        dbname = ""
+        if engine == "mysql":
+            dbname = "%s:%s" % (address, port)
+        elif engine == "postgresql":
+            dbname = dict_get(attributes, "postgres:database")
+        elif engine == "oracle":
+            dbname = dict_get(attributes, "oracle:sid")
 
         port_number = None
-        if port is not None and port != '':
+        if port is not None and port != "":
             port_number = port
 
         # get instance and resource status
-        status = self.instance.status
-        if self.resource.get('state', None) == 'ERROR':
-            status = 'ERROR'
+        instance = self.instance
+        status = instance.status
+        if resource.get("state") == "ERROR":
+            status = "ERROR"
 
-        if api_version == 'v1.0':
-            instance_item['DBInstanceIdentifier'] = self.instance.uuid
-            instance_item['DbiResourceId'] = ''
-            instance_item['nvl-resourceId'] = self.instance.resource_uuid
-            instance_item['StorageType'] = config.get('StorageType')
-            instance_item['LicenseModel'] = ''
-            instance_item['MasterUsername'] = config.get('MasterUsername')
-            instance_item['nvl-name'] = self.instance.name
-            instance_item['StatusInfos'] = [{'Status': self.state_mapping(status, self.resource.get('runstate', None))}]
-            instance_item['nvl-stateReason'] = {'nvl-code': None, 'nvl-message': None}
-            if self.instance.status == 'ERROR':
-                instance_item['nvl-stateReason'] = {'nvl-code': '400', 'nvl-message': self.instance.last_error}
+        if api_version == "v1.0":
+            instance_item["DBInstanceIdentifier"] = instance.uuid
+            instance_item["DbiResourceId"] = ""
+            instance_item["nvl-resourceId"] = instance.resource_uuid
+            instance_item["StorageType"] = config.get("StorageType")
+            instance_item["LicenseModel"] = ""
+            instance_item["MasterUsername"] = config.get("MasterUsername")
+            instance_item["nvl-name"] = instance.name
+            instance_item["StatusInfos"] = [{"Status": self.state_mapping(status, resource.get("runstate"))}]
+            instance_item["nvl-stateReason"] = {"nvl-code": None, "nvl-message": None}
+            if instance.status == "ERROR":
+                instance_item["nvl-stateReason"] = {
+                    "nvl-code": "400",
+                    "nvl-message": instance.last_error,
+                }
 
-        elif api_version == 'v2.0':
-            instance_item['DBInstanceIdentifier'] = self.instance.name
-            instance_item['DbiResourceId'] = self.instance.uuid
-            instance_item['StorageType'] = attributes.get('volume_flavor', None)
-            instance_item['LicenseModel'] = attributes.get('license', 'general-public-license')
-            instance_item['MasterUsername'] = attributes.get('admin_user', config.get('MasterUsername'))
-            instance_item['StatusInfos'] = []
+        elif api_version == "v2.0":
+            instance_item["DBInstanceIdentifier"] = instance.name
+            instance_item["DbiResourceId"] = instance.uuid
+            instance_item["StorageType"] = attributes.get("volume_flavor")
+            instance_item["LicenseModel"] = attributes.get("license", "general-public-license")
+            instance_item["MasterUsername"] = attributes.get("admin_user", config.get("MasterUsername"))
+            instance_item["StatusInfos"] = []
             # instance_item['nvl_keyName'] = config.get('Nvl_KeyName')
-            instance_item['nvl-stateReason'] = []
-            if self.instance.status == 'ERROR':
-                instance_item['nvl-stateReason'].append({'nvl-code': '400', 'nvl-message': self.instance.last_error})
-                # reason = self.resource.get('reason', None)
-                # if reason is not None:
-                #     instance_item['nvl-stateReason'].append({'nvl-code': '400', 'nvl-message': reason.get('error')})
+            instance_item["nvl-stateReason"] = []
+            if instance.status == "ERROR":
+                instance_item["nvl-stateReason"].append({"nvl-code": "400", "nvl-message": instance.last_error})
 
-        # data test check valid response
-        # instance_item['MasterUsername'] = {
-        #     'pwd': 'aaa',
-        #     'name': 'bbb'
-        # }
-
-        instance_item['AllocatedStorage'] = allocated_storage
-        instance_item['AvailabilityZone'] = avzone
-        instance_item['MultiAZ'] = False
+        instance_item["AllocatedStorage"] = allocated_storage
+        instance_item["AvailabilityZone"] = avzone
+        instance_item["MultiAZ"] = False
         # if config.get('BackupRetentionPeriod', None) is not None:
         #     instance_item['BackupRetentionPeriod'] = int(config.get('BackupRetentionPeriod', -1))
         # instance_item['CACertificateIdentifier'] = ''OptionGroupMemberships
-        instance_item['CharacterSetName'] = charset
-        instance_item['Timezone'] = timezone
-        instance_item['DBInstanceClass'] = self.get_db_type()  # self.instance_type.name
-        instance_item['DbInstancePort'] = port_number
-        instance_item['DBInstanceStatus'] = self.state_mapping(status, self.resource.get('runstate', None))
+        instance_item["CharacterSetName"] = charset
+        instance_item["Timezone"] = timezone
+        instance_item["DBInstanceClass"] = self.get_db_type()  # self.instance_type.name
+        instance_item["DbInstancePort"] = port_number
+        instance_item["DBInstanceStatus"] = self.state_mapping(status, resource.get("runstate"))
         # instance_item['DBName'] = config.get('DBName')
-        instance_item['DBName'] = dbname
-        instance_item['Endpoint'] = {'Address': address, 'Port': port_number}
-        instance_item['Engine'] = engine
-        instance_item['EngineVersion'] = version
-        instance_item['InstanceCreateTime'] = format_date(self.instance.model.creation_date)
-        instance_item['TagList'] = []
+        instance_item["DBName"] = dbname
+        instance_item["Endpoint"] = {"Address": address, "Port": port_number}
+        instance_item["Engine"] = engine
+        instance_item["EngineVersion"] = version
+        instance_item["InstanceCreateTime"] = format_date(instance.model.creation_date)
+        instance_item["TagList"] = []
 
-        instance_item['PreferredBackupWindow'] = config.get('PreferredBackupWindow')
-        instance_item['PreferredMaintenanceWindow'] = config.get('PreferredMaintenanceWindow')
-        instance_item['ReadReplicaDBClusterIdentifiers'] = []
-        instance_item['ReadReplicaDBInstanceIdentifiers'] = []
-        instance_item['ReadReplicaSourceDBInstanceIdentifier'] = ''
-        instance_item['SecondaryAvailabilityZone'] = ''
-        instance_item['StorageEncrypted'] = config.get('StorageEncrypted')
-        instance_item['DBSubnetGroup'] = {
-            'DBSubnetGroupDescription': getattr(subnet, 'desc', ''),
-            'DBSubnetGroupName': getattr(subnet, 'name', ''),
-            'SubnetGroupStatus': getattr(subnet, 'status', ''),
-            'Subnets': [
+        instance_item["PreferredBackupWindow"] = config.get("PreferredBackupWindow")
+        instance_item["PreferredMaintenanceWindow"] = config.get("PreferredMaintenanceWindow")
+        instance_item["ReadReplicaDBClusterIdentifiers"] = []
+        instance_item["ReadReplicaDBInstanceIdentifiers"] = []
+        instance_item["ReadReplicaSourceDBInstanceIdentifier"] = ""
+        instance_item["SecondaryAvailabilityZone"] = ""
+        instance_item["StorageEncrypted"] = config.get("StorageEncrypted")
+        instance_item["DBSubnetGroup"] = {
+            "DBSubnetGroupDescription": getattr(subnet, "desc", ""),
+            "DBSubnetGroupName": getattr(subnet, "name", ""),
+            "SubnetGroupStatus": getattr(subnet, "status", ""),
+            "Subnets": [
                 {
-                    'SubnetAvailabilityZone': {'AvailabilityZone': {'Name': avzone}},
-                    'SubnetIdentifier': getattr(subnet, 'uuid', ''),
-                    'SubnetStatus': getattr(subnet, 'status', '')
+                    "SubnetAvailabilityZone": {"AvailabilityZone": {"Name": avzone}},
+                    "SubnetIdentifier": getattr(subnet, "uuid", ""),
+                    "SubnetStatus": getattr(subnet, "status", ""),
                 }
             ],
-            'VpcId': subnet_vpc_id
+            "VpcId": subnet_vpc_id,
         }
 
         # get security groups from resource
-        sgs = self.resource.get('security_groups', [])
+        sgs = resource.get("security_groups", [])
 
-        instance_item['VpcSecurityGroups'] = []
+        instance_item["VpcSecurityGroups"] = []
+        security_group_idx = self.security_group_idx
         if sgs is not None:
             for sg in sgs:
-                sg_obj = self.security_group_idx.get(sg['uuid'], None)
+                sg_obj = security_group_idx.get(sg["uuid"])
                 sg_name = None
-                sg_uuid = sg['uuid']
+                sg_uuid = sg["uuid"]
                 if sg_obj is not None:
                     sg_name = sg_obj.name
                     sg_uuid = sg_obj.uuid
-                instance_item['VpcSecurityGroups'].append({
-                    'VpcSecurityGroupMembership': {
-                        'VpcSecurityGroupId': sg_uuid,
-                        'Status': None,
-                        'nvl-vpcSecurityGroupName': sg_name
+                instance_item["VpcSecurityGroups"].append(
+                    {
+                        "VpcSecurityGroupMembership": {
+                            "VpcSecurityGroupId": sg_uuid,
+                            "Status": None,
+                            "nvl-vpcSecurityGroupName": sg_name,
+                        }
                     }
-                })
+                )
 
         # custom params
-        instance_item['nvl-ownerAlias'] = self.account.name
-        instance_item['nvl-ownerId'] = self.account.uuid
+        account = self.account
+        instance_item["nvl-ownerAlias"] = account.name
+        instance_item["nvl-ownerId"] = account.uuid
+
+        monitoring_enabled = dict_get(resource, "attributes.monitoring_enabled", default=False)
+        instance_item["monitoring_enabled"] = monitoring_enabled
 
         return instance_item
 
@@ -375,110 +377,116 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
 
         # base quotas
         quotas = {
-            'database.cores': 0,
-            'database.instances': 1,
-            'database.ram': 0,
+            "database.cores": 0,
+            "database.instances": 1,
+            "database.ram": 0,
         }
 
         # get container
-        container_id = self.get_config('container')
-        flavor_resource_uuid = self.get_config('flavor')
-        compute_zone = self.get_config('computeZone')
-        data_instance = self.get_config('dbinstance')
-        engine_params = self.get_config('engine')
+        container_id = self.get_config("container")
+        flavor_resource_uuid = self.get_config("flavor")
+        compute_zone = self.get_config("computeZone")
+        data_instance = self.get_config("dbinstance")
+        engine_params = self.get_config("engine")
         if engine_params is None:
             engine_params = {}
 
         # get Flavor resource Info
         flavor_resource = self.get_flavor(flavor_resource_uuid)
         # try to get main volume size from flavor
-        flavor_configs = flavor_resource.get('attributes', None).get('configs', None)
-        quotas['database.cores'] = flavor_configs.get('vcpus', 0)
-        quotas['database.ram'] = flavor_configs.get('memory', 0)
-        if quotas['database.ram'] > 0:
-            quotas['database.ram'] = quotas['database.ram'] / 1024
-        root_disk_size = flavor_configs.get('disk', 40)
+        flavor_configs = flavor_resource.get("attributes", None).get("configs", None)
+        quotas["database.cores"] = flavor_configs.get("vcpus", 0)
+        quotas["database.ram"] = flavor_configs.get("memory", 0)
+        if quotas["database.ram"] > 0:
+            quotas["database.ram"] = quotas["database.ram"] / 1024
+        root_disk_size = flavor_configs.get("disk", 40)
 
         # get availability zone from request parameters
-        av_zone = data_instance.get('AvailabilityZone', None)
+        av_zone = data_instance.get("AvailabilityZone", None)
 
         # check subnet
-        subnet_id = data_instance.get('DBSubnetGroupName', None)
+        subnet_id = data_instance.get("DBSubnetGroupName", None)
         if subnet_id is None:
-            raise ApiManagerError('Subnet is not defined')
+            raise ApiManagerError("Subnet is not defined")
 
         subnet_inst = self.controller.check_service_instance(subnet_id, ApiComputeSubnet, account=account_id)
         if av_zone is None:
             subnet_inst.get_main_config()
-            av_zone = subnet_inst.get_config('site')
+            av_zone = subnet_inst.get_config("site")
 
         # check availability zone status
         if self.is_availability_zone_active(compute_zone, av_zone) is False:
-            raise ApiManagerError('Availability zone %s is not in available status' % av_zone)
+            raise ApiManagerError("Availability zone %s is not in available status" % av_zone)
 
         # get and check the id SecurityGroupId
         security_group_ress = []
-        for security_group in data_instance.get('VpcSecurityGroupIds', {}).get('VpcSecurityGroupId', []):
-            sg_inst = self.controller.check_service_instance(security_group, ApiComputeSecurityGroup,
-                                                             account=account_id)
+        for security_group in data_instance.get("VpcSecurityGroupIds", {}).get("VpcSecurityGroupId", []):
+            sg_inst = self.controller.check_service_instance(
+                security_group, ApiComputeSecurityGroup, account=account_id
+            )
             if sg_inst.resource_uuid is None:
-                raise ApiManagerError('SecurityGroup id %s is invalid' % security_group)
+                raise ApiManagerError("SecurityGroup id %s is invalid" % security_group)
             security_group_ress.append(sg_inst.resource_uuid)
 
             # link security group to db instance
-            self.instance.add_link(name='link-%s-%s' % (self.instance.oid, sg_inst.oid), type='sg',
-                                   end_service=sg_inst.oid, attributes={})
+            self.instance.add_link(
+                name="link-%s-%s" % (self.instance.oid, sg_inst.oid),
+                type="sg",
+                end_service=sg_inst.oid,
+                attributes={},
+            )
 
         if len(security_group_ress) == 0:
-            raise ApiManagerError('VpcSecurityGroupId is not correct')
+            raise ApiManagerError("VpcSecurityGroupId is not correct")
 
         # get vpc
         vpc_resource_uuid = self.controller.get_service_instance(
-            subnet_inst.model.linkParent[0].start_service_id).resource_uuid
+            subnet_inst.model.linkParent[0].start_service_id
+        ).resource_uuid
 
         # get engine name and version
-        engine = data_instance.get('Engine')
-        engine_version = data_instance.get('EngineVersion')
-        if engine_version.find('-') > 0:
-            engine_version = engine_version.split('-')[0]
-        replica = data_instance.get('MultiAZ', False)
+        engine = data_instance.get("Engine")
+        engine_version = data_instance.get("EngineVersion")
+        if engine_version.find("-") > 0:
+            engine_version = engine_version.split("-")[0]
+        replica = data_instance.get("MultiAZ", False)
         if replica:
             av_zone = None
 
         # get params for given engine and version
-        host_group = engine_params.get('host_group')
-        hypervisor = engine_params.get('hypervisor')
-        volume_flavor = engine_params.get('volume_flavor')
-        image = engine_params.get('image')
-        customization = engine_params.get('customization')
+        host_group = engine_params.get("host_group")
+        hypervisor = engine_params.get("hypervisor")
+        volume_flavor = engine_params.get("volume_flavor")
+        image = engine_params.get("image")
+        customization = engine_params.get("customization")
 
         # bypass key for pgsql engine
-        if engine == 'sqlserver':
+        if engine == "sqlserver":
             key_name = None
-            self.set_config('dbinstance.Nvl_KeyName', key_name)
+            self.set_config("dbinstance.Nvl_KeyName", key_name)
         else:
             # get key name
-            key_name = data_instance.get('Nvl_KeyName', None)
+            key_name = data_instance.get("Nvl_KeyName", None)
             # get key name from database definition
             if key_name is None:
-                key_name = engine_params.get('key_name')
-                self.set_config('dbinstance.Nvl_KeyName', key_name)
+                key_name = engine_params.get("key_name")
+                self.set_config("dbinstance.Nvl_KeyName", key_name)
             else:
                 ApiComputeKeyPairsHelper(self.controller).check_service_instance(key_name, account_id)
 
-        charset = data_instance.get('CharacterSetName', 'latin1')
-        timezone = data_instance.get('Timezone', 'Europe/Rome')
-        port = data_instance.get('Port')
+        charset = data_instance.get("CharacterSetName", "latin1")
+        timezone = data_instance.get("Timezone", "Europe/Rome")
+        port = data_instance.get("Port")
 
         # get lvm parameters
-        lvm_vg_data = dict_get(engine_params, 'lvm.volume_group.data')
-        lvm_vg_backup = dict_get(engine_params, 'lvm.volume_group.backup')
-        lvm_lv_data = dict_get(engine_params, 'lvm.logical_volume.data')
-        lvm_lv_backup = dict_get(engine_params, 'lvm.logical_volume.backup')
+        lvm_vg_data = dict_get(engine_params, "lvm.volume_group.data")
+        lvm_vg_backup = dict_get(engine_params, "lvm.volume_group.backup")
+        lvm_lv_data = dict_get(engine_params, "lvm.logical_volume.data")
+        lvm_lv_backup = dict_get(engine_params, "lvm.logical_volume.backup")
 
         # get mount points
-        data_dir = dict_get(engine_params, 'mount_point.data')
-        backup_dir = dict_get(engine_params, 'mount_point.backup')
+        data_dir = dict_get(engine_params, "mount_point.data")
+        backup_dir = dict_get(engine_params, "mount_point.backup")
 
         # data_instance.get('AvailabilityZone', None)
         # data_instance.get('BackupRetentionPeriod', 1)
@@ -498,7 +506,7 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         # name = '%s-%s' % (self.instance.name, id_gen(length=8))
         name = self.instance.name
         hostname = name
-        if engine == 'sqlserver' and len(hostname) > 15:
+        if engine == "sqlserver" and len(hostname) > 15:
             hostname = name[0:15]
 
         # dbname = data_instance.get('DBName', 'test')
@@ -507,115 +515,113 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
 
         # get db users and password
         # db_root_name = data_instance.get('MasterUsername', 'root')
-        db_root_password = data_instance.get('MasterUserPassword', None)
+        db_root_password = data_instance.get("MasterUserPassword", None)
         # db_appuser_name = self.get_config('db_appuser_name')
         # db_appuser_password = self.get_config('db_appuser_password')
         if db_root_password is not None:
             pass
             # todo: check password complexity
 
-        subnet = subnet_inst.get_config('cidr')
+        subnet = subnet_inst.get_config("cidr")
 
         # check if subnet is global or private
         if IPv4Network(subnet).is_private is False:
-            raise ApiManagerError('db instance can not be created on public subnet')
+            raise ApiManagerError("db instance can not be created on public subnet")
 
         # set options
         options = {
-            'enable_mailx': engine_params.get('enable_mailx', False),
-            'register_on_haproxy': engine_params.get('register_on_haproxy', False),
+            "enable_mailx": engine_params.get("enable_mailx", False),
+            "register_on_haproxy": engine_params.get("register_on_haproxy", False),
         }
 
         data = {
-            'name': name,
-            'desc': name,
-            'container': container_id,
-            'compute_zone': compute_zone,
-            'availability_zone': av_zone,
-            'flavor': flavor_resource_uuid,
-            'volume_flavor': volume_flavor,
-            'image': image,
-            'vpc': vpc_resource_uuid,
-            'subnet': subnet,
-            'security_group': security_group_ress[0],
+            "name": name,
+            "desc": name,
+            "container": container_id,
+            "compute_zone": compute_zone,
+            "availability_zone": av_zone,
+            "flavor": flavor_resource_uuid,
+            "volume_flavor": volume_flavor,
+            "image": image,
+            "vpc": vpc_resource_uuid,
+            "subnet": subnet,
+            "security_group": security_group_ress[0],
             # 'db_name': dbname,
-            'replica': replica,
-            'charset': charset,
-            'timezone': timezone,
-            'port': port,
+            "replica": replica,
+            "charset": charset,
+            "timezone": timezone,
+            "port": port,
             # 'db_appuser_name': db_appuser_name,
             # 'db_appuser_password': db_appuser_password,
             # 'db_root_name': db_root_name,
-            'db_root_password': db_root_password,
-            'key_name': key_name,
-            'version': engine_version,
-            'engine': engine,
-            'root_disk_size': root_disk_size,
-            'data_disk_size': data_instance.get('AllocatedStorage'),
-            'resolve': True,
-            'hostname': hostname,
-            'host_group': host_group,
-            'customization': customization,
-            'hypervisor': hypervisor,
-            'options': options,
-            'lvm_vg_data': lvm_vg_data,
-            'lvm_vg_backup': lvm_vg_backup,
-            'lvm_lv_data': lvm_lv_data,
-            'lvm_lv_backup': lvm_lv_backup,
-            'data_dir': data_dir,
-            'backup_dir': backup_dir
+            "db_root_password": db_root_password,
+            "key_name": key_name,
+            "version": engine_version,
+            "engine": engine,
+            "root_disk_size": root_disk_size,
+            "data_disk_size": data_instance.get("AllocatedStorage"),
+            "resolve": True,
+            "hostname": hostname,
+            "host_group": host_group,
+            "customization": customization,
+            "hypervisor": hypervisor,
+            "options": options,
+            "lvm_vg_data": lvm_vg_data,
+            "lvm_vg_backup": lvm_vg_backup,
+            "lvm_lv_data": lvm_lv_data,
+            "lvm_lv_backup": lvm_lv_backup,
+            "data_dir": data_dir,
+            "backup_dir": backup_dir,
         }
 
-        if engine == 'postgresql':
-            postgresql_db_options = data_instance.get('Nvl_Postgresql_Options', {})
-            geo_extension = postgresql_db_options.get('Postgresql_GeoExtension')
-            data.update({
-                'postgresql_params': {
-                    'geo_extension': geo_extension
+        if engine == "postgresql":
+            postgresql_db_options = data_instance.get("Nvl_Postgresql_Options", {})
+            geo_extension = postgresql_db_options.get("Postgresql_GeoExtension")
+            data.update({"postgresql_params": {"geo_extension": geo_extension}})
+        elif engine == "oracle":
+            #
+            # Get Optional Oracle paramenters
+            #
+            oracle_db_options = data_instance.get("Nvl_Oracle_Options", {})
+
+            ora_dbname = oracle_db_options.get("ora_dbname", "ORCL0")
+            ora_dbnatcharset = oracle_db_options.get("ora_natcharset", "AL16UTF16")
+            ora_dbarchmode = oracle_db_options.get("ora_archmode", "Y")
+            ora_dbpartopt = oracle_db_options.get("ora_partopt", "Y")
+            ora_charset = oracle_db_options.get("ora_charset", "WE8ISO8859P1")
+            ora_dblistenerport = oracle_db_options.get("ora_lsnport", 1521)
+
+            # ora_dbdbfdisksize: nessun default, eredita default di AllocatedStorage,
+            # definito come missing=30 in resource 'data_disk_size'
+            ora_dbdbfdisksize = oracle_db_options.get("ora_dbfdisksize")
+
+            ora_dbrecoverydisksize = oracle_db_options.get("ora_recodisksize", 30)
+
+            # get oracle os user
+            ora_os_user = dict_get(engine_params, "os_dbuser")
+
+            # Oracle constants
+            # ora_dbfpath = data_instance.get('OracleDBDatafilePath')
+            # ora_dbbckbasepath = data_instance.get('OracleDBRecoveryBaseFilePath')
+
+            data.update(
+                {
+                    "oracle_params": {
+                        "oracle_db_name": ora_dbname,
+                        "oracle_charset": ora_charset,
+                        "oracle_natcharset": ora_dbnatcharset,
+                        "oracle_archivelog_mode": ora_dbarchmode,
+                        "oracle_partitioning_option": ora_dbpartopt,
+                        "oracle_listener_port": ora_dblistenerport,
+                        "oracle_data_disk_size": ora_dbdbfdisksize,
+                        "oracle_bck_disk_size": ora_dbrecoverydisksize,
+                        "oracle_os_user": ora_os_user,
+                    }
                 }
-            })
-        elif engine == 'oracle':
-             #
-             # Get Optional Oracle paramenters
-             #
-             oracle_db_options = data_instance.get('Nvl_Oracle_Options', {})
+            )
 
-             ora_dbname = oracle_db_options.get('ora_dbname', 'ORCL0')
-             ora_dbnatcharset = oracle_db_options.get('ora_natcharset', 'AL16UTF16')
-             ora_dbarchmode = oracle_db_options.get('ora_archmode', 'Y')
-             ora_dbpartopt = oracle_db_options.get('ora_partopt', 'Y')
-             ora_charset = oracle_db_options.get('ora_charset', 'WE8ISO8859P1')
-             ora_dblistenerport = oracle_db_options.get('ora_lsnport', 1521)
-
-             # ora_dbdbfdisksize: nessun default, eredita default di AllocatedStorage,
-             # definito come missing=30 in resource 'data_disk_size'
-             ora_dbdbfdisksize = oracle_db_options.get('ora_dbfdisksize')
-
-             ora_dbrecoverydisksize = oracle_db_options.get('ora_recodisksize', 30)
-
-             # get oracle os user
-             ora_os_user = dict_get(engine_params, 'os_dbuser')
-
-             # Oracle constants
-             # ora_dbfpath = data_instance.get('OracleDBDatafilePath')
-             # ora_dbbckbasepath = data_instance.get('OracleDBRecoveryBaseFilePath')
-
-             data.update({
-                 'oracle_params': {
-                     'oracle_db_name': ora_dbname,
-                     'oracle_charset': ora_charset,
-                     'oracle_natcharset': ora_dbnatcharset,
-                     'oracle_archivelog_mode': ora_dbarchmode,
-                     'oracle_partitioning_option': ora_dbpartopt,
-                     'oracle_listener_port': ora_dblistenerport,
-                     'oracle_data_disk_size': ora_dbdbfdisksize,
-                     'oracle_bck_disk_size': ora_dbrecoverydisksize,
-                     'oracle_os_user': ora_os_user
-                 }
-             })
-
-        params['resource_params'] = data
-        self.logger.debug('Pre create params: %s' % obscure_data(deepcopy(params)))
+        params["resource_params"] = data
+        self.logger.debug("Pre create params: %s" % obscure_data(deepcopy(params)))
 
         return params
 
@@ -643,28 +649,32 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         account_id = self.instance.account_id
 
         # get resource
-        resource = self.get_resource(uuid=params.get('resource_id'))
-        resource_uuid = dict_get(resource, 'uuid')
-        compute_zone = dict_get(resource, 'parent')
-        attributes = resource.get('attributes', {})
-        flavor_resource_uuid = dict_get(resource, 'flavor.uuid')
-        availability_zone_name = dict_get(resource, 'availability_zone.name')
-        vpc_resource_id = dict_get(resource, 'vpc')
-        security_group_resources = dict_get(resource, 'security_groups')
-        engine = attributes.get('engine')
-        engine_version = attributes.get('version')
+        resource = self.get_resource(uuid=params.get("resource_id"))
+        resource_uuid = dict_get(resource, "uuid")
+        compute_zone = dict_get(resource, "parent")
+        attributes = resource.get("attributes", {})
+        flavor_resource_uuid = dict_get(resource, "flavor.uuid")
+        availability_zone_name = dict_get(resource, "availability_zone.name")
+        vpc_resource_id = dict_get(resource, "vpc")
+        security_group_resources = dict_get(resource, "security_groups")
+        engine = attributes.get("engine")
+        engine_version = attributes.get("version")
 
         # get vpc, subnets child of the vpc and security group
-        vpc_si = self.controller.get_service_instance_by_resource_uuid(vpc_resource_id['uuid'], plugintype='ComputeVPC')
-        subnet_sis, tot = self.controller.get_paginated_service_instances(account_id=account_id, filter_expired=False,
-                                                                          plugintype='ComputeSubnet',
-                                                                          with_perm_tag=False, size=-1)
+        vpc_si = self.controller.get_service_instance_by_resource_uuid(vpc_resource_id["uuid"], plugintype="ComputeVPC")
+        subnet_sis, tot = self.controller.get_paginated_service_instances(
+            account_id=account_id,
+            filter_expired=False,
+            plugintype="ComputeSubnet",
+            with_perm_tag=False,
+            size=-1,
+        )
 
         subnet_si = None
         for subnet in subnet_sis:
-            vpc_id = subnet.get_config('subnet.VpcId')
-            subnet_availability_zone_name = subnet.get_config('subnet.AvailabilityZone')
-            self.logger.warn(vpc_resource_id['uuid'])
+            vpc_id = subnet.get_config("subnet.VpcId")
+            subnet_availability_zone_name = subnet.get_config("subnet.AvailabilityZone")
+            self.logger.warn(vpc_resource_id["uuid"])
             self.logger.warn(vpc_id)
             self.logger.warn(vpc_si.uuid)
             self.logger.warn(subnet.uuid)
@@ -675,53 +685,52 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
                 break
 
         if subnet_si is None:
-            raise ApiManagerError('no valid subnet found')
+            raise ApiManagerError("no valid subnet found")
 
-        security_group_si = self.controller.get_service_instance_by_resource_uuid(
-            security_group_resources[0]['uuid'])
+        security_group_si = self.controller.get_service_instance_by_resource_uuid(security_group_resources[0]["uuid"])
 
-        params['resource_id'] = resource_uuid
+        params["resource_id"] = resource_uuid
 
         # get Flavor resource Info
         flavor_resource = self.get_flavor(flavor_resource_uuid)
         # try to get main volume size from flavor
-        flavor_configs = flavor_resource.get('attributes', None).get('configs', None)
+        flavor_configs = flavor_resource.get("attributes", None).get("configs", None)
 
         # base quotas
         quotas = {
-            'database.cores': flavor_configs.get('vcpus', 0),
-            'database.instances': 1,
-            'database.ram': flavor_configs.get('memory', 0) / 1024,
+            "database.cores": flavor_configs.get("vcpus", 0),
+            "database.instances": 1,
+            "database.ram": flavor_configs.get("memory", 0) / 1024,
         }
         # self.check_quotas(compute_zone, quotas)
 
         # get service definition with engine configuration
-        engine_def_name = 'db-engine-%s-%s' % (engine, engine_version)
+        engine_def_name = "db-engine-%s-%s" % (engine, engine_version)
         engine_defs, tot = self.controller.get_paginated_service_defs(name=engine_def_name)
         if len(engine_defs) < 1 or len(engine_defs) > 1:
-            raise ApiManagerError('Engine %s with version %s saw not found' % (engine, engine_version))
+            raise ApiManagerError("Engine %s with version %s saw not found" % (engine, engine_version))
 
         # add engine config
-        self.instance.set_config('engine', engine_defs[0].get_main_config().params)
+        self.instance.set_config("engine", engine_defs[0].get_main_config().params)
 
         # setup dbinstance config
         dbinstance_params = {
-            'Timezone': attributes.get('timezone'),
-            'DBInstanceClass': self.instance.get_config('flavor'),
-            'EngineVersion': engine_version,
-            'DBInstanceIdentifier': self.instance.name,
-            'Port': None,
-            'AccountId': self.instance.get_config('owner_id'),
-            'Timezone': attributes.get('timezone'),
-            'CharacterSetName': attributes.get('charset'),
-            'Engine': engine,
-            'MultiAZ': False,
-            'DBSubnetGroupName': subnet_si.uuid,
-            'VpcSecurityGroupIds.VpcSecurityGroupId.0': security_group_si.uuid,
-            'AllocatedStorage': attributes.get('allocated_storage'),
-            'Nvl_KeyName': None,
+            "Timezone": attributes.get("timezone"),
+            "DBInstanceClass": self.instance.get_config("flavor"),
+            "EngineVersion": engine_version,
+            "DBInstanceIdentifier": self.instance.name,
+            "Port": None,
+            "AccountId": self.instance.get_config("owner_id"),
+            "Timezone": attributes.get("timezone"),
+            "CharacterSetName": attributes.get("charset"),
+            "Engine": engine,
+            "MultiAZ": False,
+            "DBSubnetGroupName": subnet_si.uuid,
+            "VpcSecurityGroupIds.VpcSecurityGroupId.0": security_group_si.uuid,
+            "AllocatedStorage": attributes.get("allocated_storage"),
+            "Nvl_KeyName": None,
         }
-        self.instance.set_config('dbinstance', dbinstance_params)
+        self.instance.set_config("dbinstance", dbinstance_params)
 
         self.logger.warn(self.instance.config_object.json_cfg)
 
@@ -736,16 +745,20 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         :raise ApiManagerError:
         """
         # get resource
-        resource = self.get_resource(uuid=params.get('resource_id'))
+        resource = self.get_resource(uuid=params.get("resource_id"))
 
         # link security groups
-        security_group_resources = dict_get(resource, 'security_groups')
+        security_group_resources = dict_get(resource, "security_groups")
         for sg in security_group_resources:
-            sg_inst = self.controller.get_service_instance_by_resource_uuid(sg['uuid'])
+            sg_inst = self.controller.get_service_instance_by_resource_uuid(sg["uuid"])
 
             # link security group to db instance
-            self.instance.add_link(name='link-%s-%s' % (self.instance.oid, sg_inst.oid), type='sg',
-                                   end_service=sg_inst.oid, attributes={})
+            self.instance.add_link(
+                name="link-%s-%s" % (self.instance.oid, sg_inst.oid),
+                type="sg",
+                end_service=sg_inst.oid,
+                attributes={},
+            )
 
         return None
 
@@ -758,33 +771,29 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         :raise ApiManagerError:
         """
         # change instance type
-        service_definition_id = params.pop('DBInstanceClass', None)
+        service_definition_id = params.pop("DBInstanceClass", None)
         if service_definition_id is not None:
             ext_params = self.set_instance_type(service_definition_id)
             params.update(ext_params)
 
         # change security group
-        security_groups = params.pop('VpcSecurityGroupIds', {}).pop('VpcSecurityGroupId', None)
+        security_groups = params.pop("VpcSecurityGroupIds", {}).pop("VpcSecurityGroupId", None)
         if security_groups is not None:
             actions = []
             for action in security_groups:
                 action_param = self.change_security_group(action)
                 actions.append(action_param)
-            ext_params = {
-                'resource_params': {
-                    'actions': actions
-                }
-            }
+            ext_params = {"resource_params": {"actions": actions}}
             params.update(ext_params)
 
         # resize storage
-        allocated_storage = params.pop('AllocatedStorage', None)
+        allocated_storage = params.pop("AllocatedStorage", None)
         if allocated_storage is not None:
             ext_params = self.resize_storage(allocated_storage)
             params.update(ext_params)
 
         # install extensions
-        extensions = params.pop('Extensions', [])
+        extensions = params.pop("Extensions", [])
         if extensions:
             ext_params = self.install_extensions(extensions)
             params.update(ext_params)
@@ -795,7 +804,7 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         #     ext_params = self.manage_user(user_params)
         #     params.update(ext_params)
 
-        self.logger.debug('pre-update params: %s' % params)
+        self.logger.debug("pre-update params: %s" % params)
 
         return params
 
@@ -818,23 +827,19 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         #     raise ApiManagerError('Instance type change is not already supported for provider %s' % type_provider)
 
         # check instance status
-        if self.get_runstate() in ['poweredOn', 'poweredOff']:
+        if self.get_runstate() in ["poweredOn", "poweredOff"]:
             try:
                 self.instance.change_definition(instance_type)
             except ApiManagerError as ex:
                 self.logger.warning(ex)
-                raise ApiManagerError('Instance_type does not change. Select a new one')
+                raise ApiManagerError("Instance_type does not change. Select a new one")
 
-            flavor = self.instance.config_object.json_cfg.get('flavor')
+            flavor = self.instance.config_object.json_cfg.get("flavor")
 
-            params = {
-                'resource_params': {
-                    'action': {'name': 'set_flavor', 'args': {'flavor': flavor}}
-                }
-            }
-            self.logger.info('Set instance %s type' % self.instance.uuid)
+            params = {"resource_params": {"action": {"name": "set_flavor", "args": {"flavor": flavor}}}}
+            self.logger.info("Set instance %s type" % self.instance.uuid)
         else:
-            raise ApiManagerError('Instance %s is not in a correct state' % self.instance.uuid)
+            raise ApiManagerError("Instance %s is not in a correct state" % self.instance.uuid)
         return params
 
     def change_security_group(self, security_group):
@@ -847,31 +852,34 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         # check the action is supported by engine
         self.check_supported()
 
-        security_group, action = security_group.split(':')
+        security_group, action = security_group.split(":")
         action = action.upper()
-        security_group = self.controller.get_service_type_plugin(security_group,
-                                                                 plugin_class=ApiComputeSecurityGroup,
-                                                                 details=False)
+        security_group = self.controller.get_service_type_plugin(
+            security_group, plugin_class=ApiComputeSecurityGroup, details=False
+        )
 
         # get active security groups
-        sgs = [sg['uuid'] for sg in self.resource.get('security_groups', [])]
+        sgs = [sg["uuid"] for sg in self.resource.get("security_groups", [])]
         attached = security_group.resource_uuid in sgs
 
-        if attached is True and action == 'DEL':
+        if attached is True and action == "DEL":
             action_param = {
-                'name': 'del_security_group',
-                'args': {'security_group': security_group.resource_uuid}
+                "name": "del_security_group",
+                "args": {"security_group": security_group.resource_uuid},
             }
-        elif attached is False and action == 'DEL':
-            raise ApiManagerError('security group %s is not attached to instance %s' %
-                                  (security_group.instance.uuid, self.instance.uuid))
-        elif attached is True and action == 'ADD':
-            raise ApiManagerError('security group %s is already attached to instance %s' %
-                                  (security_group.instance.uuid, self.instance.uuid))
-        elif attached is False and action == 'ADD':
+        elif attached is False and action == "DEL":
+            raise ApiManagerError(
+                "security group %s is not attached to instance %s" % (security_group.instance.uuid, self.instance.uuid)
+            )
+        elif attached is True and action == "ADD":
+            raise ApiManagerError(
+                "security group %s is already attached to instance %s"
+                % (security_group.instance.uuid, self.instance.uuid)
+            )
+        elif attached is False and action == "ADD":
             action_param = {
-                'name': 'add_security_group',
-                'args': {'security_group': security_group.resource_uuid}
+                "name": "add_security_group",
+                "args": {"security_group": security_group.resource_uuid},
             }
         return action_param
 
@@ -886,19 +894,17 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.check_supported()
 
         # check instance status
-        if self.get_runstate() in ['poweredOn', 'poweredOff']:
+        if self.get_runstate() in ["poweredOn", "poweredOff"]:
             params = {
-                'resource_params': {
-                    'action': {
-                        'name': 'resize',
-                        'args': {
-                            'new_data_disk_size': allocated_storage
-                        }
+                "resource_params": {
+                    "action": {
+                        "name": "resize",
+                        "args": {"new_data_disk_size": allocated_storage},
                     }
                 }
             }
         else:
-            raise ApiManagerError('Instance %s is not in a correct state' % self.instance.uuid)
+            raise ApiManagerError("Instance %s is not in a correct state" % self.instance.uuid)
 
         return params
 
@@ -910,23 +916,21 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         # check the action is supported by engine
-        self.check_supported(action='install_extensions')
+        self.check_supported(action="install_extensions")
 
         # check instance status
-        if self.get_runstate() in ['poweredOn', 'poweredOff']:
-            extensions = [{'name': extension.get('Name'), 'type': extension.get('Type')} for extension in extensions]
+        if self.get_runstate() in ["poweredOn", "poweredOff"]:
+            extensions = [{"name": extension.get("Name"), "type": extension.get("Type")} for extension in extensions]
             params = {
-                'resource_params': {
-                    'action': {
-                        'name': 'install_extensions',
-                        'args': {
-                            'extensions': extensions
-                        }
+                "resource_params": {
+                    "action": {
+                        "name": "install_extensions",
+                        "args": {"extensions": extensions},
                     }
                 }
             }
         else:
-            raise ApiManagerError('Instance %s is not in a correct state' % self.instance.uuid)
+            raise ApiManagerError("Instance %s is not in a correct state" % self.instance.uuid)
 
         return params
 
@@ -941,18 +945,14 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.check_supported()
 
         # check instance status
-        if self.get_runstate() == 'poweredOff':
-            params = {
-                'resource_params': {
-                    'action': {'name': 'start', 'args': True}
-                }
-            }
+        if self.get_runstate() == "poweredOff":
+            params = {"resource_params": {"action": {"name": "start", "args": True}}}
             if schedule is not None:
-                params['resource_params']['schedule'] = schedule
+                params["resource_params"]["schedule"] = schedule
             res = self.update(**params)
-            self.logger.info('Start db instance %s' % self.instance.uuid)
+            self.logger.info("Start db instance %s" % self.instance.uuid)
         else:
-            raise ApiManagerError('Db instance %s is already started' % self.instance.uuid)
+            raise ApiManagerError("Db instance %s is already started" % self.instance.uuid)
         return res
 
     def stop(self, schedule=None):
@@ -966,18 +966,14 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.check_supported()
 
         # check instance status
-        if self.get_runstate() == 'poweredOn':
-            params = {
-                'resource_params': {
-                    'action': {'name': 'stop', 'args': {'force': False}}
-                }
-            }
+        if self.get_runstate() == "poweredOn":
+            params = {"resource_params": {"action": {"name": "stop", "args": {"force": False}}}}
             if schedule is not None:
-                params['resource_params']['schedule'] = schedule
+                params["resource_params"]["schedule"] = schedule
             res = self.update(**params)
-            self.logger.info('Stop db instance %s' % self.instance.uuid)
+            self.logger.info("Stop db instance %s" % self.instance.uuid)
         else:
-            raise ApiManagerError('Db instance %s is already stopped' % self.instance.uuid)
+            raise ApiManagerError("Db instance %s is already stopped" % self.instance.uuid)
         return res
 
     def reboot(self, schedule=None):
@@ -991,18 +987,14 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.check_supported()
 
         # check instance status
-        if self.get_runstate() == 'poweredOn':
-            params = {
-                'resource_params': {
-                    'action': {'name': 'restart', 'args': True}
-                }
-            }
+        if self.get_runstate() == "poweredOn":
+            params = {"resource_params": {"action": {"name": "restart", "args": True}}}
             if schedule is not None:
-                params['resource_params']['schedule'] = schedule
+                params["resource_params"]["schedule"] = schedule
             res = self.update(**params)
-            self.logger.info('Reboot db instance %s' % self.instance.uuid)
+            self.logger.info("Reboot db instance %s" % self.instance.uuid)
         else:
-            raise ApiManagerError('Db instance %s is not in a correct state' % self.instance.uuid)
+            raise ApiManagerError("Db instance %s is not in a correct state" % self.instance.uuid)
         return res
 
     def enable_monitoring(self, templates):
@@ -1016,12 +1008,15 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.check_supported()
 
         params = {
-            'resource_params': {
-                'action': {'name': 'enable_monitoring', 'args': {'templates': templates}}
+            "resource_params": {
+                "action": {
+                    "name": "enable_monitoring",
+                    "args": {"templates": templates},
+                }
             }
         }
         res = self.update(**params)
-        self.logger.info('Enable monitoring on db instance %s' % self.instance.uuid)
+        self.logger.info("Enable monitoring on db instance %s" % self.instance.uuid)
         return res
 
     def disable_monitoring(self):
@@ -1033,13 +1028,9 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         # check the action is supported by engine
         self.check_supported()
 
-        params = {
-            'resource_params': {
-                'action': {'name': 'disable_monitoring', 'args': {}}
-            }
-        }
+        params = {"resource_params": {"action": {"name": "disable_monitoring", "args": {}}}}
         res = self.update(**params)
-        self.logger.info('Disable monitoring on db instance %s' % self.instance.uuid)
+        self.logger.info("Disable monitoring on db instance %s" % self.instance.uuid)
         return res
 
     def disable_resource_monitoring(self, task):
@@ -1050,13 +1041,13 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         """
         uuid = self.instance.resource_uuid
         if uuid is not None:
-            uri = '/v2.0/nrs/provider/sql_stacks/%s/action' % uuid
-            data = {'action': {'disable_monitoring': {}}}
-            res = self.controller.api_client.admin_request('resource', uri, 'put', data=data)
-            taskid = res.get('taskid', None)
+            uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % uuid
+            data = {"action": {"disable_monitoring": {"deregister_only": True}}}
+            res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
+            taskid = res.get("taskid", None)
             if taskid is not None:
                 self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-            self.logger.debug('Disable monitoring on db instance %s' % self.instance.uuid)
+            self.logger.debug("Disable monitoring on db instance %s" % self.instance.uuid)
 
     def enable_logging(self, files, pipeline):
         """Enable log forwarding
@@ -1070,12 +1061,15 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.check_supported()
 
         params = {
-            'resource_params': {
-                'action': {'name': 'enable_logging', 'args': {'files': files, 'logstash_port': pipeline}}
+            "resource_params": {
+                "action": {
+                    "name": "enable_logging",
+                    "args": {"files": files, "logstash_port": pipeline},
+                }
             }
         }
         res = self.update(**params)
-        self.logger.info('Enable logging on db instance %s' % self.instance.uuid)
+        self.logger.info("Enable logging on db instance %s" % self.instance.uuid)
         return res
 
     def enable_mailx(self, task):
@@ -1085,13 +1079,13 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         """
         uuid = self.instance.resource_uuid
         if uuid is not None:
-            uri = '/v2.0/nrs/provider/sql_stacks/%s/action' % uuid
-            data = {'action': {'enable_mailx': {'relayhost': None}}}
-            res = self.controller.api_client.admin_request('resource', uri, 'put', data=data)
-            taskid = res.get('taskid', None)
+            uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % uuid
+            data = {"action": {"enable_mailx": {"relayhost": None}}}
+            res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
+            taskid = res.get("taskid", None)
             if taskid is not None:
                 self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-            self.logger.debug('Enable mailx on db instance %s' % self.instance.uuid)
+            self.logger.debug("Enable mailx on db instance %s" % self.instance.uuid)
 
     def register_on_haproxy(self, task):
         """Register db instance on haproxy
@@ -1100,13 +1094,13 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         """
         uuid = self.instance.resource_uuid
         if uuid is not None:
-            uri = '/v2.0/nrs/provider/sql_stacks/%s/action' % uuid
-            data = {'action': {'haproxy_register': {}}}
-            res = self.controller.api_client.admin_request('resource', uri, 'put', data=data)
-            taskid = res.get('taskid', None)
+            uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % uuid
+            data = {"action": {"haproxy_register": {}}}
+            res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
+            taskid = res.get("taskid", None)
             if taskid is not None:
                 self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-            self.logger.debug('Register db instance %s on haproxy' % self.instance.uuid)
+            self.logger.debug("Register db instance %s on haproxy" % self.instance.uuid)
 
     def deregister_from_haproxy(self, task):
         """Deregister db instance from haproxy
@@ -1115,13 +1109,13 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         """
         uuid = self.instance.resource_uuid
         if uuid is not None:
-            uri = '/v2.0/nrs/provider/sql_stacks/%s/action' % uuid
-            data = {'action': {'haproxy_deregister': True}}
-            res = self.controller.api_client.admin_request('resource', uri, 'put', data=data)
-            taskid = res.get('taskid', None)
+            uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % uuid
+            data = {"action": {"haproxy_deregister": True}}
+            res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
+            taskid = res.get("taskid", None)
             if taskid is not None:
                 self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-            self.logger.debug('Deregister db instance %s from haproxy' % self.instance.uuid)
+            self.logger.debug("Deregister db instance %s from haproxy" % self.instance.uuid)
 
     def get_schemas(self):
         """get schemas
@@ -1147,12 +1141,15 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.check_supported()
 
         params = {
-            'resource_params': {
-                'action': {'name': 'add_db', 'args': {'db_name': name, 'charset': charset}}
+            "resource_params": {
+                "action": {
+                    "name": "add_db",
+                    "args": {"db_name": name, "charset": charset},
+                }
             }
         }
         res = self.update(**params)
-        self.logger.info('Create schema %s on db instance %s' % (name, self.instance.uuid))
+        self.logger.info("Create schema %s on db instance %s" % (name, self.instance.uuid))
         return res
 
     def remove_schema(self, name):
@@ -1165,13 +1162,9 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         # check the action is supported by engine
         self.check_supported()
 
-        params = {
-            'resource_params': {
-                'action': {'name': 'drop_db', 'args': {'db_name': name}}
-            }
-        }
+        params = {"resource_params": {"action": {"name": "drop_db", "args": {"db_name": name}}}}
         res = self.update(**params)
-        self.logger.info('Remove schema %s from db instance %s' % (name, self.instance.uuid))
+        self.logger.info("Remove schema %s from db instance %s" % (name, self.instance.uuid))
         return res
 
     def get_users(self):
@@ -1198,12 +1191,15 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.check_supported()
 
         params = {
-            'resource_params': {
-                'action': {'name': 'add_user', 'args': {'name': name, 'password': password}}
+            "resource_params": {
+                "action": {
+                    "name": "add_user",
+                    "args": {"name": name, "password": password},
+                }
             }
         }
         res = self.update(**params)
-        self.logger.info('Create user %s on db instance %s' % (name, self.instance.uuid))
+        self.logger.info("Create user %s on db instance %s" % (name, self.instance.uuid))
         return res
 
     def remove_user(self, name, force):
@@ -1217,13 +1213,9 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         # check the action is supported by engine
         self.check_supported()
 
-        params = {
-            'resource_params': {
-                'action': {'name': 'drop_user', 'args': {'name': name, 'force': force}}
-            }
-        }
+        params = {"resource_params": {"action": {"name": "drop_user", "args": {"name": name, "force": force}}}}
         res = self.update(**params)
-        self.logger.info('Remove user %s from db instance %s' % (name, self.instance.uuid))
+        self.logger.info("Remove user %s from db instance %s" % (name, self.instance.uuid))
         return res
 
     def check_priv_string(self, db, privileges):
@@ -1238,26 +1230,26 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
 
         # select correct resource stack version
         resource = self.get_resource()
-        attributes = resource.get('attributes', {})
-        engine = attributes.get('engine', None)
-        if engine == 'mysql':
-            allowed_privileges = ['SELECT', 'INSERT', 'DELETE', 'UPDATE', 'ALL']
-        elif engine == 'postgresql':
-            db = db.split('.')
+        attributes = resource.get("attributes", {})
+        engine = attributes.get("engine", None)
+        if engine == "mysql":
+            allowed_privileges = ["SELECT", "INSERT", "DELETE", "UPDATE", "ALL"]
+        elif engine == "postgresql":
+            db = db.split(".")
             if len(db) == 1:
-                allowed_privileges = ['CONNECT']
+                allowed_privileges = ["CONNECT"]
             elif len(db) == 2:
-                if db[1] == 'information_schema' or db[1].find('pg_') >= 0:
-                    raise ApiManagerError('Postgres schema %s can not be grant' % db[1])
-                allowed_privileges = ['USAGE', 'CREATE', 'ALL']
+                if db[1] == "information_schema" or db[1].find("pg_") >= 0:
+                    raise ApiManagerError("Postgres schema %s can not be grant" % db[1])
+                allowed_privileges = ["USAGE", "CREATE", "ALL"]
             else:
-                raise ApiManagerError('Bad database.schema format')
+                raise ApiManagerError("Bad database.schema format")
         else:
             allowed_privileges = []
 
-        for p in privileges.split(','):
+        for p in privileges.split(","):
             if p.upper() not in allowed_privileges:
-                raise ApiManagerError('Allowed privileges are %s' % allowed_privileges)
+                raise ApiManagerError("Allowed privileges are %s" % allowed_privileges)
 
     def grant_privs(self, db, user, privileges):
         """grant privileges
@@ -1272,13 +1264,17 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.check_supported()
 
         params = {
-            'resource_params': {
-                'action': {'name': 'grant_privs', 'args': {'db_name': db, 'usr_name': user, 'privileges': privileges}}
+            "resource_params": {
+                "action": {
+                    "name": "grant_privs",
+                    "args": {"db_name": db, "usr_name": user, "privileges": privileges},
+                }
             }
         }
         res = self.update(**params)
-        self.logger.info('Grant privileges %s to user %s on db %s for db instance %s' %
-                         (privileges, db, user, self.instance.uuid))
+        self.logger.info(
+            "Grant privileges %s to user %s on db %s for db instance %s" % (privileges, db, user, self.instance.uuid)
+        )
         return res
 
     def revoke_privs(self, db, user, privileges):
@@ -1294,13 +1290,17 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.check_supported()
 
         params = {
-            'resource_params': {
-                'action': {'name': 'revoke_privs', 'args': {'db_name': db, 'usr_name': user, 'privileges': privileges}}
+            "resource_params": {
+                "action": {
+                    "name": "revoke_privs",
+                    "args": {"db_name": db, "usr_name": user, "privileges": privileges},
+                }
             }
         }
         res = self.update(**params)
-        self.logger.info('Revoke privileges %s to user %s on db %s for db instance %s' %
-                         (privileges, db, user, self.instance.uuid))
+        self.logger.info(
+            "Revoke privileges %s to user %s on db %s for db instance %s" % (privileges, db, user, self.instance.uuid)
+        )
         return res
 
     def change_pwd(self, user, pwd):
@@ -1315,12 +1315,15 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.check_supported()
 
         params = {
-            'resource_params': {
-                'action': {'name': 'change_pwd', 'args': {'name': user, 'new_password': pwd}}
+            "resource_params": {
+                "action": {
+                    "name": "change_pwd",
+                    "args": {"name": user, "new_password": pwd},
+                }
             }
         }
         res = self.update(**params)
-        self.logger.info('Change password to user %s for db instance %s' % (user, self.instance.uuid))
+        self.logger.info("Change password to user %s for db instance %s" % (user, self.instance.uuid))
         return res
 
     # def get_snapshots(self):
@@ -1475,15 +1478,15 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         :rtype: str
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        if self.get_status() not in ['ACTIVE', 'ERROR']:
-            raise ApiManagerError('Instance %s is not in a correct state' % self.instance.uuid)
+        if self.get_status() not in ["ACTIVE", "ERROR"]:
+            raise ApiManagerError("Instance %s is not in a correct state" % self.instance.uuid)
 
         resource = self.get_resource()
-        runstate = resource.get('runstate')
-        self.logger.debug('Get instance %s runstate: %s' % (self.instance.uuid, runstate))
+        runstate = resource.get("runstate")
+        self.logger.debug("Get instance %s runstate: %s" % (self.instance.uuid, runstate))
         return runstate
 
-    @trace(op='view')
+    @trace(op="view")
     def get_resource(self, uuid=None):
         """Get resource info
 
@@ -1496,18 +1499,18 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
             uuid = self.instance.resource_uuid
         if uuid is not None:
             try:
-                uri = '/v2.0/nrs/provider/sql_stacks/%s' % uuid
-                instance = self.controller.api_client.admin_request('resource', uri, 'get', data='').get('sql_stack')
-                self.sql_stack_version = 'v2.0'
+                uri = "/v2.0/nrs/provider/sql_stacks/%s" % uuid
+                instance = self.controller.api_client.admin_request("resource", uri, "get", data="").get("sql_stack")
+                self.sql_stack_version = "v2.0"
             except:
-                uri = '/v1.0/nrs/provider/sql_stacks/%s' % uuid
-                instance = self.controller.api_client.admin_request('resource', uri, 'get', data='').get('sql_stack')
-                self.sql_stack_version = 'v1.0'
+                uri = "/v1.0/nrs/provider/sql_stacks/%s" % uuid
+                instance = self.controller.api_client.admin_request("resource", uri, "get", data="").get("sql_stack")
+                self.sql_stack_version = "v1.0"
 
-        self.logger.debug('Get sql stack resource: %s' % truncate(instance))
+        self.logger.debug("Get sql stack resource: %s" % truncate(instance))
         return instance
 
-    @trace(op='view')
+    @trace(op="view")
     def list_resources(self, zones=None, uuids=None, tags=None, page=0, size=-1):
         """Get resource info
 
@@ -1521,30 +1524,31 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
             uuids = []
         if tags is None:
             tags = []
-        data = {
-            'size': size,
-            'page': page
-        }
+        data = {"size": size, "page": page}
         if len(zones) > 0:
-            data['parent_list'] = ','.join(zones)
+            data["parent_list"] = ",".join(zones)
         if len(uuids) > 0:
-            data['uuids'] = ','.join(uuids)
+            data["uuids"] = ",".join(uuids)
         if len(tags) > 0:
-            data['tags'] = ','.join(tags)
+            data["tags"] = ",".join(tags)
+
+        encoded_data = data = urlencode(data)
+        api_client = self.controller.api_client
 
         # query new api
-        instances = self.controller.api_client.admin_request('resource', '/v2.0/nrs/provider/sql_stacks', 'get',
-                                                             data=urlencode(data)).get('sql_stacks', [])
+        instances = api_client.admin_request("resource", "/v2.0/nrs/provider/sql_stacks", "get", data=encoded_data).get(
+            "sql_stacks", []
+        )
 
         # query old api - remove when all the sql stack are migrated
-        instances1 = self.controller.api_client.admin_request('resource', '/v1.0/nrs/provider/sql_stacks', 'get',
-                                                              data=urlencode(data)).get('sql_stacks', [])
-        instances.extend(instances1)
+        instances += api_client.admin_request(
+            "resource", "/v1.0/nrs/provider/sql_stacks", "get", data=encoded_data
+        ).get("sql_stacks", [])
 
-        self.controller.logger.debug('Get sql stack resources: %s' % truncate(instances))
+        self.controller.logger.debug("Get sql stack resources: %s" % truncate(instances))
         return instances
 
-    @trace(op='view')
+    @trace(op="view")
     def list_engines(self):
         """List database engine type and version
 
@@ -1552,11 +1556,11 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        engines = self.controller.api_client.admin_request('resource', '/v2.0/nrs/provider/sql_stacks/engines', 'get')
-        self.controller.logger.debug('Get sql stack resource engines: %s' % truncate(engines))
+        engines = self.controller.api_client.admin_request("resource", "/v2.0/nrs/provider/sql_stacks/engines", "get")
+        self.controller.logger.debug("Get sql stack resource engines: %s" % truncate(engines))
         return engines
 
-    @trace(op='view')
+    @trace(op="view")
     def get_resource_dbs(self):
         """List schema from resource
 
@@ -1567,13 +1571,13 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         data = []
         uuid = self.instance.resource_uuid
         if uuid is not None:
-            uri = '/v2.0/nrs/provider/sql_stacks/%s/action' % uuid
-            data = {'action': {'get_dbs': True}}
-            data = self.controller.api_client.admin_request('resource', uri, 'put', data=data).get('dbs')
-        self.logger.debug('Get sql stack %s dbs: %s' % (uuid, truncate(data)))
+            uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % uuid
+            data = {"action": {"get_dbs": True}}
+            data = self.controller.api_client.admin_request("resource", uri, "put", data=data).get("dbs")
+        self.logger.debug("Get sql stack %s dbs: %s" % (uuid, truncate(data)))
         return data
 
-    @trace(op='view')
+    @trace(op="view")
     def get_resource_users(self):
         """List user from resource
 
@@ -1584,13 +1588,13 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         data = []
         uuid = self.instance.resource_uuid
         if uuid is not None:
-            uri = '/v2.0/nrs/provider/sql_stacks/%s/action' % uuid
-            data = {'action': {'get_users': True}}
-            data = self.controller.api_client.admin_request('resource', uri, 'put', data=data).get('users')
-        self.logger.debug('Get sql stack %s users: %s' % (uuid, truncate(data)))
+            uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % uuid
+            data = {"action": {"get_users": True}}
+            data = self.controller.api_client.admin_request("resource", uri, "put", data=data).get("users")
+        self.logger.debug("Get sql stack %s users: %s" % (uuid, truncate(data)))
         return data
 
-    @trace(op='insert')
+    @trace(op="insert")
     def create_resource(self, task, *args, **kvargs):
         """Create resource
 
@@ -1600,14 +1604,14 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         :return: True
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        options = args[0].pop('options', {})
-        data = {'sql_stack': args[0]}
+        options = args[0].pop("options", {})
+        data = {"sql_stack": args[0]}
         try:
-            uri = '/v2.0/nrs/provider/sql_stacks'
-            res = self.controller.api_client.admin_request('resource', uri, 'post', data=data)
-            uuid = res.get('uuid', None)
-            taskid = res.get('taskid', None)
-            self.logger.debug('Create sql stack resource: %s' % uuid)
+            uri = "/v2.0/nrs/provider/sql_stacks"
+            res = self.controller.api_client.admin_request("resource", uri, "post", data=data)
+            uuid = res.get("uuid", None)
+            taskid = res.get("taskid", None)
+            self.logger.debug("Create sql stack resource: %s" % uuid)
         except ApiManagerError as ex:
             self.logger.error(ex, exc_info=1)
             self.update_status(SrvStatusType.ERROR, error=ex.value)
@@ -1624,14 +1628,14 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
             # FF: maxtime=1200 -> maxtime=3600
             self.wait_for_task(taskid, delta=2, maxtime=3600, task=task)
             self.update_status(SrvStatusType.CREATED)
-            self.controller.logger.debug('Update sql stack resource: %s' % uuid)
+            self.controller.logger.debug("Update sql stack resource: %s" % uuid)
 
             # enable mailx
-            if str2bool(options.get('enable_mailx', False)) is True:
+            if str2bool(options.get("enable_mailx", False)) is True:
                 self.enable_mailx(task)
 
             # register db instance on haproxy
-            if str2bool(options.get('register_on_haproxy', False)) is True:
+            if str2bool(options.get("register_on_haproxy", False)) is True:
                 self.register_on_haproxy(task)
 
         return uuid
@@ -1649,47 +1653,37 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         """
         try:
             # multi actions
-            actions = kvargs.pop('actions', [])
+            actions = kvargs.pop("actions", [])
             for action in actions:
                 if action is not None:
-                    data = {
-                        'action': {
-                            action.get('name'): action.get('args')
-                        }
-                    }
-                uri = '/v2.0/nrs/provider/sql_stacks/%s/action' % self.instance.resource_uuid
-                res = self.controller.api_client.admin_request('resource', uri, 'put', data=data)
-                taskid = res.get('taskid', None)
+                    data = {"action": {action.get("name"): action.get("args")}}
+                uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % self.instance.resource_uuid
+                res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
+                taskid = res.get("taskid", None)
                 if taskid is not None:
                     self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-                self.logger.debug('Send sql stack action resources: %s' % res)
+                self.logger.debug("Send sql stack action resources: %s" % res)
 
             # single action
-            action = kvargs.pop('action', None)
+            action = kvargs.pop("action", None)
             if action is not None:
-                data = {
-                    'action': {
-                        action.get('name'): action.get('args')
-                    }
-                }
-                uri = '/v2.0/nrs/provider/sql_stacks/%s/action' % self.instance.resource_uuid
-                res = self.controller.api_client.admin_request('resource', uri, 'put', data=data)
-                taskid = res.get('taskid', None)
+                data = {"action": {action.get("name"): action.get("args")}}
+                uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % self.instance.resource_uuid
+                res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
+                taskid = res.get("taskid", None)
                 if taskid is not None:
                     self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-                self.logger.debug('Send sql stack action resources: %s' % res)
+                self.logger.debug("Send sql stack action resources: %s" % res)
 
             # base update
             elif len(kvargs.keys()) > 0:
-                data = {
-                    'instance': kvargs
-                }
-                uri = '/v2.0/nrs/provider/sql_stacks/%s' % self.instance.resource_uuid
-                res = self.controller.api_client.admin_request('resource', uri, 'put', data=data)
-                taskid = res.get('taskid', None)
+                data = {"instance": kvargs}
+                uri = "/v2.0/nrs/provider/sql_stacks/%s" % self.instance.resource_uuid
+                res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
+                taskid = res.get("taskid", None)
                 if taskid is not None:
                     self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-                self.logger.debug('Update sql stack resources: %s' % res)
+                self.logger.debug("Update sql stack resources: %s" % res)
 
         except ApiManagerError as ex:
             self.logger.error(ex, exc_info=True)
@@ -1710,24 +1704,26 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         :return: True
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        monitoring_enabled = dict_get(self.resource, 'attributes.monitoring_enabled', default=False)
+        monitoring_enabled = dict_get(self.resource, "attributes.monitoring_enabled", default=False)
 
         # deregister db instance from haproxy
-        engine_params = self.get_config('engine')
+        engine_params = self.get_config("engine")
         if engine_params is None:
             engine_params = {}
-        if str2bool(engine_params.get('register_on_haproxy', False)) is True:
+        if str2bool(engine_params.get("register_on_haproxy", False)) is True:
             self.deregister_from_haproxy(task)
 
         # disable monitoring
-        if monitoring_enabled is True and self.sql_stack_version in ['v2.0']:
+        self.logger.debug("delete_resource - monitoring_enabled %s" % monitoring_enabled)
+        if monitoring_enabled is True and self.sql_stack_version in ["v2.0"]:
+            self.logger.debug("delete_resource - disable_resource_monitoring")
             self.disable_resource_monitoring(task)
 
         # call superclass method
         ApiServiceTypePlugin.delete_resource(self, task, *args, **kvargs)
 
-    def check_supported(self, action=''):
-        engine = self.get_config('dbinstance.Engine')
-        version = self.get_config('dbinstance.EngineVersion')
-        if engine in ['sqlserver'] or engine == 'postgresql' and action == 'install_extensions':
-            raise ApiManagerError('Action not supported by engine %s with version %s' % (engine, version))
+    def check_supported(self, action=""):
+        engine = self.get_config("dbinstance.Engine")
+        version = self.get_config("dbinstance.EngineVersion")
+        if engine in ["sqlserver"] or engine == "postgresql" and action == "install_extensions":
+            raise ApiManagerError("Action not supported by engine %s with version %s" % (engine, version))

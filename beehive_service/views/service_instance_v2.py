@@ -1,17 +1,32 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_service.controller import ServiceController
 from marshmallow import fields, Schema
 
 from beecell.swagger import SwaggerHelper
-from beehive.common.apimanager import ApiObjectSmallResponseSchema, ApiView, CrudApiObjectResponseSchema, SwaggerApiView, PaginatedResponseSchema, \
-    ApiObjectRequestFiltersSchema, PaginatedRequestQuerySchema, ApiObjectResponseSchema, GetApiObjectRequestSchema, \
-    ApiManagerWarning, CrudApiObjectTaskResponseSchema
-from beehive_service.entity.service_type import ApiServiceType
+from beehive.common.apimanager import (
+    ApiObjectSmallResponseSchema,
+    ApiView,
+    CrudApiObjectResponseSchema,
+    SwaggerApiView,
+    PaginatedResponseSchema,
+    ApiObjectRequestFiltersSchema,
+    PaginatedRequestQuerySchema,
+    ApiObjectResponseSchema,
+    GetApiObjectRequestSchema,
+    ApiManagerError,
+    ApiManagerWarning,
+    CrudApiObjectTaskResponseSchema,
+)
+from beehive_service.entity.service_type import ApiServiceType, ApiServiceTypePlugin
 from beehive_service.model import SrvStatusType
-from beehive_service.views import ServiceApiView, ApiServiceObjectRequestSchema, ApiServiceObjectCreateRequestSchema
+from beehive_service.views import (
+    ServiceApiView,
+    ApiServiceObjectRequestSchema,
+    ApiServiceObjectCreateRequestSchema,
+)
 
 
 class AccountResponseSchema(ApiObjectSmallResponseSchema):
@@ -19,8 +34,12 @@ class AccountResponseSchema(ApiObjectSmallResponseSchema):
 
 
 class ParentResponseSchema(Schema):
-    uuid = fields.UUID(required=True, example='6d960236-d280-46d2-817d-f3ce8f0aeff7', description='api object uuid')
-    name = fields.String(required=True, default='test', example='test', description='entity name')
+    uuid = fields.UUID(
+        required=True,
+        example="6d960236-d280-46d2-817d-f3ce8f0aeff7",
+        description="api object uuid",
+    )
+    name = fields.String(required=True, default="test", example="test", description="entity name")
 
 
 class CheckResponseSchema(Schema):
@@ -52,25 +71,23 @@ class GetServiceInstanceResponseSchema(Schema):
 
 
 class GetServiceInstance(ServiceApiView):
-    tags = ['service']
+    tags = ["service"]
     definitions = {
-        'GetServiceInstanceResponseSchema': GetServiceInstanceResponseSchema,
+        "GetServiceInstanceResponseSchema": GetServiceInstanceResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetServiceInstanceResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {200: {"description": "success", "schema": GetServiceInstanceResponseSchema}}
+    )
     response_schema = GetServiceInstanceResponseSchema
 
     def get(self, controller, data, oid, *args, **kvargs):
         from beehive_service.controller import ServiceController
+
         serviceController: ServiceController = controller
 
         plugin = serviceController.get_service_type_plugin(oid)
-        return {'serviceinst': plugin.detail()}
+        return {"serviceinst": plugin.detail()}
 
 
 class CheckServiceInstanceParamsResponseSchema(ApiObjectResponseSchema):
@@ -88,177 +105,187 @@ class CheckServiceInstanceResponseSchema(Schema):
 
 
 class CheckServiceInstance(ServiceApiView):
-    tags = ['service']
+    tags = ["service"]
     definitions = {
-        'CheckServiceInstanceResponseSchema': CheckServiceInstanceResponseSchema,
+        "CheckServiceInstanceResponseSchema": CheckServiceInstanceResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': CheckServiceInstanceResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {200: {"description": "success", "schema": CheckServiceInstanceResponseSchema}}
+    )
     response_schema = CheckServiceInstanceResponseSchema
 
     def get(self, controller, data, oid, *args, **kvargs):
         plugin = controller.get_service_type_plugin(oid)
         item = plugin.info()
-        item['check'] = plugin.check()
-        if item['check']['check'] is False:
-            item['status'] = 'BAD'
-        return {'serviceinst': item}
+        item["check"] = plugin.check()
+        if item["check"]["check"] is False:
+            item["status"] = "BAD"
+        return {"serviceinst": item}
 
 
-class ListServiceInstancesRequestSchema(ApiServiceObjectRequestSchema, ApiObjectRequestFiltersSchema,
-                                        PaginatedRequestQuerySchema):
-    account_id = fields.String(required=False, context='query')
-    service_definition_id = fields.String(required=False, context='query')
-    status = fields.String(required=False, context='query')
-    bpmn_process_id = fields.Integer(required=False, context='query')
-    resource_uuid = fields.String(required=False, context='query')
-    parent_id = fields.String(required=False, context='query')
-    plugintype = fields.String(required=False, context='query')
-    tags = fields.String(context='query', description='List of tags. Use comma as separator if tags are in or. Use + '
-                                                      'separator if tags are in and')
-    flag_container = fields.Boolean(context='query', description='if True show only container instances')
+class ListServiceInstancesRequestSchema(
+    ApiServiceObjectRequestSchema,
+    ApiObjectRequestFiltersSchema,
+    PaginatedRequestQuerySchema,
+):
+    account_id = fields.String(required=False, context="query")
+    service_definition_id = fields.String(required=False, context="query")
+    status = fields.String(required=False, context="query")
+    bpmn_process_id = fields.Integer(required=False, context="query")
+    resource_uuid = fields.String(required=False, context="query")
+    parent_id = fields.String(required=False, context="query")
+    plugintype = fields.String(required=False, context="query")
+    tags = fields.String(
+        context="query",
+        description="List of tags. Use comma as separator if tags are in or. Use + " "separator if tags are in and",
+    )
+    flag_container = fields.Boolean(context="query", description="if True show only container instances")
 
 
 class ListServiceInstancesResponseSchema(PaginatedResponseSchema):
-    serviceinsts = fields.Nested(GetServiceInstanceParamsResponseSchema, many=True, required=True, allow_none=True)
+    serviceinsts = fields.Nested(
+        GetServiceInstanceParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListServiceInstances(ServiceApiView):
-    tags = ['service']
+    tags = ["service"]
     definitions = {
-        'ListServiceInstancesResponseSchema': ListServiceInstancesResponseSchema,
+        "ListServiceInstancesResponseSchema": ListServiceInstancesResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListServiceInstancesRequestSchema)
     parameters_schema = ListServiceInstancesRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListServiceInstancesResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {200: {"description": "success", "schema": ListServiceInstancesResponseSchema}}
+    )
     response_schema = ListServiceInstancesResponseSchema
 
     def get(self, controller, data, *args, **kvargs):
-        servicetags = data.pop('tags', None)
-        if servicetags is not None and servicetags.find('+') > 0:
-            data['servicetags_and'] = servicetags.split('+')
+        servicetags = data.pop("tags", None)
+        if servicetags is not None and servicetags.find("+") > 0:
+            data["servicetags_and"] = servicetags.split("+")
         elif servicetags is not None:
-            data['servicetags_or'] = servicetags.split(',')
+            data["servicetags_or"] = servicetags.split(",")
 
         service, total = controller.get_service_type_plugins(**data)
         res = [r.info() for r in service]
-        return self.format_paginated_response(res, 'serviceinsts', total, **data)
+        return self.format_paginated_response(res, "serviceinsts", total, **data)
 
 
 class CreateServiceInstanceParamRequestSchema(ApiServiceObjectCreateRequestSchema):
-    account_id = fields.String(required=True, description='id of the account')
-    service_def_id = fields.String(required=True, description='id of the service definition')
-    parent_id = fields.String(required=False, allow_none=True, missing=None,
-                              description='id of the parent service instance')
-    config = fields.Dict(required=False, missing={}, description='Service instance confgiuration')
+    account_id = fields.String(required=True, description="id of the account")
+    service_def_id = fields.String(required=True, description="id of the service definition")
+    parent_id = fields.String(
+        required=False,
+        allow_none=True,
+        missing=None,
+        description="id of the parent service instance",
+    )
+    config = fields.Dict(required=False, missing={}, description="Service instance confgiuration")
     status = fields.String(required=False, default=SrvStatusType.DRAFT)
     # bpmn_process_id = fields.Integer(required=False, allow_none=True)
 
 
 class CreateServiceInstanceRequestSchema(Schema):
-    serviceinst = fields.Nested(CreateServiceInstanceParamRequestSchema, context='body')
+    serviceinst = fields.Nested(CreateServiceInstanceParamRequestSchema, context="body")
 
 
 class CreateServiceInstanceBodyRequestSchema(Schema):
-    body = fields.Nested(CreateServiceInstanceRequestSchema, context='body')
+    body = fields.Nested(CreateServiceInstanceRequestSchema, context="body")
 
 
 class CreateServiceInstance(ServiceApiView):
-    summary = 'Create a service instance using a specific plugintype'
-    description = 'Create a service instance using a specific plugintype'
-    tags = ['service']
+    summary = "Create a service instance using a specific plugintype"
+    description = "Create a service instance using a specific plugintype"
+    tags = ["service"]
     definitions = {
-        'CreateServiceInstanceRequestSchema': CreateServiceInstanceRequestSchema,
-        'CrudApiObjectTaskResponseSchema': CrudApiObjectTaskResponseSchema
+        "CreateServiceInstanceRequestSchema": CreateServiceInstanceRequestSchema,
+        "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(CreateServiceInstanceBodyRequestSchema)
     parameters_schema = CreateServiceInstanceRequestSchema
-    responses = SwaggerApiView.setResponses({
-        201: {
-            'description': 'success',
-            'schema': CrudApiObjectTaskResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {201: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
+    )
     response_schema = CrudApiObjectTaskResponseSchema
 
     def post(self, controller, data, *args, **kvargs):
-        data = data.get('serviceinst')
-        service_definition_id = data['service_def_id']
-        account_id = data['account_id']
-        parent_id = data['parent_id']
-        name = data['name']
-        desc = data['desc']
-        instance_config = data['config']
+        data = data.get("serviceinst")
+        service_definition_id = data["service_def_id"]
+        account_id = data["account_id"]
+        parent_id = data["parent_id"]
+        name = data["name"]
+        desc = data["desc"]
+        instance_config = data["config"]
 
         parent_plugin = None
         if parent_id is not None:
             parent_plugin = controller.get_service_type_plugin(parent_id)
 
-        resp = controller.add_service_type_plugin(service_definition_id, account_id, name=name, desc=desc,
-                                                  parent_plugin=parent_plugin, instance_config=instance_config)
+        resp = controller.add_service_type_plugin(
+            service_definition_id,
+            account_id,
+            name=name,
+            desc=desc,
+            parent_plugin=parent_plugin,
+            instance_config=instance_config,
+        )
         uuid = resp.uuid
         taskid = resp.active_task
-        return {'uuid': uuid, 'taskid': taskid}, 201
+        return {"uuid": uuid, "taskid": taskid}, 201
 
 
 class ImportInstanceParamRequestSchema(Schema):
     name = fields.String(required=True)
     desc = fields.String(required=False, allow_none=True)
-    account_id = fields.String(required=True, description='id of the account')
-    plugintype = fields.String(required=True, description='plugin type name')
-    container_plugintype = fields.String(required=True, description='container plugin type name')
-    service_definition_id = fields.String(required=False, missing=None, description='id of the service definition')
-    parent_id = fields.String(required=False, allow_none=True, missing=None,
-                              description='id of the parent service instance')
-    resource_id = fields.String(required=True, allow_none=False, description='id of the resource')
+    account_id = fields.String(required=True, description="id of the account")
+    plugintype = fields.String(required=True, description="plugin type name")
+    container_plugintype = fields.String(required=True, description="container plugin type name")
+    service_definition_id = fields.String(required=False, missing=None, description="id of the service definition")
+    parent_id = fields.String(
+        required=False,
+        allow_none=True,
+        missing=None,
+        description="id of the parent service instance",
+    )
+    resource_id = fields.String(required=True, allow_none=False, description="id of the resource")
 
 
 class ImportInstanceRequestSchema(Schema):
-    serviceinst = fields.Nested(ImportInstanceParamRequestSchema, context='body')
+    serviceinst = fields.Nested(ImportInstanceParamRequestSchema, context="body")
 
 
 class ImportInstanceBodyRequestSchema(Schema):
-    body = fields.Nested(ImportInstanceRequestSchema, context='body')
+    body = fields.Nested(ImportInstanceRequestSchema, context="body")
 
 
 class ImportInstance(ServiceApiView):
-    summary = 'Create a service instance using a specific plugintype and an existing resource'
-    description = 'Create a service instance using a specific plugintype and an existing resource'
-    tags = ['service']
+    summary = "Create a service instance using a specific plugintype and an existing resource"
+    description = "Create a service instance using a specific plugintype and an existing resource"
+    tags = ["service"]
     definitions = {
-        'ImportInstanceRequestSchema': ImportInstanceRequestSchema,
-        'CrudApiObjectResponseSchema': CrudApiObjectResponseSchema
+        "ImportInstanceRequestSchema": ImportInstanceRequestSchema,
+        "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ImportInstanceBodyRequestSchema)
     parameters_schema = ImportInstanceRequestSchema
-    responses = SwaggerApiView.setResponses({
-        201: {
-            'description': 'success',
-            'schema': CrudApiObjectResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({201: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
     def post(self, controller: ServiceController, data: dict, *args, **kvargs):
-        data = data.get('serviceinst')
-        account_id = data.get('account_id')
-        service_definition_id = data.get('service_definition_id')
-        name = data.get('name')
+        data = data.get("serviceinst")
+        account_id = data.get("account_id")
+        service_definition_id = data.get("service_definition_id")
+        name = data.get("name")
         desc = name
-        plugintype = data.get('plugintype')
-        container_plugintype = data.get('container_plugintype')
-        parent_id = data.get('parent_id')
-        resource_id = data.get('resource_id')
+        plugintype = data.get("plugintype")
+        container_plugintype = data.get("container_plugintype")
+        parent_id = data.get("parent_id")
+        resource_id = data.get("resource_id")
 
         # check account with compute service
         # account, container_plugin = self.check_parent_service(controller, data.get('account_id'),
@@ -268,24 +295,25 @@ class ImportInstance(ServiceApiView):
         account = controller.get_account(account_id)
 
         # check if the account is associated to a Compute Service
-        insts, total = controller.get_service_type_plugins(account_id=account.oid, plugintype='ComputeService')
+        insts, total = controller.get_service_type_plugins(account_id=account.oid, plugintype="ComputeService")
         if total == 0:
-            raise ApiManagerWarning('Account %s has not %s' % (account.oid, plugintype))
+            raise ApiManagerWarning("Account %s does not have core ComputeService." % account.oid)
         compute_zone = insts[0].resource_uuid
+        if compute_zone is None:
+            raise ApiManagerError("comput zone is None")
 
         # check if the account is associated to the required container Service
         insts, total = controller.get_service_type_plugins(account_id=account.oid, plugintype=container_plugintype)
         if total == 0:
-            raise ApiManagerWarning('Account %s has not %s' % (account.oid, plugintype))
-
+            raise ApiManagerWarning("Account %s does not have %s" % (account.oid, container_plugintype))
         container_plugin = insts[0]
 
         if container_plugin.is_active() is False:
-            raise ApiManagerWarning('Account %s %s is not in a correct status' % (account_id, plugintype))
+            raise ApiManagerWarning("Account %s: %s is not in a correct status" % (account_id, container_plugintype))
 
         # checks authorization user on container service instance
-        if container_plugin.instance.verify_permisssions('update') is False:
-            raise ApiManagerWarning('User does not have the required permissions to make this action')
+        if container_plugin.instance.verify_permisssions("update") is False:
+            raise ApiManagerWarning("User does not have the required permissions to make this action")
 
         # get parent
         if parent_id is not None:
@@ -300,20 +328,26 @@ class ImportInstance(ServiceApiView):
 
         # create instance and resource
         config = {
-            'owner_id': account.uuid,
-            'service_definition_id': service_definition_id,
-            'computeZone': compute_zone
+            "owner_id": account.uuid,
+            "service_definition_id": service_definition_id,
+            "computeZone": compute_zone,
         }
-        plugin = controller.import_service_type_plugin(service_definition_id, account.oid, name=name, desc=desc,
-                                                       parent_plugin=parent_plugin, instance_config=config,
-                                                       resource_id=resource_id)
+        plugin = controller.import_service_type_plugin(
+            service_definition_id,
+            account.oid,
+            name=name,
+            desc=desc,
+            parent_plugin=parent_plugin,
+            instance_config=config,
+            resource_id=resource_id,
+        )
 
-        return {'uuid': plugin.instance.uuid}, 201
+        return {"uuid": plugin.instance.uuid}, 201
 
 
 class UpdateServiceInstanceTagRequestSchema(Schema):
-    cmd = fields.String(default='add', required=True)
-    values = fields.List(fields.String(default='test'), required=True)
+    cmd = fields.String(default="add", required=True)
+    values = fields.List(fields.String(default="test"), required=True)
 
 
 class UpdateServiceInstanceParamRequestSchema(Schema):
@@ -324,44 +358,41 @@ class UpdateServiceInstanceParamRequestSchema(Schema):
     # status = fields.String(required=False, default=SrvStatusType.DRAFT)
     active = fields.Boolean(required=False)
     # bpmn_process_id = fields.Integer(required=False, allow_none=True)
-    resource_uuid = fields.String(required=False, description='uuid of the new resource')
+    resource_uuid = fields.String(required=False, description="uuid of the new resource")
     tags = fields.Nested(UpdateServiceInstanceTagRequestSchema, allow_none=True)
-    parent_id = fields.String(required=False, allow_none=True, description='id of the parent service instance')
+    parent_id = fields.String(required=False, allow_none=True, description="id of the parent service instance")
 
 
 class UpdateServiceInstanceRequestSchema(Schema):
-    serviceinst = fields.Nested(UpdateServiceInstanceParamRequestSchema, context='body')
+    serviceinst = fields.Nested(UpdateServiceInstanceParamRequestSchema, context="body")
 
 
 class UpdateServiceInstanceBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateServiceInstanceRequestSchema, context='body')
+    body = fields.Nested(UpdateServiceInstanceRequestSchema, context="body")
 
 
 class UpdateServiceInstance(ServiceApiView):
-    summary = 'Update a service instance'
-    description = 'Update a service instance'
-    tags = ['service']
+    summary = "Update a service instance"
+    description = "Update a service instance"
+    tags = ["service"]
     definitions = {
-        'UpdateServiceInstanceRequestSchema': UpdateServiceInstanceRequestSchema,
-        'CrudApiObjectResponseSchema': CrudApiObjectResponseSchema
+        "UpdateServiceInstanceRequestSchema": UpdateServiceInstanceRequestSchema,
+        "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(UpdateServiceInstanceBodyRequestSchema)
     parameters_schema = UpdateServiceInstanceRequestSchema
-    responses = SwaggerApiView.setResponses({
-        201: {
-            'description': 'success',
-            'schema': CrudApiObjectTaskResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {201: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
+    )
     response_schema = CrudApiObjectTaskResponseSchema
 
     def put(self, controller, data, oid, *args, **kvargs):
         type_plugin = controller.get_service_type_plugin(oid)
-        type_plugin.update(**data.get('serviceinst'))
+        type_plugin.update(**data.get("serviceinst"))
 
         uuid = type_plugin.uuid
         taskid = type_plugin.active_task
-        return {'uuid': uuid, 'taskid': taskid}, 201
+        return {"uuid": uuid, "taskid": taskid}, 201
 
 
 class PatchServiceInstanceParamRequestSchema(Schema):
@@ -379,74 +410,72 @@ class PatchServiceInstanceParamRequestSchema(Schema):
 
 
 class PatchServiceInstanceRequestSchema(Schema):
-    serviceinst = fields.Nested(PatchServiceInstanceParamRequestSchema, context='body')
+    serviceinst = fields.Nested(PatchServiceInstanceParamRequestSchema, context="body")
 
 
 class PatchServiceInstanceBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(PatchServiceInstanceRequestSchema, context='body')
+    body = fields.Nested(PatchServiceInstanceRequestSchema, context="body")
 
 
 class PatchServiceInstance(ServiceApiView):
-    summary = 'Patch a service instance'
-    description = 'Patch a service instance'
-    tags = ['service']
+    summary = "Patch a service instance"
+    description = "Patch a service instance"
+    tags = ["service"]
     definitions = {
-        'PatchServiceInstanceRequestSchema': PatchServiceInstanceRequestSchema,
-        'CrudApiObjectResponseSchema': CrudApiObjectResponseSchema
+        "PatchServiceInstanceRequestSchema": PatchServiceInstanceRequestSchema,
+        "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(PatchServiceInstanceBodyRequestSchema)
     parameters_schema = PatchServiceInstanceRequestSchema
-    responses = SwaggerApiView.setResponses({
-        201: {
-            'description': 'success',
-            'schema': CrudApiObjectTaskResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {201: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
+    )
     response_schema = CrudApiObjectTaskResponseSchema
 
     def patch(self, controller, data, oid, *args, **kvargs):
         type_plugin = controller.get_service_type_plugin(oid)
-        type_plugin.patch(**data.get('serviceinst'))
+        type_plugin.patch(**data.get("serviceinst"))
 
         uuid = type_plugin.uuid
         taskid = type_plugin.active_task
-        return {'uuid': uuid, 'taskid': taskid}, 201
+        return {"uuid": uuid, "taskid": taskid}, 201
 
 
 class DeleteServiceInstanceRequestSchema(Schema):
-    propagate = fields.Boolean(required=False, default=True, description='If True propagate delete to all cmp modules')
-    force = fields.Boolean(required=False, default=False, description='If True force delete')
+    propagate = fields.Boolean(
+        required=False,
+        default=True,
+        description="If True propagate delete to all cmp modules",
+    )
+    force = fields.Boolean(required=False, default=False, description="If True force delete")
 
 
 class DeleteServiceInstanceBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(DeleteServiceInstanceRequestSchema, context='body')
+    body = fields.Nested(DeleteServiceInstanceRequestSchema, context="body")
 
 
 class DeleteServiceInstance(ServiceApiView):
-    summary = 'Delete a service instance'
-    description = 'Delete a service instance'
-    tags = ['service']
+    summary = "Delete a service instance"
+    description = "Delete a service instance"
+    tags = ["service"]
     definitions = {
-        'DeleteServiceInstanceRequestSchema': DeleteServiceInstanceRequestSchema,
-        'CrudApiObjectResponseSchema': CrudApiObjectResponseSchema
+        "DeleteServiceInstanceRequestSchema": DeleteServiceInstanceRequestSchema,
+        "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(DeleteServiceInstanceBodyRequestSchema)
     parameters_schema = DeleteServiceInstanceRequestSchema
-    responses = ServiceApiView.setResponses({
-        201: {
-            'description': 'success',
-            'schema': CrudApiObjectTaskResponseSchema
-        }
-    })
+    responses = ServiceApiView.setResponses(
+        {201: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
+    )
     response_schema = CrudApiObjectTaskResponseSchema
 
-    def delete(self, controller, data, oid, *args, **kvargs):
-        type_plugin = controller.get_service_type_plugin(oid)
+    def delete(self, controller: ServiceController, data, oid, *args, **kvargs):
+        type_plugin: ApiServiceTypePlugin = controller.get_service_type_plugin(oid)
         type_plugin.delete(**data)
 
         uuid = type_plugin.uuid
-        taskid = getattr(type_plugin, 'active_task', None)
-        return {'uuid': uuid, 'taskid': taskid}, 201
+        taskid = getattr(type_plugin, "active_task", None)
+        return {"uuid": uuid, "taskid": taskid}, 201
 
 
 class UpdateServiceInstanceStatusParamRequestSchema(Schema):
@@ -458,34 +487,29 @@ class UpdateServiceInstanceStatusRequestSchema(Schema):
 
 
 class UpdateServiceInstanceStatusBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateServiceInstanceStatusRequestSchema, context='body')
+    body = fields.Nested(UpdateServiceInstanceStatusRequestSchema, context="body")
 
 
 class UpdateServiceInstanceStatus(ServiceApiView):
-    summary = 'Update service instance status'
-    description = 'Update service instance status'
-    tags = ['service']
+    summary = "Update service instance status"
+    description = "Update service instance status"
+    tags = ["service"]
     definitions = {
-        'UpdateServiceInstanceStatusRequestSchema': UpdateServiceInstanceStatusRequestSchema,
-        'CrudApiObjectResponseSchema': CrudApiObjectResponseSchema
+        "UpdateServiceInstanceStatusRequestSchema": UpdateServiceInstanceStatusRequestSchema,
+        "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(UpdateServiceInstanceStatusBodyRequestSchema)
     parameters_schema = UpdateServiceInstanceStatusRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': CrudApiObjectResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
     def put(self, controller, data, oid, *args, **kvargs):
         type_plugin = controller.get_service_type_plugin(oid)
-        status = data.get('serviceinst', {}).get('status', None)
+        status = data.get("serviceinst", {}).get("status", None)
         if status is not None:
             type_plugin.update_status(status)
 
-        return {'uuid': type_plugin.uuid}, 200
+        return {"uuid": type_plugin.uuid}, 200
 
 
 # class ListServiceInstanceLinksParamsResponseSchema(ApiObjectResponseSchema):
@@ -532,9 +556,9 @@ class UpdateServiceInstanceStatus(ServiceApiView):
 
 
 class GetLinkedServiceInstancesRequestSchema(PaginatedRequestQuerySchema):
-    type = fields.String(context='query')
-    link_type = fields.String(context='query')
-    oid = fields.String(required=True, description='id, uuid', context='path')
+    type = fields.String(context="query")
+    link_type = fields.String(context="query")
+    oid = fields.String(required=True, description="id, uuid", context="path")
 
 
 class GetLinkedServiceInstancesResponseSchema(PaginatedResponseSchema):
@@ -542,40 +566,47 @@ class GetLinkedServiceInstancesResponseSchema(PaginatedResponseSchema):
 
 
 class GetLinkedServiceInstances(ServiceApiView):
-    summary = 'Get service instance linked instances'
-    description = 'Get service instance linked instances'
-    tags = ['service']
+    summary = "Get service instance linked instances"
+    description = "Get service instance linked instances"
+    tags = ["service"]
     definitions = {
-        'GetLinkedServiceInstancesResponseSchema': GetLinkedServiceInstancesResponseSchema,
+        "GetLinkedServiceInstancesResponseSchema": GetLinkedServiceInstancesResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetLinkedServiceInstancesRequestSchema)
     parameters_schema = GetLinkedServiceInstancesRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetLinkedServiceInstancesResponseSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": GetLinkedServiceInstancesResponseSchema,
+            }
         }
-    })
+    )
     response_schema = GetLinkedServiceInstancesResponseSchema
 
     def get(self, controller, data, oid, *args, **kwargs):
         srv_inst = controller.get_service_instance(oid)
         srv_insts, total = srv_inst.get_linked_services(**data)
         res = [r.info() for r in srv_insts]
-        return self.format_paginated_response(res, 'serviceinsts', total, **data)
+        return self.format_paginated_response(res, "serviceinsts", total, **data)
 
 
 class UpdateServiceConfigParamRequestSchema(Schema):
-    key = fields.String(default='test', required=True, description='config key like key1.key2')
-    value = fields.String(default='test', required=False, missing=None, description='config value')
+    key = fields.String(default="test", required=True, description="config key like key1.key2")
+    value = fields.String(default="test", required=False, missing=None, description="config value")
 
 
 class UpdateServiceConfigRequestSchema(Schema):
-    config = fields.Nested(UpdateServiceConfigParamRequestSchema, required=True, many=False, allow_none=True)
+    config = fields.Nested(
+        UpdateServiceConfigParamRequestSchema,
+        required=True,
+        many=False,
+        allow_none=True,
+    )
 
 
 class UpdateServiceConfigBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateServiceConfigRequestSchema, context='body')
+    body = fields.Nested(UpdateServiceConfigRequestSchema, context="body")
 
 
 class UpdateServiceConfigResponseSchema(Schema):
@@ -583,52 +614,61 @@ class UpdateServiceConfigResponseSchema(Schema):
 
 
 class UpdateServiceConfig(ServiceApiView):
-    tags = ['service']
+    tags = ["service"]
     definitions = {
-        'UpdateServiceConfigRequestSchema': UpdateServiceConfigRequestSchema,
-        'UpdateServiceConfigResponseSchema': UpdateServiceConfigResponseSchema,
+        "UpdateServiceConfigRequestSchema": UpdateServiceConfigRequestSchema,
+        "UpdateServiceConfigResponseSchema": UpdateServiceConfigResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(UpdateServiceConfigBodyRequestSchema)
     parameters_schema = UpdateServiceConfigRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': UpdateServiceConfigResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {200: {"description": "success", "schema": UpdateServiceConfigResponseSchema}}
+    )
 
     def put(self, controller, data, oid, *args, **kwargs):
         service = controller.get_service_type_plugin(oid)
-        config = data.get('config')
+        config = data.get("config")
         # if data.get('config').get('value') is None:
         #     resource.unset_configs(key=data.get('config').get('key'))
         # else:
-        service.set_config(config.get('key'), config.get('value'))
-        return {'config': {'key': config.get('key'), 'value': config.get('value')}}
+        attr_value = config.get("value")
+        if isinstance(attr_value, str) and attr_value.isdigit():
+            attr_value = int(attr_value)
+
+        service.set_config(config.get("key"), attr_value)
+        return {"config": {"key": config.get("key"), "value": config.get("value")}}
 
 
 class ServiceInstanceAPI(ApiView):
-    """PluginTypeInstance api routes:
-    """
+    """PluginTypeInstance api routes:"""
+
     @staticmethod
     def register_api(module, **kwargs):
-        base = 'nws'
+        base = "nws"
         rules = [
-            ('%s/serviceinsts' % base, 'GET', ListServiceInstances, {}),
-            ('%s/serviceinsts' % base, 'POST', CreateServiceInstance, {}),
-            ('%s/serviceinsts/import' % base, 'POST', ImportInstance, {}),
-            ('%s/serviceinsts/<oid>' % base, 'GET', GetServiceInstance, {}),
-            ('%s/serviceinsts/<oid>' % base, 'PUT', UpdateServiceInstance, {}),
-            ('%s/serviceinsts/<oid>' % base, 'PATCH', PatchServiceInstance, {}),
-            ('%s/serviceinsts/<oid>' % base, 'DELETE', DeleteServiceInstance, {}),
-            ('%s/serviceinsts/<oid>/check' % base, 'GET', CheckServiceInstance, {}),
-            ('%s/serviceinsts/<oid>/status' % base, 'PUT', UpdateServiceInstanceStatus, {}),
-
+            ("%s/serviceinsts" % base, "GET", ListServiceInstances, {}),
+            ("%s/serviceinsts" % base, "POST", CreateServiceInstance, {}),
+            ("%s/serviceinsts/import" % base, "POST", ImportInstance, {}),
+            ("%s/serviceinsts/<oid>" % base, "GET", GetServiceInstance, {}),
+            ("%s/serviceinsts/<oid>" % base, "PUT", UpdateServiceInstance, {}),
+            ("%s/serviceinsts/<oid>" % base, "PATCH", PatchServiceInstance, {}),
+            ("%s/serviceinsts/<oid>" % base, "DELETE", DeleteServiceInstance, {}),
+            ("%s/serviceinsts/<oid>/check" % base, "GET", CheckServiceInstance, {}),
+            (
+                "%s/serviceinsts/<oid>/status" % base,
+                "PUT",
+                UpdateServiceInstanceStatus,
+                {},
+            ),
             # ('%s/serviceinsts/<oid>/links' % base, 'GET', GetServiceInstanceLinks, {}),
-            ('%s/serviceinsts/<oid>/linked' % base, 'GET', GetLinkedServiceInstances, {}),
-
-            ('%s/serviceinsts/<oid>/config' % base, 'PUT', UpdateServiceConfig, {}),
+            (
+                "%s/serviceinsts/<oid>/linked" % base,
+                "GET",
+                GetLinkedServiceInstances,
+                {},
+            ),
+            ("%s/serviceinsts/<oid>/config" % base, "PUT", UpdateServiceConfig, {}),
         ]
 
-        kwargs["version"] = 'v2.0'
+        kwargs["version"] = "v2.0"
         ApiView.register_api(module, rules, **kwargs)

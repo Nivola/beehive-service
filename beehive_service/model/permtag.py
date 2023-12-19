@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from sqlalchemy import Column, Integer, String, DateTime
 
@@ -8,8 +8,8 @@ from beehive_service.model.base import Base
 
 
 class PermTag(Base):
-    __tablename__ = 'perm_tag'
-    __table_args__ = {'mysql_engine': 'InnoDB'}
+    __tablename__ = "perm_tag"
+    __table_args__ = {"mysql_engine": "InnoDB"}
     #   `id` int(11) NOT NULL AUTO_INCREMENT,
     id = Column(Integer, primary_key=True)
     #   `value` varchar(100) COLLATE latin1_general_ci DEFAULT NULL,

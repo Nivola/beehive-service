@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from sqlalchemy import Column, Integer, String, DateTime
 
@@ -18,8 +18,9 @@ class ServiceTaskInterval(Base, AuditData):
     :param end_date: end interval
     :param task_num: numerator task execution
     """
-    __tablename__ = 'service_task_interval'
-    __table_args__ = {'mysql_engine': 'InnoDB'}
+
+    __tablename__ = "service_task_interval"
+    __table_args__ = {"mysql_engine": "InnoDB"}
 
     id = Column(Integer, primary_key=True)
     task = Column(String(200))
@@ -38,5 +39,9 @@ class ServiceTaskInterval(Base, AuditData):
         self.task_num = task_num
 
     def __repr__(self):
-        return '<ServiceTaskInterval task=%s, start=%s, end=%s, task_num=%s>' % (
-            self.task, self.start_date, self.end_date, self.task_num)
+        return "<ServiceTaskInterval task=%s, start=%s, end=%s, task_num=%s>" % (
+            self.task,
+            self.start_date,
+            self.end_date,
+            self.task_num,
+        )

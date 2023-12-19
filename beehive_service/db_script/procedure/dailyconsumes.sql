@@ -1,12 +1,12 @@
 /*
 SPDX-License-Identifier: EUPL-1.2
 
-(C) Copyright 2018-2022 CSI-Piemonte
+(C) Copyright 2018-2023 CSI-Piemonte
 
 */
 -- -----------------------------------------------------------
 -- -----------------------------------------------------------
-DROP PROCEDURE service.dailyconsumes;
+DROP PROCEDURE IF EXISTS  service.dailyconsumes;
 DELIMITER $$
 CREATE  PROCEDURE `dailyconsumes`( IN p_period VARCHAR(10), IN p_jobid  INTEGER )
 BEGIN

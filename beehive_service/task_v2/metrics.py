@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from .servicetask import ServiceTask
 from beehive_service.controller import ServiceController, ApiAccount
@@ -23,7 +23,7 @@ from typing import List, Type, Tuple, Any, Union, Dict
 #
 class AcquireMetricTask(ServiceTask):
     entity_class = ApiAccount
-    name = 'acquire_metric_task'
+    name = "acquire_metric_task"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -59,7 +59,7 @@ class AcquireMetricTask(ServiceTask):
         if controller is not None and controller.manager is not None:
             servicejob: ServiceJob = controller.manager.get_service_job_by_task_id(task_id)
             if servicejob is not None:
-                servicejob.status = 'FAILURE'
+                servicejob.status = "FAILURE"
                 servicejob.last_error = str(exc)
                 controller.manager.update(servicejob)
 
@@ -84,15 +84,22 @@ class AcquireMetricTask(ServiceTask):
         servicejob: ServiceJob = controller.manager.get_service_job_by_task_id(task_id)
 
         if servicejob is not None:
-            if servicejob.status != 'FAILURE':
-                servicejob.status = 'SUCCESS'
+            if servicejob.status != "FAILURE":
+                servicejob.status = "SUCCESS"
 
                 controller.manager.update(servicejob)
 
         return ServiceTask.on_success(self, retval, task_id, args, kwargs)
 
-    def acquire_metrics_by_account(self, account_id: int, current_job_id: int, metric_num: int, metric_dict: dict,
-                                   instance_id: int = None, plugintype: str = None) -> bool:
+    def acquire_metrics_by_account(
+        self,
+        account_id: int,
+        current_job_id: int,
+        metric_num: int,
+        metric_dict: dict,
+        instance_id: int = None,
+        plugintype: str = None,
+    ) -> bool:
         """Acquire resource metrics by account.
 
         :param plugintype:
@@ -113,12 +120,14 @@ class AcquireMetricTask(ServiceTask):
             try:
                 if res_uuid is not None:
                     inst_from_resource: ServiceInstance
-                    inst_from_resource = controller.manager.get_service_instance(fk_account_id=acc_id,
-                                                                                 resource_uuid=res_uuid)
+                    inst_from_resource = controller.manager.get_service_instance(
+                        fk_account_id=acc_id, resource_uuid=res_uuid
+                    )
                     if inst_from_resource is None:
-                        raise Exception('05 Resource %s has not service instance associated' % res_uuid)
-                    self.logger.debug('05 Resource {} has service instance {}associated'
-                                      .format(res_uuid, inst_from_resource.uuid))
+                        raise Exception("05 Resource %s has not service instance associated" % res_uuid)
+                    self.logger.debug(
+                        "05 Resource {} has service instance {}associated".format(res_uuid, inst_from_resource.uuid)
+                    )
 
                     if inst_from_resource is not None:
                         service_id = inst_from_resource.id
@@ -130,12 +139,15 @@ class AcquireMetricTask(ServiceTask):
                             service_plugin_type_id = plugin.model.plugintype.id
 
             except Exception as ex:
-                self.logger.error('05 No instance_id detected for resource {} '.format(cs.get('uuid')))
-            finally:
-                return service_id, service_plugin_type_id
+                self.logger.error("05 No instance_id detected for resource {} ".format(cs.get("uuid")))
+            return service_id, service_plugin_type_id
 
-        def compute_metric_type_id(metric_name: str, metric_measure_type: str, metric_group_name: str,
-                                   metric_unit: str) -> int:
+        def compute_metric_type_id(
+            metric_name: str,
+            metric_measure_type: str,
+            metric_group_name: str,
+            metric_unit: str,
+        ) -> int:
             type_id: int = metric_dict.get(metric_name, None)
 
             mtp = None
@@ -143,11 +155,16 @@ class AcquireMetricTask(ServiceTask):
             if type_id is None:
                 # Insert new ServiceMetricType
                 objid = id_gen()
-                mtnew = ServiceMetricType(objid, metric_name, metric_measure_type, group_name=metric_group_name,
-                                          measure_unit=metric_unit)
+                mtnew = ServiceMetricType(
+                    objid,
+                    metric_name,
+                    metric_measure_type,
+                    group_name=metric_group_name,
+                    measure_unit=metric_unit,
+                )
 
                 metric_type_new = controller.add_service_metric_type_base(mtnew)
-                self.logger.debug('06 Create new Metric Type {} {}'.format(metric_type_new.name, metric_type_new.id))
+                self.logger.debug("06 Create new Metric Type {} {}".format(metric_type_new.name, metric_type_new.id))
 
                 type_id = metric_type_new.id
 
@@ -163,13 +180,13 @@ class AcquireMetricTask(ServiceTask):
             return type_id
 
         try:
-            self.logger.debug('01 Get resource for account {}'.format(account_id))
+            self.logger.debug("01 Get resource for account {}".format(account_id))
             service_status_list_active = [
                 SrvStatusType.STOPPING,
                 SrvStatusType.STOPPED,
                 SrvStatusType.ACTIVE,
                 SrvStatusType.DELETING,
-                SrvStatusType.UPDATING
+                SrvStatusType.UPDATING,
             ]
             container_srvs: List[ServiceInstance]
             total: int
@@ -180,59 +197,86 @@ class AcquireMetricTask(ServiceTask):
                 flag_container=True,
                 service_status_name_list=service_status_list_active,
                 filter_expired=False,
-                authorize=False, size=0)
-            self.logger.debug('03 Acquire metrics for %s instances on account %s and instance %s'
-                              .format(len(container_srvs), account_id, instance_id))
+                authorize=False,
+                size=0,
+            )
+            self.logger.debug(
+                "03 Acquire metrics for %s instances on account %s and instance %s".format(
+                    len(container_srvs), account_id, instance_id
+                )
+            )
 
             metrics = []
-            self.logger.debug('01 Get resource quota on account {}'.format(account_id))
+            self.logger.debug("01 Get resource quota on account {}".format(account_id))
             for container in container_srvs:
                 try:
                     plugin_container: ApiServiceTypeContainer
                     plugin_container = ApiServiceType(controller).instancePlugin(None, container)
                     metrics_resource = plugin_container.acquire_metric(container.resource_uuid)
-                    self.logger.debug('04 acquire metrics for container {} {}'.format(container.uuid, container.name))
+                    self.logger.debug("04 acquire metrics for container {} {}".format(container.uuid, container.name))
 
                     for cs in metrics_resource:
                         # for any metric find service_id association
-                        resource_uuid: str = cs.get('uuid', None)
+                        resource_uuid: str = cs.get("uuid", None)
                         srv_id: int
                         plugin_type_id: int
-                        srv_id, plugin_type_id = compute_service_id_from_resource(account_id, resource_uuid, container.oid)
+                        srv_id, plugin_type_id = compute_service_id_from_resource(
+                            account_id, resource_uuid, container.oid
+                        )
                         # SAVE metrics;
-                        for m in cs.get('metrics', []):
+                        for m in cs.get("metrics", []):
                             # decode instance id from resource_uuid
-                            name = m.get('key')
-                            unit = m.get('unit')
-                            measure_type = m.get('type')
-                            metric_type_id = compute_metric_type_id(name, measure_type, container.getPluginTypeName(), unit)
-                            metric = (m.get('value'), metric_type_id, metric_num, srv_id, resource_uuid)
+                            name = m.get("key")
+                            unit = m.get("unit")
+                            measure_type = m.get("type")
+                            metric_type_id = compute_metric_type_id(
+                                name, measure_type, container.getPluginTypeName(), unit
+                            )
+                            metric = (
+                                m.get("value"),
+                                metric_type_id,
+                                metric_num,
+                                srv_id,
+                                resource_uuid,
+                            )
                             metrics.append(metric)
 
                 except Exception as ex:
-                    self.logger.error('Exception occurred: {} while acquiring metrics for {} container'
-                                      .format(ex, account_id, container))
+                    self.logger.error(
+                        "Exception occurred: {} while acquiring metrics for {} container".format(
+                            ex, account_id, container
+                        )
+                    )
 
             res = 0
             if len(metrics) > 0:
-                self.logger.debug('07 add metrics')
+                self.logger.debug("07 add metrics")
 
                 # generate orm entities for metrics
-                metrics = [ServiceMetric(value=m[0], metric_type_id=m[1], metric_num=m[2], service_instance_id=m[3],
-                                         resource_uuid=m[4], job_id=current_job_id) for m in metrics]
+                metrics = [
+                    ServiceMetric(
+                        value=m[0],
+                        metric_type_id=m[1],
+                        metric_num=m[2],
+                        service_instance_id=m[3],
+                        resource_uuid=m[4],
+                        job_id=current_job_id,
+                    )
+                    for m in metrics
+                ]
                 # Insert aggregate cost batch
                 controller.manager.bulk_save_entities(metrics)
                 res = len(metrics)
-                self.logger.debug('07 add metrics: {}'.format(res))
+                self.logger.debug("07 add metrics: {}".format(res))
 
         except Exception as ex:
-            self.logger.error('Exception occurred: {} while acquiring metrics for {}'.format(ex, account_id))
+            self.logger.error("Exception occurred: {} while acquiring metrics for {}".format(ex, account_id))
 
         return res
 
     @staticmethod
     @task_step()
-    def acquire_service_metrics_step(task, step_id: str, params: dict=None, *args, **kvargs):
+    def acquire_service_metrics_step(task, step_id: str, params: dict = None, *args, **kvargs):
         """Acquire instant service metrics
 
         :param task: parent celery task
@@ -245,7 +289,7 @@ class AcquireMetricTask(ServiceTask):
 
         def compute_metric_survey_number() -> int:
             execution_date: datetime = datetime.today().replace(year=1970, month=1, day=1)
-            task_interval = controller.get_task_intervals(execution_date=execution_date, task='acq_metric')
+            task_interval = controller.get_task_intervals(execution_date=execution_date, task="acq_metric")
             metric_num: int = 0
             if task_interval is not None and len(task_interval) > 0:
                 metric_num = task_interval[0].task_num
@@ -255,23 +299,24 @@ class AcquireMetricTask(ServiceTask):
 
         # set params as shared data
 
-        metric_num = params.get('metric_num', None)
+        metric_num = params.get("metric_num", None)
         if metric_num is None:
             metric_num = compute_metric_survey_number()
 
-        task.logger.info('Acquire metric num: %s ' % metric_num)
+        task.logger.info("Acquire metric num: %s " % metric_num)
 
-        obj_id = params.get('objid', None)
-        if obj_id is not None and obj_id == '*':
+        obj_id = params.get("objid", None)
+        if obj_id is not None and obj_id == "*":
             obj_id = None
 
         # get accounts
         accounts: List[Account]
         total_acc: int
-        accounts, total_acc = controller.manager.get_accounts(objid=obj_id, size=0, with_perm_tag=False,
-                                                              filter_expired=False, active=True)
+        accounts, total_acc = controller.manager.get_accounts(
+            objid=obj_id, size=0, with_perm_tag=False, filter_expired=False, active=True
+        )
 
-        task.logger.info('Acquire metric got {} accounts'.format(total_acc))
+        task.logger.info("Acquire metric got {} accounts".format(total_acc))
 
         # make dict metric type {name: id}
         metric_types: List[ServiceMetricType]
@@ -279,13 +324,13 @@ class AcquireMetricTask(ServiceTask):
         mtype = {mt.name: mt.id for mt in metric_types}
 
         # log job
-        current_job = controller.add_job(task.request.id, 'acquire_service_metrics', params)
+        current_job = controller.add_job(task.request.id, "acquire_service_metrics", params)
 
-        task.logger.info('Get accounts total: %s' % total_acc)
+        task.logger.info("Get accounts total: %s" % total_acc)
         for account in accounts:
-            params['account_id'] = account.id
+            params["account_id"] = account.id
             task.acquire_metrics_by_account(account.id, current_job.id, metric_num, mtype)
-            task.logger.info('Generate task for acquire metric for account {}'.format(account))
+            task.logger.info("Generate task for acquire metric for account {}".format(account))
 
         return True, params
 
@@ -299,20 +344,20 @@ class AcquireMetricTask(ServiceTask):
         :param dict params: step params
         :return: True, params
         """
-        task.logger.debug('FinalizeMetricAcquisition calling stored procedure')
+        task.logger.debug("FinalizeMetricAcquisition calling stored procedure")
         controller = task.controller
         controller.manager.call_smsmpopulate(10000)
-        task.logger.debug('FinalizeMetricAcquisition done')
+        task.logger.debug("FinalizeMetricAcquisition done")
 
         return True, params
 
 
 class GenerateDailyConsumesTask(ServiceTask):
     entity_class = ApiAccount
-    name = 'generate_daily_consumes_task'
-    inner_type = 'TASK'
-    prefix = 'celery-task-shared-'
-    prefix_stack = 'celery-task-stack-'
+    name = "generate_daily_consumes_task"
+    inner_type = "TASK"
+    prefix = "celery-task-shared-"
+    prefix_stack = "celery-task-stack-"
     expire = 3600
     controller: ServiceController = None
 
@@ -333,16 +378,16 @@ class GenerateDailyConsumesTask(ServiceTask):
         :return: True, params
         """
 
-        task.logger.debug('job_aggregate_costs: start')
+        task.logger.debug("job_aggregate_costs: start")
         controller = task.controller
 
-        period = params.get('period')
+        period = params.get("period")
         if period is None:
             yesterday = date.today() - timedelta(days=1)
-            period = yesterday.strftime('%Y-%m-%d')
+            period = yesterday.strftime("%Y-%m-%d")
 
-        task.logger.debug('a. Generate Daily Consumes for  {}'.format(period))
-        current_job = controller.add_job(task.request.id, 'Daily_Costs', params)
+        task.logger.debug("a. Generate Daily Consumes for  {}".format(period))
+        current_job = controller.add_job(task.request.id, "Daily_Costs", params)
         controller.manager.call_dailycosts(period, current_job.id)
         return True, params
 

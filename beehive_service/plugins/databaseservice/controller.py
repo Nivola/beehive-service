@@ -1,20 +1,22 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from copy import deepcopy
 from beehive.common.apimanager import ApiManagerError
 from beehive_service.entity.service_type import ApiServiceTypeContainer
 from beehive_service.model.base import SrvStatusType
 from beecell.simple import format_date, obscure_data
-from beehive_service.plugins.databaseservice.entity.instance_v2 import ApiDatabaseServiceInstanceV2
+from beehive_service.plugins.databaseservice.entity.instance_v2 import (
+    ApiDatabaseServiceInstanceV2,
+)
 
 
 class ApiDatabaseService(ApiServiceTypeContainer):
-    objuri = 'databaseservice'
-    objname = 'databaseservice'
-    objdesc = 'DatabaseService'
-    plugintype = 'DatabaseService'
+    objuri = "databaseservice"
+    objname = "databaseservice"
+    objdesc = "DatabaseService"
+    plugintype = "DatabaseService"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -30,9 +32,7 @@ class ApiDatabaseService(ApiServiceTypeContainer):
         :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        info = ApiServiceTypeContainer.info(self)
-        info.update({})
-        return info
+        return ApiServiceTypeContainer.info(self)
 
     @staticmethod
     def customize_list(controller, entities, *args, **kvargs):
@@ -45,21 +45,23 @@ class ApiDatabaseService(ApiServiceTypeContainer):
         :return: None
         :raise ApiManagerError:
         """
-        account_idx = controller.get_account_idx()
+        account_ids = {e.instance.account_id for e in entities}
+        account_idx = controller.get_account_idx(id_list=account_ids)
         instance_type_idx = controller.get_service_definition_idx(ApiDatabaseService.plugintype)
 
         # get resources
-        zones = []
-        resources = []
+        resources = set()
         for entity in entities:
-            account_id = str(entity.instance.account_id)
-            entity.account = account_idx.get(account_id)
-            entity.instance_type = instance_type_idx.get(str(entity.instance.service_definition_id))
-            if entity.instance.resource_uuid is not None:
-                resources.append(entity.instance.resource_uuid)
+            entity_instance = entity.instance
+            entity.account = account_idx.get("%s" % entity_instance.account_id)
+            entity.instance_type = instance_type_idx.get("%s" % entity_instance.service_definition_id)
+            if entity_instance.resource_uuid is not None:
+                resources.add(entity_instance.resource_uuid)
 
-        resources_list = ApiDatabaseService(controller).list_resources(uuids=resources)
-        resources_idx = {r['uuid']: r for r in resources_list}
+        resources_idx = {}
+        if len(resources) > 0:
+            resources_list = ApiDatabaseService(controller).list_resources(uuids=resources)
+            resources_idx = {r["uuid"]: r for r in resources_list}
 
         # assign resources
         for entity in entities:
@@ -75,34 +77,36 @@ class ApiDatabaseService(ApiServiceTypeContainer):
         :return: resource input params
         :raise ApiManagerError:
         """
-        compute_services, tot = self.controller.get_paginated_service_instances(plugintype='ComputeService',
-                                                                                account_id=self.instance.account_id,
-                                                                                filter_expired=False)
+        compute_services, tot = self.controller.get_paginated_service_instances(
+            plugintype="ComputeService",
+            account_id=self.instance.account_id,
+            filter_expired=False,
+        )
         if tot == 0:
-            raise ApiManagerError('Some service dependency does not exist')
+            raise ApiManagerError("Some service dependency does not exist")
 
         compute_service = compute_services[0]
 
         if compute_service.is_active() is False:
-            raise ApiManagerError('Some service dependency are not in the correct status')
+            raise ApiManagerError("Some service dependency are not in the correct status")
 
         # set resource uuid
         self.set_resource(compute_service.resource_uuid)
 
-        params['resource_params'] = {}
-        self.logger.debug('Pre create params: %s' % obscure_data(deepcopy(params)))
+        params["resource_params"] = {}
+        self.logger.debug("Pre create params: %s" % obscure_data(deepcopy(params)))
 
         return params
 
     def state_mapping(self, state):
         mapping = {
-            SrvStatusType.PENDING: 'pending',
-            SrvStatusType.ACTIVE: 'available',
-            SrvStatusType.DELETED: 'deregistered',
-            SrvStatusType.DRAFT: 'trasient',
-            SrvStatusType.ERROR: 'error'
+            SrvStatusType.PENDING: "pending",
+            SrvStatusType.ACTIVE: "available",
+            SrvStatusType.DELETED: "deregistered",
+            SrvStatusType.DRAFT: "trasient",
+            SrvStatusType.ERROR: "error",
         }
-        return mapping.get(state, 'error')
+        return mapping.get(state, "error")
 
     def aws_info(self):
         """Get info as required by aws api
@@ -113,20 +117,23 @@ class ApiDatabaseService(ApiServiceTypeContainer):
             self.resource = {}
 
         instance_item = {}
-        instance_item['id'] = self.instance.uuid
-        instance_item['name'] = self.instance.name
-        instance_item['creationDate'] = format_date(self.instance.model.creation_date)
-        instance_item['description'] = self.instance.desc
-        instance_item['state'] = self.state_mapping(self.instance.status)
-        instance_item['owner'] = self.account.uuid
-        instance_item['owner_name'] = self.account.name
-        instance_item['template'] = self.instance_type.uuid
-        instance_item['template_name'] = self.instance_type.name
-        instance_item['stateReason'] = {'code': None, 'message': None}
+        instance_item["id"] = self.instance.uuid
+        instance_item["name"] = self.instance.name
+        instance_item["creationDate"] = format_date(self.instance.model.creation_date)
+        instance_item["description"] = self.instance.desc
+        instance_item["state"] = self.state_mapping(self.instance.status)
+        instance_item["owner"] = self.account.uuid
+        instance_item["owner_name"] = self.account.name
+        instance_item["template"] = self.instance_type.uuid
+        instance_item["template_name"] = self.instance_type.name
+        instance_item["stateReason"] = {"code": None, "message": None}
         # reason = self.resource.get('reason', None)
-        if self.instance.status == 'ERROR':
-            instance_item['stateReason'] = {'code': 400, 'message': self.instance.last_error}
-        instance_item['resource_uuid'] = self.instance.resource_uuid
+        if self.instance.status == "ERROR":
+            instance_item["stateReason"] = {
+                "code": 400,
+                "message": self.instance.last_error,
+            }
+        instance_item["resource_uuid"] = self.instance.resource_uuid
 
         return instance_item
 
@@ -140,17 +147,19 @@ class ApiDatabaseService(ApiServiceTypeContainer):
         attributes = []
 
         for quota in self.get_resource_quotas():
-            name = quota.get('quota')
-            if name.find('database') == 0:
-                name = name.replace('database.', '')
+            name = quota.get("quota")
+            if name.find("database") == 0:
+                name = name.replace("database.", "")
                 attributes_item = {
-                    'attributeName': '%s [%s]' % (name, quota.get('unit')),
-                    'attributeValueSet': [{
-                        'item': {
-                            'attributeValue': quota.get('value'),
-                            'nvl-attributeUsed': quota.get('allocated')
+                    "attributeName": "%s [%s]" % (name, quota.get("unit")),
+                    "attributeValueSet": [
+                        {
+                            "item": {
+                                "attributeValue": quota.get("value"),
+                                "nvl-attributeUsed": quota.get("allocated"),
+                            }
                         }
-                    }]
+                    ],
                 }
                 attributes.append(attributes_item)
 
@@ -166,12 +175,12 @@ class ApiDatabaseService(ApiServiceTypeContainer):
         """
         data = {}
         for quota, value in quotas.items():
-            data['database.%s' % quota] = value
+            data["database.%s" % quota] = value
 
         res = self.set_resource_quotas(None, data)
         return res
 
-    def get_attributes(self, prefix='database'):
+    def get_attributes(self, prefix="database"):
         return self.get_container_attributes(prefix=prefix)
 
     def create_resource(self, task, *args, **kvargs):
@@ -184,12 +193,12 @@ class ApiDatabaseService(ApiServiceTypeContainer):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         self.update_status(SrvStatusType.PENDING)
-        quotas = self.get_config('quota')
+        quotas = self.get_config("quota")
         self.set_resource_quotas(task, quotas)
 
         # update service status
         self.update_status(SrvStatusType.CREATED)
-        self.logger.debug('Update database instance resources: %s' % self.instance.resource_uuid)
+        self.logger.debug("Update database instance resources: %s" % self.instance.resource_uuid)
 
         return self.instance.resource_uuid
 
@@ -207,6 +216,7 @@ class ApiDatabaseService(ApiServiceTypeContainer):
 
 class ApiDatabaseServiceInstance(ApiDatabaseServiceInstanceV2):
     pass
+
 
 # class ApiDatabaseServiceInstance(AsyncApiServiceTypePlugin):
 #     plugintype = 'DatabaseInstance'

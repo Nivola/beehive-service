@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_service.entity import ServiceApiObject
 
 
 class ApiServiceMetricType(ServiceApiObject):
-    objdef = 'ServiceMetricType'
-    objuri = 'servicemetrictype'
-    objname = 'servicemetrictype'
-    objdesc = 'servicemetrictype'
+    objdef = "ServiceMetricType"
+    objuri = "servicemetrictype"
+    objname = "servicemetrictype"
+    objdesc = "servicemetrictype"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -40,17 +40,18 @@ class ApiServiceMetricType(ServiceApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ServiceApiObject.info(self)
-        info.update({
-            'group_name': self.group_name,
-            'metric_type': self.metric_type,
-            'measure_unit': self.measure_unit,
-            'status': self.status,
-            'limits': self.limits
-            })
+        info.update(
+            {
+                "group_name": self.group_name,
+                "metric_type": self.metric_type,
+                "measure_unit": self.measure_unit,
+                "status": self.status,
+                "limits": self.limits,
+            }
+        )
         return info
 
     def detail(self):
-        """Get object extended info
-        """
+        """Get object extended info"""
         info = self.info()
         return info

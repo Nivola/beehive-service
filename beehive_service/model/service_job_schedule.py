@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from sqlalchemy import Column, String, Boolean
 
@@ -24,8 +24,9 @@ class ServiceJobSchedule(BaseEntity, Base):
     :param job_args: list of args
     :param job_kvargs: tuple of addictional arguments
     """
-    __tablename__ = 'service_job_schedule'
-    __table_args__ = {'mysql_engine': 'InnoDB'}
+
+    __tablename__ = "service_job_schedule"
+    __table_args__ = {"mysql_engine": "InnoDB"}
 
     job_name = Column(String(200))
     job_options = Column(TextDictType(), default={})
@@ -37,8 +38,21 @@ class ServiceJobSchedule(BaseEntity, Base):
     retry = Column(Boolean(), default=False)
     retry_policy = Column(TextDictType(), default={})
 
-    def __init__(self, objid, name, job_name, schedule_type, desc='', job_options=None, relative=False,
-                 schedule_params=None, retry=False, retry_policy=None, job_args=None, job_kvargs=None):
+    def __init__(
+        self,
+        objid,
+        name,
+        job_name,
+        schedule_type,
+        desc="",
+        job_options=None,
+        relative=False,
+        schedule_params=None,
+        retry=False,
+        retry_policy=None,
+        job_args=None,
+        job_kvargs=None,
+    ):
         if job_options is None:
             job_options = {}
         if schedule_params is None:
@@ -63,5 +77,9 @@ class ServiceJobSchedule(BaseEntity, Base):
         self.job_kvargs = job_kvargs
 
     def __repr__(self):
-        return '<ServiceJobSchedule id=%s, name=%s, job_name=%s,  schedule_type=%s>' % (
-            self.id, self.name, self.job_name,  self.schedule_type)
+        return "<ServiceJobSchedule id=%s, name=%s, job_name=%s,  schedule_type=%s>" % (
+            self.id,
+            self.name,
+            self.job_name,
+            self.schedule_type,
+        )

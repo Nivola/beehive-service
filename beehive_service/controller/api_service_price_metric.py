@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 # from beehive_service.controller.api_service_price_list import ApiServicePriceList
 from beehive_service.entity import ServiceApiObject
 
 
 class ApiServicePriceMetric(ServiceApiObject):
-    objdef = 'ServicePriceList.ServicePriceMetric'
-    objuri = 'servicepricemetric'
-    objname = 'servicepricemetric'
-    objdesc = 'servicepricemetric'
+    objdef = "ServicePriceList.ServicePriceMetric"
+    objuri = "servicepricemetric"
+    objname = "servicepricemetric"
+    objdesc = "servicepricemetric"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -47,23 +47,24 @@ class ApiServicePriceMetric(ServiceApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ServiceApiObject.info(self)
-        info.update({
-            'price': self.price,
-            'metric_type_id': str(self.metric_type_id),
-            'price_list_id': str(self.price_list_id),
-            'time_unit': self.time_unit
-        })
+        info.update(
+            {
+                "price": self.price,
+                "metric_type_id": str(self.metric_type_id),
+                "price_list_id": str(self.price_list_id),
+                "time_unit": self.time_unit,
+            }
+        )
 
         if self.metric_type is not None:
-            info['metric_type_id'] = self.metric_type.uuid
-            info['metric_type_name'] = self.metric_type.name
+            info["metric_type_id"] = self.metric_type.uuid
+            info["metric_type_name"] = self.metric_type.name
         if self.price_list is not None:
-            info['price_list_id'] = self.price_list.uuid
-            info['price_list_name'] = self.price_list.name
+            info["price_list_id"] = self.price_list.uuid
+            info["price_list_name"] = self.price_list.name
         return info
 
     def detail(self):
-        """Get object extended info
-        """
+        """Get object extended info"""
         info = self.info()
         return info

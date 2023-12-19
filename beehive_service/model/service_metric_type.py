@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import enum
 
@@ -22,21 +22,34 @@ class MetricType(enum.Enum):
 
 
 class ServiceMetricType(BaseApiBusinessObject, Base):
-    """ServiceMetricType describe the service metric type functionality.
-    """
-    __tablename__ = 'service_metric_type'
-    __table_args__ = {'mysql_engine': 'InnoDB'}
+    """ServiceMetricType describe the service metric type functionality."""
+
+    __tablename__ = "service_metric_type"
+    __table_args__ = {"mysql_engine": "InnoDB"}
 
     group_name = Column(String(50))
-    metric_type = Column('metric_type', String(40), nullable=False)
-    measure_unit = Column('measure_unit', String(40), nullable=True)
-    status = Column('status', String(20), ForeignKey('service_status.name'), default=SrvStatusType.DRAFT,
-                    nullable=False)
-    limits = relationship('ServiceMetricTypeLimit',
-                          foreign_keys='ServiceMetricTypeLimit.parent_id')
+    metric_type = Column("metric_type", String(40), nullable=False)
+    measure_unit = Column("measure_unit", String(40), nullable=True)
+    status = Column(
+        "status",
+        String(20),
+        ForeignKey("service_status.name"),
+        default=SrvStatusType.DRAFT,
+        nullable=False,
+    )
+    limits = relationship("ServiceMetricTypeLimit", foreign_keys="ServiceMetricTypeLimit.parent_id")
 
-    def __init__(self, objid, name, metric_type, group_name=None, desc=None, measure_unit=None, active=True,
-                 status=SrvStatusType.DRAFT):
+    def __init__(
+        self,
+        objid,
+        name,
+        metric_type,
+        group_name=None,
+        desc=None,
+        measure_unit=None,
+        active=True,
+        status=SrvStatusType.DRAFT,
+    ):
         BaseApiBusinessObject.__init__(self, objid, name, desc, active)
 
         if desc is None:
@@ -51,9 +64,14 @@ class ServiceMetricType(BaseApiBusinessObject, Base):
 
     def __repr__(self):
         if self.measure_unit is None:
-            unit = ''
+            unit = ""
         else:
             unit = self.measure_unit
 
-        return '<ServiceMetricType: id:%s, name:%s, desc:%s, metric_type:%s, unit:%s>' % \
-               (self.id, self.name, self.desc, self.metric_type, unit)
+        return "<ServiceMetricType: id:%s, name:%s, desc:%s, metric_type:%s, unit:%s>" % (
+            self.id,
+            self.name,
+            self.desc,
+            self.metric_type,
+            unit,
+        )

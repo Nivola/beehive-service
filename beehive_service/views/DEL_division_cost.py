@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive.common.apimanager import ApiView, GetApiObjectRequestSchema
 from beehive_service.views import ServiceApiView
@@ -11,16 +11,19 @@ from marshmallow import fields
 from datetime import date
 from beehive_service.controller import ApiWallet
 from beecell.simple import format_date
-from beehive_service.views.account_cost import ReportCostConsumeRequestSchema,\
-    ReportCostConsumeResponseSchema
+from beehive_service.views.account_cost import (
+    ReportCostConsumeRequestSchema,
+    ReportCostConsumeResponseSchema,
+)
+
 
 class ReportCostsDivisionRequestSchema(GetApiObjectRequestSchema):
-    year = fields.String(required=False, context=u'query', example=u'2018', description=u'year filter')
+    year = fields.String(required=False, context="query", example="2018", description="year filter")
 
 
 class ReportCostsDivisionResponseSchema(Schema):
-    name = fields.String(required=False, description=u'Division name')
-    uuid = fields.String(required=False, description=u'Division uuid')
+    name = fields.String(required=False, description="Division name")
+    uuid = fields.String(required=False, description="Division uuid")
     credit_tot = fields.Float(required=True)
     credit_res = fields.Float(required=True)
     cost_tot = fields.Float(required=True)
@@ -34,40 +37,40 @@ class ListCostsDivisionResponseSchema(Schema):
 
 
 class CostsDivision(ServiceApiView):
-    tags = [u'authority']
+    tags = ["authority"]
     definitions = {
-        u'ListCostsDivisionResponseSchema': ListCostsDivisionResponseSchema,
-        u'ReportCostsDivisionRequestSchema': ReportCostsDivisionRequestSchema
+        "ListCostsDivisionResponseSchema": ListCostsDivisionResponseSchema,
+        "ReportCostsDivisionRequestSchema": ReportCostsDivisionRequestSchema,
     }
     parameters = SwaggerHelper().get_parameters(ReportCostsDivisionRequestSchema)
     parameters_schema = ReportCostsDivisionRequestSchema
-    responses = ServiceApiView.setResponses({
-        200: {
-            u'description': u'success',
-            u'schema': ListCostsDivisionResponseSchema
-        }
-    })
+    responses = ServiceApiView.setResponses(
+        {200: {"description": "success", "schema": ListCostsDivisionResponseSchema}}
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
         Report Cost Consume for a division
         Call this api to list all the cost and consume for a division
         """
-        year = data.get(u'year', date.today().year)
+        year = data.get("year", date.today().year)
         division = controller.get_division(oid)
 
-        first_year_str = u'%s-01-01' %year
-        last_year_str = u'%s-12-31' %year
+        first_year_str = "%s-01-01" % year
+        last_year_str = "%s-12-31" % year
 
-        name = u''
-        uuid = u''
+        name = ""
+        uuid = ""
         imp_rendicontato = 0.0
         imp_non_rendicontato = 0.0
         credit_tot = 0.0
         if division is not None:
             name = division.name
             uuid = division.uuid
-            wallet = controller.get_wallet_by_year(division.oid, year, )
+            wallet = controller.get_wallet_by_year(
+                division.oid,
+                year,
+            )
             if wallet is not None and ApiWallet.ST_CLOSED == wallet.service_status_id:
                 credit_tot = wallet.capital_total
                 imp_rendicontato = wallet.capital_used
@@ -80,33 +83,31 @@ class CostsDivision(ServiceApiView):
         credit_res = credit_tot - imp_totale
 
         res = {
-            u'name': name,
-            u'uuid': uuid,
-            u'extraction_date': format_date(date.today()),
-            u'credit_tot': credit_tot,
-            u'credit_res': credit_res,
-            u'cost_tot': imp_totale,
-            u'cost_reported': imp_rendicontato,
-            u'cost_unreported': imp_non_rendicontato
+            "name": name,
+            "uuid": uuid,
+            "extraction_date": format_date(date.today()),
+            "credit_tot": credit_tot,
+            "credit_res": credit_res,
+            "cost_tot": imp_totale,
+            "cost_reported": imp_rendicontato,
+            "cost_unreported": imp_non_rendicontato,
         }
 
-        resp = {u'costs': res}
+        resp = {"costs": res}
         return resp
 
+
 class ReportCostConsumes(ServiceApiView):
-    tags = [u'authority']
+    tags = ["authority"]
     definitions = {
-        u'ReportCostConsumeRequestSchema': ReportCostConsumeRequestSchema,
-        u'ReportCostConsumeResponseSchema': ReportCostConsumeResponseSchema,
+        "ReportCostConsumeRequestSchema": ReportCostConsumeRequestSchema,
+        "ReportCostConsumeResponseSchema": ReportCostConsumeResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ReportCostConsumeRequestSchema)
     parameters_schema = ReportCostConsumeRequestSchema
-    responses = ServiceApiView.setResponses({
-        200: {
-            u'description': u'success',
-            u'schema': ReportCostConsumeResponseSchema
-        }
-    })
+    responses = ServiceApiView.setResponses(
+        {200: {"description": "success", "schema": ReportCostConsumeResponseSchema}}
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -114,28 +115,28 @@ class ReportCostConsumes(ServiceApiView):
         Call this api to list all the cost and consume for a division
         """
 
-        year_month = data.get(u'year_month', None)
-        start_date = data.get(u'start_date', None)
-        end_date = data.get(u'end_date', None)
-        report_mode = data.get(u'report_mode')
+        year_month = data.get("year_month", None)
+        start_date = data.get("start_date", None)
+        end_date = data.get("end_date", None)
+        report_mode = data.get("report_mode")
 
         division = controller.get_division(oid, active=True, filter_expired=False)
         res = division.get_report_costconsume(year_month, start_date, end_date, report_mode)
 
-        resp = {u'reports': res}
-        self.logger.warning(u'resp=%s' % resp)
+        resp = {"reports": res}
+        self.logger.warning("resp=%s" % resp)
         return resp
 
 
 class DivisionCostAPI(ApiView):
-    """DivisionAPI
-    """
+    """DivisionAPI"""
+
     @staticmethod
-    def register_api(module, rules=None, **kwargs):
-        base = u'nws'
+    def register_api(module, dummyrules=None, **kwargs):
+        base = "nws"
         rules = [
-            (u'%s/divisions/<oid>/costs/report' % base, u'GET', ReportCostConsumes, {}),
-            (u'%s/divisions/<oid>/costs/year_summary' % base, u'GET', CostsDivision, {}),
+            ("%s/divisions/<oid>/costs/report" % base, "GET", ReportCostConsumes, {}),
+            ("%s/divisions/<oid>/costs/year_summary" % base, "GET", CostsDivision, {}),
         ]
 
         ApiView.register_api(module, rules, **kwargs)

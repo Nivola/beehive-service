@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive.common.task.job import Job, JobTask, task_local, job_task, job
 from beehive.common.task.util import end_task, start_task, join_task
@@ -13,9 +13,16 @@ from datetime import datetime, timedelta, date
 from dateutil import relativedelta
 from beecell.simple import id_gen
 from beehive.common.data import operation
-from beehive_service.model import ServiceMetric, AggregateCost,\
-    ServiceMetricConsumeView, AggregateCostType, SrvStatusType,\
-    ServiceJob as ServiceJobModel, ServiceMetricType, ReportCost
+from beehive_service.model import (
+    ServiceMetric,
+    AggregateCost,
+    ServiceMetricConsumeView,
+    AggregateCostType,
+    SrvStatusType,
+    ServiceJob as ServiceJobModel,
+    ServiceMetricType,
+    ReportCost,
+)
 from beehive.common.apimanager import ApiManagerWarning, ApiManagerError
 from sqlalchemy.sql.expression import false
 from beehive_service.service_util import ServiceUtil
@@ -36,50 +43,159 @@ class AbstractServiceTask(object):
         :return: ervice instance
         :raise ApiManagerError:
         """
-        services = task_local.controller.get_service_instances(
-            fk_account_id=account_id)
+        services = task_local.controller.get_service_instances(fk_account_id=account_id)
         return services
 
     def set_operation_perms(self, perms):
         operation.perms = perms
 
-    def get_super_admin_perms(self,):
+    def get_super_admin_perms(
+        self,
+    ):
         # (0-pid, 1-oid, 2-type, 3-definition, 4-objid, 5-aid, 6-action)
         return [
-            (1, 1, u'service', u'Organization', u'*', 1, u'*'),
-            (1, 1, u'service', u'Organization.Division', u'*//*', 1, u'*'),
-            (1, 1, u'service', u'Organization.Division.Account', u'*//*//*', 1, u'*'),
-            (1, 1, u'service', u'Organization.Division.Account.ServiceInstance', u'*//*//*//*', 1, u'*'),
-            (1, 1, u'service', u'Organization.Division.Account.ServiceInstance.ServiceLinkInst',
-             u'*//*//*//*//*', 1, u'*'),
-            (1, 1, u'service', u'Organization.Division.Account.ServiceInstance.ServiceInstanceConfig',
-             u'*//*//*//*//*', 1, u'*'),
-            (1, 1, u'service', u'Organization.Division.Account.ServiceLink', u'*//*//*//*', 1, u'*'),
-            (1, 1, u'service', u'Organization.Division.Account.ServiceTag', u'*//*//*//*', 1, u'*'),
-            (1, 1, u'service', u'ServiceType', u'*', 1, u'*'),
-            (1, 1, u'service', u'ServiceType.ServiceCostParam', u'*//*', 1, u'*'),
-            (1, 1, u'service', u'ServiceType.ServiceDefinition', u'*//*', 1, u'*'),
-            (1, 1, u'service', u'ServiceType.ServiceDefinition.ServiceConfig', u'*//*//*', 1, u'*'),
-            (1, 1, u'service', u'ServiceType.ServiceDefinition.ServiceLinkDef', u'*//*//*', 1, u'*'),
-            (1, 1, u'service', u'ServiceType.ServiceProcess', u'*//*', 1, u'*'),
-            (1, 1, u'service', u'ServiceCatalog', u'*', 1, u'*'),
-            (1, 1, u'service', u'AccountCapability', u'*', 1, u'*'),
+            (1, 1, "service", "Organization", "*", 1, "*"),
+            (1, 1, "service", "Organization.Division", "*//*", 1, "*"),
+            (1, 1, "service", "Organization.Division.Account", "*//*//*", 1, "*"),
+            (
+                1,
+                1,
+                "service",
+                "Organization.Division.Account.ServiceInstance",
+                "*//*//*//*",
+                1,
+                "*",
+            ),
+            (
+                1,
+                1,
+                "service",
+                "Organization.Division.Account.ServiceInstance.ServiceLinkInst",
+                "*//*//*//*//*",
+                1,
+                "*",
+            ),
+            (
+                1,
+                1,
+                "service",
+                "Organization.Division.Account.ServiceInstance.ServiceInstanceConfig",
+                "*//*//*//*//*",
+                1,
+                "*",
+            ),
+            (
+                1,
+                1,
+                "service",
+                "Organization.Division.Account.ServiceLink",
+                "*//*//*//*",
+                1,
+                "*",
+            ),
+            (
+                1,
+                1,
+                "service",
+                "Organization.Division.Account.ServiceTag",
+                "*//*//*//*",
+                1,
+                "*",
+            ),
+            (1, 1, "service", "ServiceType", "*", 1, "*"),
+            (1, 1, "service", "ServiceType.ServiceCostParam", "*//*", 1, "*"),
+            (1, 1, "service", "ServiceType.ServiceDefinition", "*//*", 1, "*"),
+            (
+                1,
+                1,
+                "service",
+                "ServiceType.ServiceDefinition.ServiceConfig",
+                "*//*//*",
+                1,
+                "*",
+            ),
+            (
+                1,
+                1,
+                "service",
+                "ServiceType.ServiceDefinition.ServiceLinkDef",
+                "*//*//*",
+                1,
+                "*",
+            ),
+            (1, 1, "service", "ServiceType.ServiceProcess", "*//*", 1, "*"),
+            (1, 1, "service", "ServiceCatalog", "*", 1, "*"),
+            (1, 1, "service", "AccountCapability", "*", 1, "*"),
         ]
 
     def get_account_master_perms(self, objid):
         # (0-pid, 1-oid, 2-type, 3-definition, 4-objid, 5-aid, 6-action)
         return [
-            (1, 1, u'service', u'Organization.Division.Account', objid, 1, u'*'),
-            (1, 1, u'service', u'Organization.Division.Account.ServiceInstance', objid + u'//*', 1, u'*'),
-            (1, 1, u'service', u'Organization.Division.Account.ServiceInstance.ServiceLinkInst',
-             objid + u'//*//*', 1, u'*'),
-            (1, 1, u'service', u'Organization.Division.Account.ServiceInstance.ServiceInstanceConfig',
-             objid + u'//*//*', 1, u'*'),
-            (1, 1, u'service', u'Organization.Division.Account.ServiceLink', objid + u'//*', 1, u'*'),
-            (1, 1, u'service', u'Organization.Division.Account.ServiceTag', objid + u'//*', 1, u'*'),
-            (1, 1, u'service', u'Organization.Division.Account.ServiceLink', u'*//*//*//*', 1, u'view'),
-            (1, 1, u'service', u'Organization.Division.Account.ServiceTag', u'*//*//*//*', 1, u'view'),
-            (1, 1, u'service', u'AccountCapability', u'*', 1, u'view'),
+            (1, 1, "service", "Organization.Division.Account", objid, 1, "*"),
+            (
+                1,
+                1,
+                "service",
+                "Organization.Division.Account.ServiceInstance",
+                objid + "//*",
+                1,
+                "*",
+            ),
+            (
+                1,
+                1,
+                "service",
+                "Organization.Division.Account.ServiceInstance.ServiceLinkInst",
+                objid + "//*//*",
+                1,
+                "*",
+            ),
+            (
+                1,
+                1,
+                "service",
+                "Organization.Division.Account.ServiceInstance.ServiceInstanceConfig",
+                objid + "//*//*",
+                1,
+                "*",
+            ),
+            (
+                1,
+                1,
+                "service",
+                "Organization.Division.Account.ServiceLink",
+                objid + "//*",
+                1,
+                "*",
+            ),
+            (
+                1,
+                1,
+                "service",
+                "Organization.Division.Account.ServiceTag",
+                objid + "//*",
+                1,
+                "*",
+            ),
+            (
+                1,
+                1,
+                "service",
+                "Organization.Division.Account.ServiceLink",
+                "*//*//*//*",
+                1,
+                "view",
+            ),
+            (
+                1,
+                1,
+                "service",
+                "Organization.Division.Account.ServiceTag",
+                "*//*//*//*",
+                1,
+                "view",
+            ),
+            (1, 1, "service", "AccountCapability", "*", 1, "view"),
         ]
 
 
@@ -97,6 +213,7 @@ class ServiceJob(Job, AbstractServiceTask):
             def prova(self, objid, **kvargs):
                 pass
     """
+
     abstract = True
 
 
@@ -114,6 +231,7 @@ class ServiceJobTask(JobTask, AbstractServiceTask):
             def prova(self, options):
                 pass
     """
+
     abstract = True
     throws = (ApiManagerError, ApiManagerWarning)
 
@@ -130,12 +248,12 @@ class ServiceJobTask(JobTask, AbstractServiceTask):
         self.get_session()
 
         # get container
-        module = self.app.api_manager.modules[u'ServiceModule']
+        module = self.app.api_manager.modules["ServiceModule"]
         controller = module.get_controller()
 
         job = controller.manager.get_service_job_by_task_id(task_id)
         if job is not None:
-            job.status = u'FAILURE'
+            job.status = "FAILURE"
             job.last_error = str(exc)
             controller.manager.update(job)
 
@@ -144,7 +262,7 @@ class ServiceJobTask(JobTask, AbstractServiceTask):
         params = self.get_shared_data()
         self.get_session()
 
-        self.logger.warn(u'params= %s' % params)
+        self.logger.warn("params= %s" % params)
         self.logger.warn(exc)
         self.logger.warn(einfo)
 
@@ -160,14 +278,14 @@ class ServiceJobTask(JobTask, AbstractServiceTask):
         self.get_session()
 
         # get container
-        module = self.app.api_manager.modules[u'ServiceModule']
+        module = self.app.api_manager.modules["ServiceModule"]
         controller = module.get_controller()
         controller.logger = self.logger
 
         job = controller.manager.get_service_job_by_task_id(task_id)
         if job is not None:
-            if job.status != u'FAILURE':
-                job.status = u'SUCCESS'
+            if job.status != "FAILURE":
+                job.status = "SUCCESS"
 
                 controller.manager.update(job)
                 return JobTask.on_success(self, retval, task_id, args, kwargs)
@@ -175,7 +293,7 @@ class ServiceJobTask(JobTask, AbstractServiceTask):
 
 ## acquiszione delle metriche o consumei istantanei
 @task_manager.task(bind=True, base=ServiceJob)
-@job(entity_class=ApiAccount, name=u'metrics.acquire', delta=2)
+@job(entity_class=ApiAccount, name="metrics.acquire", delta=2)
 def acquire_service_metrics(self, objid, params):
     """Acquire instant service metrics
 
@@ -188,41 +306,41 @@ def acquire_service_metrics(self, objid, params):
     self.get_session()
 
     # get controller
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
 
     # set params as shared data
-    self.logger.info(u'Get shared area')
+    self.logger.info("Get shared area")
 
-    metric_num = params.get(u'metric_num')
+    metric_num = params.get("metric_num")
     execution_date = datetime.today().replace(year=1970, month=1, day=1)
 
     if metric_num is None:
-        task_interval = controller.get_task_intervals(
-            execution_date=execution_date, task=u'acq_metric')
+        task_interval = controller.get_task_intervals(execution_date=execution_date, task="acq_metric")
         if task_interval is not None and len(task_interval) > 0:
             metric_num = task_interval[0].task_num
-            params[u'metric_num'] = metric_num
+            params["metric_num"] = metric_num
         else:
             metric_num = 0
-            params[u'metric_num'] = metric_num
-    self.logger.info(u'Acquire metric num: %s for date: %s' % (metric_num, execution_date))
+            params["metric_num"] = metric_num
+    self.logger.info("Acquire metric num: %s for date: %s" % (metric_num, execution_date))
     ops = self.get_options()
 
     res = {}
 
-    if objid is not None and objid == u'*':
+    if objid is not None and objid == "*":
         objid = None
 
     # get accounts
-    accounts, total_acc = controller.manager.get_accounts(objid=objid, size=0, with_perm_tag=False,
-                                                          filter_expired=False, active=True)
+    accounts, total_acc = controller.manager.get_accounts(
+        objid=objid, size=0, with_perm_tag=False, filter_expired=False, active=True
+    )
 
     # make dict metric type {name: id}
     metric_types = controller.manager.get_service_metric_types()
     mtype = {mt.name: mt.id for mt in metric_types}
 
-    params[u'mtype_dict'] = mtype
+    params["mtype_dict"] = mtype
     self.set_shared_data(params)
 
     # prepare tasks for current job from bottom in reverse order
@@ -230,19 +348,23 @@ def acquire_service_metrics(self, objid, params):
     serial_tasks.append(finalize_metrics_acquisition)
 
     # log job
-    current_job = controller.add_job(task_local.opid, u'acquire_service_metrics', params)
+    current_job = controller.add_job(task_local.opid, "acquire_service_metrics", params)
 
     # prepare parallel tasks
     parallel_tasks = []
-    self.logger.info(u'Get accounts total: %s' % total_acc)
+    self.logger.info("Get accounts total: %s" % total_acc)
     for account in accounts:
-        params[u'account_id'] = account.id
-        parallel_tasks.append(acquire_metrics_by_account.signature((ops, account.id, current_job.id), immutable=True,
-                                                                   queue=task_manager.conf.TASK_DEFAULT_QUEUE))
-        self.logger.info(
-            u'Generate task for acquire metric for account %s' % account)
+        params["account_id"] = account.id
+        parallel_tasks.append(
+            acquire_metrics_by_account.signature(
+                (ops, account.id, current_job.id),
+                immutable=True,
+                queue=task_manager.conf.TASK_DEFAULT_QUEUE,
+            )
+        )
+        self.logger.info("Generate task for acquire metric for account %s" % account)
         if len(parallel_tasks) >= MAX_CONCURRENT_TASKS_CELERY:
-            self.logger.info(u'block of tasks n.%s' % (len(serial_tasks)-1))
+            self.logger.info("block of tasks n.%s" % (len(serial_tasks) - 1))
             serial_tasks.append(parallel_tasks)
             serial_tasks.append(join_task)
             parallel_tasks = []
@@ -261,7 +383,7 @@ def acquire_service_metrics(self, objid, params):
 
 ##  calcolo dei consumi gionalieri e costi giornalieri
 @task_manager.task(bind=True, base=ServiceJob)
-@job(entity_class=ApiAccount, name=u'job_aggregate_costs', delta=2)
+@job(entity_class=ApiAccount, name="job_aggregate_costs", delta=2)
 def generate_aggregate_costs(self, objid, params):
     """Generate aggregate costs entities
 
@@ -269,66 +391,72 @@ def generate_aggregate_costs(self, objid, params):
     :param dict params: input params
     :return: True
     """
-    self.logger.info(u'job_aggregate_costs: start')
-    self.logger.info(u'job_aggregate_costs params: %s' % params)
+    self.logger.info("job_aggregate_costs: start")
+    self.logger.info("job_aggregate_costs params: %s" % params)
     # open db session
     self.get_session()
     operation.id = id_gen()
 
     # get controller
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
 
-    aggregation_type = params.get(u'aggregation_type')
+    aggregation_type = params.get("aggregation_type")
     # default  aggregation is daily
     if aggregation_type is None:
-        aggregation_type = u'daily'
+        aggregation_type = "daily"
 
     # start_period = None
     # default period is yesterday
-    period = params.get(u'period')
+    period = params.get("period")
     if period is None:
-        if u'daily' == aggregation_type:
+        if "daily" == aggregation_type:
             yesterday = date.today() - timedelta(days=1)
             start_period = yesterday
-            period = yesterday.strftime(u"%Y-%m-%d")
-        elif u'monthly' == aggregation_type:
+            period = yesterday.strftime("%Y-%m-%d")
+        elif "monthly" == aggregation_type:
             firstOfMonth = date.today().replace(day=1)
             lastmonth = firstOfMonth - relativedelta.relativedelta(months=1)
             start_period = lastmonth
-            period = lastmonth.strftime(u"%Y-%m")
-        params[u'period'] = period
+            period = lastmonth.strftime("%Y-%m")
+        params["period"] = period
     else:
-        if u'daily' == aggregation_type:
-            start_period = datetime.strptime(period, u'%Y-%m-%d')
-        elif u'monthly' == aggregation_type:
-            start_period = datetime.strptime(period+u'-01', u'%Y-%m')
+        if "daily" == aggregation_type:
+            start_period = datetime.strptime(period, "%Y-%m-%d")
+        elif "monthly" == aggregation_type:
+            start_period = datetime.strptime(period + "-01", "%Y-%m")
 
-    self.logger.info(u'Generate Aggregate costs %s for date: %s' % (aggregation_type, period))
+    self.logger.info("Generate Aggregate costs %s for date: %s" % (aggregation_type, period))
 
     ops = self.get_options()
 
-    if objid is not None and objid == u'*':
+    if objid is not None and objid == "*":
         objid = None
-    params[u'period'] = period
+    params["period"] = period
     self.set_shared_data(params)
 
     # log job
-    current_job = controller.add_job(task_local.opid, u'generate_aggregate_costs', params)
+    current_job = controller.add_job(task_local.opid, "generate_aggregate_costs", params)
 
     # create and start job workflow
-    if u'daily' == aggregation_type:
+    if "daily" == aggregation_type:
         serial_tasks = [
             end_task,
-            [compute_daily_costs.signature((ops, period, current_job.id), immutable=True,
-                                           queue=task_manager.conf.TASK_DEFAULT_QUEUE)],
-            start_task]
+            [
+                compute_daily_costs.signature(
+                    (ops, period, current_job.id),
+                    immutable=True,
+                    queue=task_manager.conf.TASK_DEFAULT_QUEUE,
+                )
+            ],
+            start_task,
+        ]
         Job.create(serial_tasks, ops).delay()
     else:
         serial_tasks = [end_task, start_task]
         Job.create(serial_tasks, ops).delay()
 
-    self.logger.info(u'job_aggregate_costs: end')
+    self.logger.info("job_aggregate_costs: end")
     return True
 
 
@@ -343,32 +471,32 @@ def acquire_metrics_by_account(self, options, account_id, current_job_id):
     :dict sharedarea: input params
     :return:
     """
-    self.progress(u'01 Get resource objdef %s' % account_id)
+    self.progress("01 Get resource objdef %s" % account_id)
 
     # get params from shared data
     params = self.get_shared_data()
-    self.progress(u'02 Get shared area')
-    instance_id = params.get(u'service_instance_id')
+    self.progress("02 Get shared area")
+    instance_id = params.get("service_instance_id")
     # open db session
     operation.perms = []
     self.get_session()
 
     # get container
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
 
     # job = ServiceJobModel(objid=id_gen(), job=task_local.opid, name=u"AcquireMetric", account_id=account_id,
     #                       task_id=self.request.id, params=params)
     # controller.manager.add(job)
     # job_id = job.id
-    plugintype = params.get(u'plugintype', None)
+    plugintype = params.get("plugintype", None)
 
     service_status_list_active = [
         SrvStatusType.STOPPING,
         SrvStatusType.STOPPED,
         SrvStatusType.ACTIVE,
         SrvStatusType.DELETING,
-        SrvStatusType.UPDATING
+        SrvStatusType.UPDATING,
     ]
 
     container_srvs, total = controller.get_paginated_service_instances(
@@ -378,35 +506,44 @@ def acquire_metrics_by_account(self, options, account_id, current_job_id):
         flag_container=True,
         service_status_name_list=service_status_list_active,
         filter_expired=False,
-        authorize=False, size=0)
+        authorize=False,
+        size=0,
+    )
 
-    self.progress(u'03 Acquire metrics for %s instances on account %s and instance %s' %
-                  (len(container_srvs), account_id, instance_id))
+    self.progress(
+        "03 Acquire metrics for %s instances on account %s and instance %s"
+        % (len(container_srvs), account_id, instance_id)
+    )
 
-    metric_num = params.get(u'metric_num', 1)
-    mtype = params.get(u'mtype_dict', {})
+    metric_num = params.get("metric_num", 1)
+    mtype = params.get("mtype_dict", {})
 
     metrics = []
 
-    self.progress(u'01 Get resource quota on account %s' % account_id)
+    self.progress("01 Get resource quota on account %s" % account_id)
 
     for container in container_srvs:
         pluginContainer = ApiServiceType(controller).instancePlugin(None, container)
         metrics_resource = pluginContainer.acquire_metric(container.resource_uuid)
-        self.progress(u'04 acquire metrics for container %s %s' % (container.uuid, container.name))
+        self.progress("04 acquire metrics for container %s %s" % (container.uuid, container.name))
 
         for cs in metrics_resource:
             # for any metric find service_id association
             srv_id = container.oid
             plugin_type_id = None
             try:
-                if cs.get(u'uuid', None) is not None:
-                    inst_from_resource = controller.manager.get_service_instance(fk_account_id=account_id,
-                                                                                 resource_uuid=cs.get(u'uuid'))
+                if cs.get("uuid", None) is not None:
+                    inst_from_resource = controller.manager.get_service_instance(
+                        fk_account_id=account_id, resource_uuid=cs.get("uuid")
+                    )
                     if inst_from_resource is None:
-                        raise Exception(u'05 Resource %s has not service instance associated' % cs.get(u'uuid'))
-                    self.progress((u'05 Resource %s has service instance %s associated' %
-                                   (cs.get(u'uuid'), inst_from_resource.uuid)))
+                        raise Exception("05 Resource %s has not service instance associated" % cs.get("uuid"))
+                    self.progress(
+                        (
+                            "05 Resource %s has service instance %s associated"
+                            % (cs.get("uuid"), inst_from_resource.uuid)
+                        )
+                    )
 
                     if inst_from_resource is not None:
                         srv_id = inst_from_resource.id
@@ -419,14 +556,14 @@ def acquire_metrics_by_account(self, options, account_id, current_job_id):
 
             except Exception as ex:
                 logger.warn(ex)
-                self.progress(u'05 No instance_id detected for resource %s ' % cs.get(u'uuid'))
+                self.progress("05 No instance_id detected for resource %s " % cs.get("uuid"))
 
             # SAVE metrics;
-            for m in cs.get(u'metrics', []):
+            for m in cs.get("metrics", []):
                 # decode instance id from resource_uuid
-                name = m.get(u'key')
-                unit = m.get(u'unit')
-                typem = m.get(u'type')
+                name = m.get("key")
+                unit = m.get("unit")
+                typem = m.get("type")
                 metric_type_id = mtype.get(name, None)
 
                 mtp = None
@@ -434,13 +571,17 @@ def acquire_metrics_by_account(self, options, account_id, current_job_id):
                 if metric_type_id is None:
                     # Insert new ServiceMetricType
                     objid = id_gen()
-                    mtnew = ServiceMetricType(objid, name, typem,
-                                              group_name=container.getPluginTypeName(),
-                                              # desc=u'invalid metric type',
-                                              measure_unit=unit)
+                    mtnew = ServiceMetricType(
+                        objid,
+                        name,
+                        typem,
+                        group_name=container.getPluginTypeName(),
+                        # desc=u'invalid metric type',
+                        measure_unit=unit,
+                    )
 
                     metric_type_new = controller.add_service_metric_type_base(mtnew)
-                    self.progress(u'06 Create new Metric Type %s %s' % (metric_type_new.name, metric_type_new.id))
+                    self.progress("06 Create new Metric Type %s %s" % (metric_type_new.name, metric_type_new.id))
 
                     metric_type_id = metric_type_new.id
 
@@ -457,25 +598,34 @@ def acquire_metrics_by_account(self, options, account_id, current_job_id):
                     # add association metric_type plugin_type
                     controller.add_metric_type_plugin_type(plugin_type_id, metric_type_id)
                 else:
-                    logger.warn(u'Params not found:  plugin_type_id=%s, metric_type_id=%s' %
-                                (plugin_type_id, metric_type_id))
+                    logger.warn(
+                        "Params not found:  plugin_type_id=%s, metric_type_id=%s" % (plugin_type_id, metric_type_id)
+                    )
 
-                metric = (m.get(u'value'), metric_type_id, metric_num, srv_id)
+                metric = (m.get("value"), metric_type_id, metric_num, srv_id)
                 metrics.append(metric)
 
     res = 0
     if len(metrics) > 0:
-        self.progress(u'07 add metrics')
+        self.progress("07 add metrics")
 
         # generate orm entities for metrics
-        metrics = [ServiceMetric(value=m[0], metric_type_id=m[1], metric_num=m[2], service_instance_id=m[3],
-                                 job_id=current_job_id) for m in metrics]
+        metrics = [
+            ServiceMetric(
+                value=m[0],
+                metric_type_id=m[1],
+                metric_num=m[2],
+                service_instance_id=m[3],
+                job_id=current_job_id,
+            )
+            for m in metrics
+        ]
 
         # Insert aggregate cost batch
         self.get_session(reopen=True)
         controller.manager.bulk_save_entities(metrics)
         res = len(metrics)
-        self.progress(u'07 add metrics: %s' % res)
+        self.progress("07 add metrics: %s" % res)
 
     return res
 
@@ -493,14 +643,14 @@ def finalize_metrics_acquisition(self, options):
 
     # get params from shared data
     params = self.get_shared_data()
-    self.progress(u'FinalizeMetricAcquisition 01 calling stored procedure')
+    self.progress("FinalizeMetricAcquisition 01 calling stored procedure")
 
     # open db session
     operation.perms = []
     self.get_session()
 
     # get container
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
 
     # job = ServiceJobModel(objid=id_gen(), job=task_local.opid, name=u"FinalizeMetricAcquisition", account_id=None,
@@ -511,7 +661,7 @@ def finalize_metrics_acquisition(self, options):
     # self.get_session(reopen=True)
     controller.manager.call_smsmpopulate(10000)
 
-    self.progress(u'FinalizeMetricAcquisition 02 done')
+    self.progress("FinalizeMetricAcquisition 02 done")
 
     return None
 
@@ -531,14 +681,14 @@ def compute_daily_costs(self, options, period, current_job_id):
 
     # get params from shared data
     params = self.get_shared_data()
-    self.progress(u'ComputeDaily 01 calling stored procedure')
+    self.progress("ComputeDaily 01 calling stored procedure")
 
     # open db session
     operation.perms = []
     self.get_session()
 
     # get container
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
 
     # current_job = ServiceJobModel(objid=id_gen(), job=task_local.opid, name=u"ComputeDaily", account_id=None,
@@ -561,30 +711,34 @@ def generate_daily_consume_by_account(self, options, account_id):
     :dict sharedarea: input params
     :return: num of aggregate consume generated (num_aggr_consume)
     """
-    self.progress(u'a. Generate Daily Consumes on account_id %s' % account_id)
+    self.progress("a. Generate Daily Consumes on account_id %s" % account_id)
 
     # get params from shared data
     params = self.get_shared_data()
-    self.progress(u'b. Get shared area')
+    self.progress("b. Get shared area")
 
     # open db session
     operation.perms = []
     self.get_session()
 
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
 
-    current_job = ServiceJobModel(objid=id_gen(), job=task_local.opid,
-                          name=u"Daily_Comsumes",
-                          account_id=account_id,
-                          task_id=self.request.id,
-                          params=params)
+    current_job = ServiceJobModel(
+        objid=id_gen(),
+        job=task_local.opid,
+        name="Daily_Comsumes",
+        account_id=account_id,
+        task_id=self.request.id,
+        params=params,
+    )
     controller.manager.add(current_job)
 
-    period = params.get(u'period')
+    period = params.get("period")
 
     controller.manager.call_dailyconsumes_by_account(account_id, period, current_job.id)
     return None
+
 
 ## non usato per ora forse per calcoi parziali
 @task_manager.task(bind=True, base=ServiceJobTask)
@@ -603,15 +757,21 @@ def generate_daily_costs(self, options):
 
     # get params from shared data
     params = self.get_shared_data()
-    period = params.get(u'period')
+    period = params.get("period")
 
-    self.progress(u'a. Generate Daily Costs for  %s' % period)
+    self.progress("a. Generate Daily Costs for  %s" % period)
 
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
 
-    currentjob = ServiceJobModel(objid=id_gen(), job=task_local.opid, name=u"Daily_Costs",
-                                 account_id=None, task_id=self.request.id, params=params)
+    currentjob = ServiceJobModel(
+        objid=id_gen(),
+        job=task_local.opid,
+        name="Daily_Costs",
+        account_id=None,
+        task_id=self.request.id,
+        params=params,
+    )
     controller.manager.add(currentjob)
 
     controller.manager.call_dailycosts(period, currentjob.id)

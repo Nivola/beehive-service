@@ -1,5 +1,5 @@
 # beehive-service
-__beehive-service__ is the project that contains the service component of the Nivola CMP platform.
+__beehive-service__ is the project that contains the service component of the nivola cmp platform.
 
 All code is written using python and support versions 3.7.x>
 

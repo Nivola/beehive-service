@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from .servicetask import ServiceTask
 from beehive_service.controller import ServiceController, ApiAccount
@@ -23,10 +23,10 @@ from typing import List, Type, Tuple, Any, Union, Dict
 #
 class AcquisitionMonitorTask(ServiceTask):
     entity_class = ApiAccount
-    name = 'acquisition_monitor_task'
-    inner_type = 'TASK'
-    prefix = 'celery-task-shared-'
-    prefix_stack = 'celery-task-stack-'
+    name = "acquisition_monitor_task"
+    inner_type = "TASK"
+    prefix = "celery-task-shared-"
+    prefix_stack = "celery-task-stack-"
     expire = 3600
     controller: ServiceController = None
 
@@ -47,16 +47,22 @@ class AcquisitionMonitorTask(ServiceTask):
         :return: True, params
         """
 
-        task.logger.debug('step_monitoring')
+        task.logger.debug("step_monitoring")
         controller: ServiceController = task.controller
 
-        controller.add_job( task.request.id, 'step_monitoring', params)
-        msg,recipients =controller.compute_monitoring_message()
+        controller.add_job(task.request.id, "step_monitoring", params)
+        msg, recipients = controller.compute_monitoring_message()
         # recipients ="gianni.doria@consulenti.csi.it"
         if msg is not None and recipients is not None:
             # send email
             if controller.api_manager.mailer:
-                controller.api_manager.mailer.send(controller.api_manager.mail_sender, recipients,"Nivola Cmp Monitor", msg, msg)
+                controller.api_manager.mailer.send(
+                    controller.api_manager.mail_sender,
+                    recipients,
+                    "Nivola Cmp Monitor",
+                    msg,
+                    msg,
+                )
             pass
         return True, params
 

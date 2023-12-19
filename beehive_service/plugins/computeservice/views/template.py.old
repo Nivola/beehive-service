@@ -301,7 +301,7 @@ class DeleteTemplate(ServiceApiView):
 
 class ComputeTemplateAPI(ApiView):
     @staticmethod
-    def register_api(module, rules=None, version=None):
+    def register_api(module, dummyrules=None, version=None):
         base = u'nws'
         rules = [
             (u'%s/computeservices/template/describetemplates' % base, u'GET', DescribeTemplates, {}),

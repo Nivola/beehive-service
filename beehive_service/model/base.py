@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from sqlalchemy import Column, String
 from sqlalchemy.ext.declarative import declarative_base
@@ -9,75 +9,75 @@ from beehive.common.model import BaseEntity, PaginatedQueryGenerator
 
 
 class Action(object):
-    USE = 'use'
-    CREATE = 'create'
-    DELETE = 'delete'
-    UPDATE = 'update'
-    VIEW = 'view'
+    USE = "use"
+    CREATE = "create"
+    DELETE = "delete"
+    UPDATE = "update"
+    VIEW = "view"
 
 
 class SrvPluginTypeCategory(object):
-    CONTAINER = 'CONTAINER'
-    INSTANCE = 'INSTANCE'
+    CONTAINER = "CONTAINER"
+    INSTANCE = "INSTANCE"
 
 
 class ServiceCategory(object):
-    cpaas = 'cpaas'
-    dbaas = 'dbaas'
-    dummy = 'dummy'
-    network = 'netaas'
-    paas = 'paas'
-    staas = 'staas'
-    todo = 'todo'
-    virtual = 'virt'
-    logaas = 'laas'
-    monitaas = 'maas'
+    cpaas = "cpaas"
+    dbaas = "dbaas"
+    dummy = "dummy"
+    network = "netaas"
+    paas = "paas"
+    staas = "staas"
+    todo = "todo"
+    virtual = "virt"
+    logaas = "laas"
+    monitaas = "maas"
 
 
 class SrvStatusType(object):
     # VERIFICATI
-    DRAFT = 'DRAFT'
-    PENDING = 'PENDING'
-    CREATED = 'CREATED'
-    STARTING = 'STARTING'
-    STOPPING = 'STOPPING'
-    STOPPED = 'STOPPED'
-    ACTIVE = 'ACTIVE'
-    DELETING = 'DELETING'
-    DELETED = 'DELETED'
-    UPDATING = 'UPDATING'
-    ERROR = 'ERROR'
-    ERROR_CREATION = 'ERROR_CREATION'
+    DRAFT = "DRAFT"
+    PENDING = "PENDING"
+    CREATED = "CREATED"
+    STARTING = "STARTING"
+    STOPPING = "STOPPING"
+    STOPPED = "STOPPED"
+    ACTIVE = "ACTIVE"
+    DELETING = "DELETING"
+    DELETED = "DELETED"
+    UPDATING = "UPDATING"
+    ERROR = "ERROR"
+    ERROR_CREATION = "ERROR_CREATION"
 
     # DA VERIFICARE
-    BUILDING = 'BUILDING'
-    DEPRECATED = 'DEPRECATED'
-    RELEASED = 'RELEASED'
-    EXPUNGING = 'EXPUNGING'
-    EXPUNGED = 'EXPUNGED'
-    SYNCHRONIZE = 'SYNCHRONIZE'
-    TERMINATED = 'TERMINATED'
-    SHUTTINGDOWN = 'SHUTTING-DOWN'
-    UNKNOWN = 'UNKNOWN'
+    BUILDING = "BUILDING"
+    DEPRECATED = "DEPRECATED"
+    RELEASED = "RELEASED"
+    EXPUNGING = "EXPUNGING"
+    EXPUNGED = "EXPUNGED"
+    SYNCHRONIZE = "SYNCHRONIZE"
+    TERMINATED = "TERMINATED"
+    SHUTTINGDOWN = "SHUTTING-DOWN"
+    UNKNOWN = "UNKNOWN"
 
 
 class ParamType(object):
-    FLOAT = 'float'
-    INTEGER = 'integer'
-    STRING = 'string'
-    DATETIME = 'datetime'
-    DATE = 'date'
-    BOOLEAN = 'boolean'
+    FLOAT = "float"
+    INTEGER = "integer"
+    STRING = "string"
+    DATETIME = "datetime"
+    DATE = "date"
+    BOOLEAN = "boolean"
 
 
 class ConfParamType(object):
-    JSON = 'json'
-    XML = 'xml'
+    JSON = "json"
+    XML = "xml"
 
 
 class OrgType(object):
-    PUBLIC = 'Public'
-    PRIVATE = 'Private'
+    PUBLIC = "Public"
+    PRIVATE = "Private"
 
 
 Base = declarative_base()
@@ -100,6 +100,7 @@ class BaseApiBusinessObject(BaseEntity):
         name:  mnemonic key not unique   = Column(String(100), unique=True)
 
     """
+
     # overwrite  unique=false
     name = Column(String(100), unique=False)
 
@@ -114,10 +115,10 @@ class BaseApiBusinessObject(BaseEntity):
 
 
 class ApiBusinessObject(BaseApiBusinessObject):
-    """Column of common audit
-    """
+    """Column of common audit"""
+
     # version attribute
-    version = Column(String(100), nullable=False, default='1.0')
+    version = Column(String(100), nullable=False, default="1.0")
 
     def __init__(self, objid: str, name: str, desc: str, active, version):
         BaseApiBusinessObject.__init__(self, objid, name, desc, active)
@@ -126,6 +127,6 @@ class ApiBusinessObject(BaseApiBusinessObject):
     @staticmethod
     def get_base_entity_sqlfilters(*args, **kvargs):
         filters = BaseApiBusinessObject.get_base_entity_sqlfilters(*args, **kvargs)
-        filters.append(PaginatedQueryGenerator.get_sqlfilter_by_field('version', kvargs))
+        filters.append(PaginatedQueryGenerator.get_sqlfilter_by_field("version", kvargs))
 
         return filters

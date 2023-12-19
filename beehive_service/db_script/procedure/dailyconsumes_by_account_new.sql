@@ -1,7 +1,7 @@
 /*
 SPDX-License-Identifier: EUPL-1.2
 
-(C) Copyright 2018-2022 CSI-Piemonte
+(C) Copyright 2018-2023 CSI-Piemonte
 
 */
 -- -----------------------------------------------------------
@@ -21,7 +21,7 @@ BEGIN
             sm.creation_date >=  DATE(p_period)
             AND sm.creation_date <  adddate(p_period,1)
             AND si.fk_account_id = p_account_id;
-    IF smetrics > 0 THEN
+    IF smetrics = 0 THEN
         DELETE FROM aggregate_cost WHERE  fk_account_id = p_account_id AND aggregate_cost.period = p_period;
         COMMIT;
         INSERT INTO aggregate_cost (creation_date, modification_date, `expiry_date`, fk_metric_type_id, cost, evaluation_date, fk_service_instance_id, fk_account_id, fk_job_id, aggregation_type, period, fk_cost_type_id, consumed)
