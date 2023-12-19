@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import import_class
 from beehive.common.apimanager import ApiObject, ApiManagerWarning
@@ -11,8 +11,8 @@ from beehive_service.service_util import ServiceUtil
 
 
 class ServiceApiObject1(ApiObject):
-    module = 'ServiceModule'
-    objtype = 'service'
+    module = "ServiceModule"
+    objtype = "service"
 
     manager = ServiceDbManager()
 
@@ -27,7 +27,7 @@ class ServiceApiObject1(ApiObject):
         :return:
         """
         if self.model is not None:
-            return getattr(self.model, 'version', '1.0')
+            return getattr(self.model, "version", "1.0")
         else:
             return None
 
@@ -39,9 +39,7 @@ class ServiceApiObject1(ApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ApiObject.info(self)
-        info.update({
-            'version': self.version
-        })
+        info.update({"version": self.version})
         return info
 
     def instancePlugin(self, oid, inst=None):
@@ -62,15 +60,16 @@ class ServiceApiObject1(ApiObject):
         servicetype = instance.model.service_definition.service_type
         plugin = None
         try:
-            self.logger.debug('Tento la creazione del Plugin %s' % servicetype.objclass)
+            self.logger.debug("Tento la creazione del Plugin %s" % servicetype.objclass)
             serviceTypePlugin = import_class(servicetype.objclass)
-            self.logger.debug('Instanziato il Plugin %s' % serviceTypePlugin)
+            self.logger.debug("Instanziato il Plugin %s" % serviceTypePlugin)
             plugin = ServiceUtil.instanceApi(self.controller, serviceTypePlugin, servicetype)
 
         except Exception:
-            self.logger.error('', exc_info=True)
-            raise ApiManagerWarning('Plugin class "%s" not found  for SericeType [%s ]' %
-                                    (servicetype.objclass, repr(servicetype)))
+            self.logger.error("", exc_info=True)
+            raise ApiManagerWarning(
+                'Plugin class "%s" not found  for SericeType [%s ]' % (servicetype.objclass, repr(servicetype))
+            )
 
         return plugin
 
@@ -78,7 +77,7 @@ class ServiceApiObject1(ApiObject):
         if self.update_object is not None:
             # name non definita self.update_object(oid=self.oid, status=status, name=name)
             self.update_object(oid=self.oid, status=status)
-            self.logger.debug('Update status of %s to %s' % (self.uuid, status))
+            self.logger.debug("Update status of %s to %s" % (self.uuid, status))
 
     def is_active(self):
         """Check if object has status ACTIVE
@@ -86,8 +85,8 @@ class ServiceApiObject1(ApiObject):
         :return: True if active
         """
         res = False
-        service_status_id = getattr(self.model, 'service_status_id', None)
-        status = getattr(self.model, 'status', None)
+        service_status_id = getattr(self.model, "service_status_id", None)
+        status = getattr(self.model, "status", None)
 
         # status for Account, Org and Div
         if service_status_id is not None and (service_status_id == 1 or service_status_id == 14):

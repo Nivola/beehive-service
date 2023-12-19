@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from gevent import sleep
 from beehive.common.task.job import Job, JobTask, task_local, job_task, job, JobError
@@ -35,6 +35,7 @@ class CapabilityJob(Job, AbstractServiceTask):
             def prova(self, objid, **kvargs):
                 pass
     """
+
     abstract = True
 
 
@@ -52,6 +53,7 @@ class CapabilityJobTask(JobTask, AbstractServiceTask):
             def prova(self, options):
                 pass
     """
+
     abstract = True
     throws = (ApiManagerError, ApiManagerWarning)
 
@@ -69,12 +71,12 @@ class CapabilityJobTask(JobTask, AbstractServiceTask):
         self.get_session()
 
         # get container
-        module = self.app.api_manager.modules[u'ServiceModule']
+        module = self.app.api_manager.modules["ServiceModule"]
         controller = module.get_controller()
 
         job = controller.manager.get_service_job_by_task_id(task_id)
         if job is not None:
-            job.status = u'FAILURE'
+            job.status = "FAILURE"
             job.last_error = str(exc)
             controller.manager.update(job)
 
@@ -90,9 +92,9 @@ class CapabilityJobTask(JobTask, AbstractServiceTask):
         :return:
         """
         if onfailure:
-            setattr(self, 'CB_ON_FAIL_CLOSURE', callback)
+            setattr(self, "CB_ON_FAIL_CLOSURE", callback)
         else:
-            setattr(self, 'CB_ON_SUCC_CLOSURE', callback)
+            setattr(self, "CB_ON_SUCC_CLOSURE", callback)
 
     def call_callback(self, onfailure=True):
         """Search for registered callback and execute them
@@ -101,9 +103,9 @@ class CapabilityJobTask(JobTask, AbstractServiceTask):
         :return:
         """
         if onfailure:
-            call_back = getattr(self, 'CB_ON_FAIL_CLOSURE', None)
+            call_back = getattr(self, "CB_ON_FAIL_CLOSURE", None)
         else:
-            call_back = getattr(self, 'CB_ON_SUCC_CLOSURE', None)
+            call_back = getattr(self, "CB_ON_SUCC_CLOSURE", None)
         if callable(call_back):
             call_back()
 
@@ -120,29 +122,34 @@ class CapabilityJobTask(JobTask, AbstractServiceTask):
         self.get_session()
 
         # get container
-        module = self.app.api_manager.modules[u'ServiceModule']
+        module = self.app.api_manager.modules["ServiceModule"]
         controller = module.get_controller()
         controller.logger = self.logger
 
         job = controller.manager.get_service_job_by_task_id(task_id)
-        if job is not None:
-            if job.status != u'FAILURE':
-                job.status = u'SUCCESS'
-                controller.manager.update(job)
+        if job is not None and job.status != "FAILURE":
+            job.status = "SUCCESS"
+            controller.manager.update(job)
         self.call_callback(onfailure=False)
 
         self.release_session()
 
-    def persist_job(self, name='', account_id=None, data=None):
+    def persist_job(self, name="", account_id=None, data=None):
         # open db session
         # self.get_session()
 
-        module = self.app.api_manager.modules[u'ServiceModule']
+        module = self.app.api_manager.modules["ServiceModule"]
         controller = module.get_controller()
 
         # persist job_tasks
-        job_record = ServiceJobModel(objid=id_gen(), job=task_local.opid, name=name,
-                                     account_id=account_id, task_id=self.request.id, params=data)
+        job_record = ServiceJobModel(
+            objid=id_gen(),
+            job=task_local.opid,
+            name=name,
+            account_id=account_id,
+            task_id=self.request.id,
+            params=data,
+        )
         controller.manager.add(job_record)
 
         return job_record
@@ -155,7 +162,7 @@ class CapabilityJobTask(JobTask, AbstractServiceTask):
             # self.progress(u'Get service %s status: %s' % (uuid, state))
             return state
         except Exception:
-            return u'DELETED'
+            return "DELETED"
 
     def wait_for_service(self, uuid, delta=5, accepted_state=SrvStatusType.ACTIVE, maxtime=600):
         """Wait for service instance
@@ -166,14 +173,19 @@ class CapabilityJobTask(JobTask, AbstractServiceTask):
         :param accepted_state: can be ACTIVE, ERROR or DELETED
         """
         self.get_session(reopen=True)
-        self.progress(u'Wait for service %s - START' % uuid)
+        self.progress("Wait for service %s - START" % uuid)
 
-        TIMEOUT = u'TIMEOUT'
+        TIMEOUT = "TIMEOUT"
 
         state = self.get_service_state(uuid)
         elapsed = 0
-        while state not in [SrvStatusType.ACTIVE, SrvStatusType.ERROR, SrvStatusType.DELETED, TIMEOUT]:
-            self.progress(u'Wait for service %s' % uuid)
+        while state not in [
+            SrvStatusType.ACTIVE,
+            SrvStatusType.ERROR,
+            SrvStatusType.DELETED,
+            TIMEOUT,
+        ]:
+            self.progress("Wait for service %s" % uuid)
             sleep(delta)
             state = self.get_service_state(uuid)
             elapsed += delta
@@ -181,13 +193,13 @@ class CapabilityJobTask(JobTask, AbstractServiceTask):
                 state = TIMEOUT
 
         if state == SrvStatusType.ERROR:
-            self.progress(u'Wait for service %s - ERROR' % uuid)
-            raise JobError(u'Wait for service %s got error' % uuid)
+            self.progress("Wait for service %s - ERROR" % uuid)
+            raise JobError("Wait for service %s got error" % uuid)
         if state == TIMEOUT:
-            self.progress(u'Wait for service %s - TIMEOUT' % uuid)
-            raise JobError(u'Wait for service %s got timeout' % uuid)
+            self.progress("Wait for service %s - TIMEOUT" % uuid)
+            raise JobError("Wait for service %s got timeout" % uuid)
 
-        self.progress(u'Wait for service %s - STOP' % uuid)
+        self.progress("Wait for service %s - STOP" % uuid)
 
 
 def get_creation_order(item_list):
@@ -208,35 +220,35 @@ def get_creation_order(item_list):
         :return:
         """
         for n in nodes:
-            if n[u'data'].get(u'name', u'') == service_name and n[u'data'].get(u'type', u'') == service_type:
+            if n["data"].get("name", "") == service_name and n["data"].get("type", "") == service_type:
                 return n
         return None
 
     # create node for each service
     for service in item_list:
         node = {
-            u'dependant': [],  # the list of dependant services
-            u'required': None,  # the
-            u'data': service,  # the service definition
+            "dependant": [],  # the list of dependant services
+            "required": None,  # the
+            "data": service,  # the service definition
         }
         nodes.append(node)
 
     for node in nodes:
-        req = node[u'data'].get(u'require', None)
+        req = node["data"].get("require", None)
         if req is not None:
-            s = find_service(req[u'name'], req[u'type'])
+            s = find_service(req["name"], req["type"])
             if s is not None:
-                node[u'required'] = s
-                node[u'required'][u'dependant'].append(node)
+                node["required"] = s
+                node["required"]["dependant"].append(node)
 
     # roots level 0 the first services to be created
     level = []
     # the services in the levels
     level_item = []
     for node in nodes:
-        if node[u'required'] is None:
+        if node["required"] is None:
             level.append(node)
-            level_item.append(node[u'data'])
+            level_item.append(node["data"])
     # visit.append(level)
     visit.append(level_item)
     cursor = level
@@ -245,9 +257,9 @@ def get_creation_order(item_list):
         level = []
         level_item = []
         for r in cursor:
-            for s in r[u'dependant']:
+            for s in r["dependant"]:
                 level.append(s)
-                level_item.append(s[u'data'])
+                level_item.append(s["data"])
         if len(level) > 0:
             # visit.append(level)
             visit.append(level_item)
@@ -274,25 +286,26 @@ def task_add_service(self, options, data):
     self.get_session(reopen=True)
     self.set_operation_perms(self.get_super_admin_perms())
 
-    if not getattr(operation, 'id', False):
+    if not getattr(operation, "id", False):
         operation.id = id_gen()
 
     # disable authorization stuff
     operation.authorize = False
 
-    service_description = data.get(u"service", {})
-    account_uuid = data.get(u"uuid", {})
+    service_description = data.get("service", {})
+    account_uuid = data.get("uuid", {})
 
     # get params from shared data
     params = self.get_shared_data()
-    capability_oid = params.get(u"capability", None)
-    service_name = service_description[u"name"]
+    capability_oid = params.get("capability", None)
+    service_name = service_description["name"]
 
-    self.progress(u'Create service %s  for  capability %s account uuid %s' %
-                  (service_name, capability_oid, account_uuid))
+    self.progress(
+        "Create service %s  for  capability %s account uuid %s" % (service_name, capability_oid, account_uuid)
+    )
 
     # get container
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
     account = controller.get_entity(ApiAccount, Account, account_uuid)
 
@@ -302,7 +315,7 @@ def task_add_service(self, options, data):
     if capability_oid is not None:
         #  register on failure callback in order to set error status
         def callback():
-            operation.authorize=False
+            operation.authorize = False
             self.get_session()
             account = controller.get_entity(ApiAccount, Account, account_uuid)
             account.set_capability_status(capability_oid, SrvStatusType.ERROR_CREATION)
@@ -314,31 +327,14 @@ def task_add_service(self, options, data):
         #     pass
         # self.register_callback(callback=succescallback, onfailure=False)
 
-    response = u'Create service %s for account  %s' % (service_description[u"name"], account.name)
+    response = "Create service %s for account  %s" % (
+        service_description["name"],
+        account.name,
+    )
     self.progress(response)
 
     # no more result res=account.add_service(service_description)
-    result = account.add_service(service_description, syncrounous=True, parent_task=self)
-    # status = result.get(u'status', SrvStatusType.ERROR)
-    # response = u'Service %s for capability %s: %s' % (service_description[u"name"],
-    #                                                   capability_oid,
-    #                                                   result.get(u'response', ''))
-    # self.progress(response)
-    # if status == SrvStatusType.ERROR:
-    #     self.update(u'FAILURE', msg=response, result=None)
-    #     raise ApiManagerError(response)
-    # elif status == SrvStatusType.ACTIVE:
-    #     self.update(u'SUCCESS', msg=response, result=None)
-    # else:
-    #     self.update(u'FAILURE', msg=response, result=None)
-    #     raise ApiManagerError(response)
-
-    # if status != SrvStatusType.ACTIVE:
-    #     raise ApiManagerError(response)
-    #
-    # # self.update(u'SUCCESS')
-    # self.logger.debug(u'OK service %s  for  capability %s account uuid %s' % (
-    #     service_description[u"name"], capability_oid, account_uuid))
+    account.add_service(service_description, syncrounous=True, parent_task=self)
 
     return True
 
@@ -355,25 +351,24 @@ def task_set_capability_status(self, options, data):
     # open db session
     self.get_session()
     self.set_operation_perms(self.get_super_admin_perms())
-    operation.authorize=False
+    operation.authorize = False
 
-    if not getattr(operation, 'id', False):
+    if not getattr(operation, "id", False):
         operation.id = id_gen()
 
-    capability_oid = data.get(u"capability", None)
-    uuid = data.get(u"uuid", {})
+    capability_oid = data.get("capability", None)
+    uuid = data.get("uuid", {})
 
-    self.logger.debug(u'Setting Capability  %s status  for account_id %s' % (capability_oid, uuid))
+    self.logger.debug("Setting Capability  %s status  for account_id %s" % (capability_oid, uuid))
 
-    self.progress(u'Start Setting Capability %s status for account uuid %s' % (capability_oid, uuid))
+    self.progress("Start Setting Capability %s status for account uuid %s" % (capability_oid, uuid))
 
     # get business context
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
     account = controller.get_entity(ApiAccount, Account, uuid)
-    # account = controller.get_entity(ApiAccount, Account, uuid, authorize=False)
 
-    self.progress(u'Ready to Set capability status for account  %s' % account.name)
+    self.progress("Ready to Set capability status for account  %s" % account.name)
 
     account.set_capability_status(capability_oid, SrvStatusType.ACTIVE)
 
@@ -383,7 +378,7 @@ def task_set_capability_status(self, options, data):
     return 0
 
 
-@task_manager.task(bind=True, base=CapabilityJobTask, max_retries=ACJobSettings.RETRY_MAX )
+@task_manager.task(bind=True, base=CapabilityJobTask, max_retries=ACJobSettings.RETRY_MAX)
 @job_task()
 def task_wait_if_building(self, options, data):
     """Check if there is no other capability for the account which is  in building status.
@@ -392,46 +387,36 @@ def task_wait_if_building(self, options, data):
     :param data  dictionary {"capability", "uuid"}
     :return:
     """
-    # open db session
-    deltatime = 10
+    # open db session deltatime = 10
     self.get_session()
     self.set_operation_perms(self.get_super_admin_perms())
-    operation.authorize=False
-    if not getattr(operation, 'id', False):
+    operation.authorize = False
+    if not getattr(operation, "id", False):
         operation.id = id_gen()
 
     # get container
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
     controller.logger = self.logger
     # # set params as shared data
     # params =self.get_shared_data()
 
     # get account and services list
-    capability_oid = data.get(u"capability", None)
-    account_uuid = data.get(u"uuid", None)
+    capability_oid = data.get("capability", None)
+    account_uuid = data.get("uuid", None)
 
-    self.logger.debug(u'search for account %s' % account_uuid)
-    account = controller.get_entity( ApiAccount, Account, account_uuid)
-    # account = controller.get_entity( ApiAccount, Account, account_uuid, authorize=False)
+    self.logger.debug("search for account %s" % account_uuid)
+    account = controller.get_entity(ApiAccount, Account, account_uuid)
 
     if account.set_capability_building_only_if_none_building(capability_oid):
-        return True
+        return
     else:
-        self.logger.debug(u'Retry next search for account %s' % account_uuid)
+        self.logger.debug("Retry next search for account %s" % account_uuid)
         self.retry(countdown=ACJobSettings.RETRY_CONTDOWN)
-
-    # if account.has_building_capability():
-    #     self.logger.debug(u'Retry next search for account %s' % account_uuid)
-    #     self.retry(countdown=ACJobSettings.RETRY_CONTDOWN)
-    # else:
-    #     account.set_capability_status(capability_oid, SrvStatusType.BUILDING)
-
-    return True
 
 
 @task_manager.task(bind=True, base=CapabilityJob)
-@job(entity_class=ApiAccount, name=u'job_add_capability', delta=3)
+@job(entity_class=ApiAccount, name="job_add_capability", delta=3)
 def job_add_capability(self, account_id, params):
     """Init Account services. Add capability using task_wait_if_building
 
@@ -442,73 +427,82 @@ def job_add_capability(self, account_id, params):
     self.get_session()
     self.set_operation_perms(self.get_super_admin_perms())
     operation.authorize = False
-    if not getattr(operation, 'id', False):
+    if not getattr(operation, "id", False):
         operation.id = id_gen()
 
     # get container
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
     # controller.logger = self.logger
     # set params as shared data
     self.set_shared_data(params)
 
-    self.logger.info(u'Set shared area')
+    self.logger.info("Set shared area")
     # get account and services list
-    account_uuid = params.get(u"uuid", None)
-    capability_oid = params.get(u"capability", None)
+    account_uuid = params.get("uuid", None)
+    capability_oid = params.get("capability", None)
 
-    self.logger.debug(u'search for account %s' % account_uuid)
+    self.logger.debug("search for account %s" % account_uuid)
     account = controller.get_entity(ApiAccount, Account, account_uuid)
-
-    # lo fa il task se non e' gia' in building
-    # account.set_capability_status(capability_oid, SrvStatusType.BUILDING)
 
     capability = self.controller.get_capability(capability_oid)
 
-    # services = account.get_default_services_description()
     services = capability.services
 
-    self.logger.debug(u'Job Add   %s , %s Capability  %s' % (account_id, account.name, str(services)))
+    self.logger.debug("Job Add   %s , %s Capability  %s" % (account_id, account.name, str(services)))
     ordered_services = get_creation_order(services)
     ordered_services.reverse()
 
     ops = self.get_options()
 
-    # tasks = []
-    # tasks.append(end_task)
     tasks = [
         end_task,
-        [task_set_capability_status.signature((ops, {u'uuid': account_uuid, u'capability': capability_oid}),
-                                              immutable=True, queue=task_manager.conf.TASK_DEFAULT_QUEUE)],
+        [
+            task_set_capability_status.signature(
+                (ops, {"uuid": account_uuid, "capability": capability_oid}),
+                immutable=True,
+                queue=task_manager.conf.TASK_DEFAULT_QUEUE,
+            )
+        ],
     ]
 
     for service_list in ordered_services:
         parallel_group = []
         for service in service_list:
             # self.update_job(u'PROGRESS', msg=u'Scheduling check for %s ' % service[u'name'])
-            self.logger.debug(u'Scheduling check for %s ' % service[u'name'])
-            parallel_group.append(task_add_service.signature((ops, {u'uuid': account_uuid, u'service': service}),
-                                                             immutable=True,
-                                                             queue=task_manager.conf.TASK_DEFAULT_QUEUE))
+            self.logger.debug("Scheduling check for %s " % service["name"])
+            parallel_group.append(
+                task_add_service.signature(
+                    (ops, {"uuid": account_uuid, "service": service}),
+                    immutable=True,
+                    queue=task_manager.conf.TASK_DEFAULT_QUEUE,
+                )
+            )
             if len(parallel_group) >= MAX_CONCURRENT_TASKS_CELERY:
-                self.logger.info(u'block of tasks n.%s' %(len(parallel_group) - 1))
+                self.logger.info("block of tasks n.%s" % (len(parallel_group) - 1))
                 tasks.append(parallel_group)
                 parallel_group = []
         tasks.append(parallel_group)
 
     tasks.append(
-        [task_wait_if_building.signature((ops, {u'uuid': account_uuid, u'capability': capability_oid}),
-                                         immutable=True, queue=task_manager.conf.TASK_DEFAULT_QUEUE)])
+        [
+            task_wait_if_building.signature(
+                (ops, {"uuid": account_uuid, "capability": capability_oid}),
+                immutable=True,
+                queue=task_manager.conf.TASK_DEFAULT_QUEUE,
+            )
+        ]
+    )
     tasks.append(start_task)
 
     Job.create(tasks, ops).delay()
 
-    self.logger.info(u'Job init services launched for account %s' % account_uuid)
+    self.logger.info("Job init services launched for account %s" % account_uuid)
     return True
 
 
 @task_manager.task(bind=True, base=CapabilityJob)
-@job(entity_class=ApiAccount, name=u'job_add_capability', delta=3)
+@job(entity_class=ApiAccount, name="job_add_capability", delta=3)
 def job_add_capability_nowait(self, account_id, params):
     """Init Account services
 
@@ -519,57 +513,63 @@ def job_add_capability_nowait(self, account_id, params):
     # open db session
     self.get_session()
     self.set_operation_perms(self.get_super_admin_perms())
-    operation.authorize=False
-    if not getattr(operation, 'id', False):
+    operation.authorize = False
+    if not getattr(operation, "id", False):
         operation.id = id_gen()
 
     # get container
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
     # controller.logger = self.logger
     # set params as shared data
     self.set_shared_data(params)
 
-    self.logger.info(u'Set shared area')
+    self.logger.info("Set shared area")
     # get account and services list
-    account_uuid = params.get(u"uuid", None)
-    capability_oid = params.get(u"capability", None)
+    account_uuid = params.get("uuid", None)
+    capability_oid = params.get("capability", None)
 
-    self.logger.debug(u'search for account %s' % account_uuid)
+    self.logger.debug("search for account %s" % account_uuid)
     account = controller.get_entity(ApiAccount, Account, account_uuid)
 
     account.set_capability_status(capability_oid, SrvStatusType.BUILDING)
 
     capability = self.controller.get_capability(capability_oid)
 
-    # services = account.get_default_services_description()
     services = capability.services
 
-    self.logger.debug(u'Job Add   %s , %s Capability  %s' %(account_id, account.name, str(services)))
+    self.logger.debug("Job Add   %s , %s Capability  %s" % (account_id, account.name, str(services)))
 
     ordered_services = get_creation_order(services)
     ordered_services.reverse()
 
     ops = self.get_options()
 
-    # tasks = []
-    # tasks.append(end_task)
     tasks = [
         end_task,
-        [task_set_capability_status.signature((ops, {u'uuid': account_uuid, u'capability': capability_oid}),
-                                              immutable=True, queue=task_manager.conf.TASK_DEFAULT_QUEUE)],
+        [
+            task_set_capability_status.signature(
+                (ops, {"uuid": account_uuid, "capability": capability_oid}),
+                immutable=True,
+                queue=task_manager.conf.TASK_DEFAULT_QUEUE,
+            )
+        ],
     ]
 
     for service_list in ordered_services:
         parallel_group = []
         for service in service_list:
             # self.update_job(u'PROGRESS', msg=u'Scheduling check for %s ' % service[u'name'])
-            self.logger.debug(u'Scheduling check for %s ' % service[u'name'])
-            parallel_group.append(task_add_service.signature((ops, {u'uuid': account_uuid, u'service': service}),
-                                                             immutable=True,
-                                                             queue=task_manager.conf.TASK_DEFAULT_QUEUE))
+            self.logger.debug("Scheduling check for %s " % service["name"])
+            parallel_group.append(
+                task_add_service.signature(
+                    (ops, {"uuid": account_uuid, "service": service}),
+                    immutable=True,
+                    queue=task_manager.conf.TASK_DEFAULT_QUEUE,
+                )
+            )
             if len(parallel_group) >= MAX_CONCURRENT_TASKS_CELERY:
-                self.logger.info(u'block of tasks n.%s' %(len(parallel_group) - 1))
+                self.logger.info("block of tasks n.%s" % (len(parallel_group) - 1))
                 tasks.append(parallel_group)
                 parallel_group = []
 
@@ -579,12 +579,12 @@ def job_add_capability_nowait(self, account_id, params):
 
     Job.create(tasks, ops).delay()
 
-    self.logger.info(u'Job init services launched for account %s' % account_uuid)
+    self.logger.info("Job init services launched for account %s" % account_uuid)
     return True
 
 
 @task_manager.task(bind=True, base=CapabilityJob)
-@job(entity_class=ApiAccount, name=u'job_init_account', delta=3)
+@job(entity_class=ApiAccount, name="job_init_account", delta=3)
 def job_init_account(self, account_id, params):
     """Deprecato  use add_capability. Initialize Account services
 
@@ -596,59 +596,64 @@ def job_init_account(self, account_id, params):
     self.get_session()
     self.set_operation_perms(self.get_super_admin_perms())
 
-    if not getattr(operation, 'id', False):
+    if not getattr(operation, "id", False):
         operation.id = id_gen()
-    operation.authorize=False
+    operation.authorize = False
     # get container
-    module = self.app.api_manager.modules[u'ServiceModule']
+    module = self.app.api_manager.modules["ServiceModule"]
     controller = module.get_controller()
     controller.logger = self.logger
     # set params as shared data
     self.set_shared_data(params)
 
-    self.logger.info(u'Set shared area')
+    self.logger.info("Set shared area")
     # get account and services list
     account_uuid = params.get("uuid", None)
 
     capability_oid = params.get("capability", None)
-    self.logger.debug(u':get capability ::::: %s' % str(capability_oid))
+    self.logger.debug(":get capability ::::: %s" % str(capability_oid))
     capability = controller.get_capability(capability_oid)
-    services = getattr(capability, u'params', {}).get(u'services', [])
+    services = getattr(capability, "params", {}).get("services", [])
 
-    self.logger.debug(u'search for account %s' % account_uuid)
+    self.logger.debug("search for account %s" % account_uuid)
     account = controller.get_entity(ApiAccount, Account, account_uuid)
 
-    # services = account.get_default_services_description()
-    self.logger.debug(u'Job Init account %s , %s services  %s' % (account_id, account.name, str(services) ) )
+    self.logger.debug("Job Init account %s , %s services  %s" % (account_id, account.name, str(services)))
 
     ordered_services = get_creation_order(services)
     ordered_services.reverse()
 
     ops = self.get_options()
 
-    # tasks = []
-    # tasks.append(end_task)
-    tasks = [end_task,
-             task_set_capability_status.signature(
-                 (ops, {u'uuid': account_uuid, u'capability': capability}),
-                 immutable=True, queue=task_manager.conf.TASK_DEFAULT_QUEUE)
-             ]
+    tasks = [
+        end_task,
+        task_set_capability_status.signature(
+            (ops, {"uuid": account_uuid, "capability": capability}),
+            immutable=True,
+            queue=task_manager.conf.TASK_DEFAULT_QUEUE,
+        ),
+    ]
     for service_list in ordered_services:
         parallel_group = []
 
         for service in service_list:
-            self.update_job(
-                u'PROGRESS', msg=u'Scheduling check for %s ' % service[u'name'])
-            parallel_group.append(task_add_service.signature((ops, {
-                u'uuid': account_uuid,
-                u'capability': capability_oid,
-                u'service': service
-            }),
-                immutable=True,
-                queue=task_manager.conf.TASK_DEFAULT_QUEUE))
+            self.update_job("PROGRESS", msg="Scheduling check for %s " % service["name"])
+            parallel_group.append(
+                task_add_service.signature(
+                    (
+                        ops,
+                        {
+                            "uuid": account_uuid,
+                            "capability": capability_oid,
+                            "service": service,
+                        },
+                    ),
+                    immutable=True,
+                    queue=task_manager.conf.TASK_DEFAULT_QUEUE,
+                )
+            )
             if len(parallel_group) >= MAX_CONCURRENT_TASKS_CELERY:
-                self.logger.info(u'block of tasks n.%s' %
-                                 (len(parallel_group) - 1))
+                self.logger.info("block of tasks n.%s" % (len(parallel_group) - 1))
                 tasks.append(parallel_group)
                 parallel_group = []
 
@@ -656,5 +661,5 @@ def job_init_account(self, account_id, params):
     tasks.append(start_task)
     Job.create(tasks, ops).delay()
 
-    self.logger.info(u'Job init services launched for account %s' % account_uuid)
+    self.logger.info("Job init services launched for account %s" % account_uuid)
     return True

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from sqlalchemy import Column, String, Text
 
@@ -17,8 +18,9 @@ class MonitoringMessage(Base):
     );
     messaggio di monitoraggio
     """
-    __tablename__ = 'log_monit'
-    __table_args__ = {'mysql_engine': 'InnoDB'}
+
+    __tablename__ = "log_monit"
+    __table_args__ = {"mysql_engine": "InnoDB"}
     period = Column(String(10), primary_key=True, nullable=False)
     msg = Column(Text, nullable=True)
     recipient = Column(Text, nullable=True)

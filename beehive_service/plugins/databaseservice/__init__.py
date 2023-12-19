@@ -1,11 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
-from beehive_service.plugins.databaseservice.controller import ApiDatabaseServiceInstance, ApiDatabaseService
+from beehive_service.plugins.databaseservice.controller import (
+    ApiDatabaseServiceInstance,
+    ApiDatabaseService,
+)
 from beehive_service.plugins.databaseservice.views import DatabaseServiceAPI
 from beehive_service.plugins.databaseservice.views.instance import DatabaseInstanceAPI
-from beehive_service.plugins.databaseservice.views.instance_v2 import DatabaseInstanceV2API
+from beehive_service.plugins.databaseservice.views.instance_v2 import (
+    DatabaseInstanceV2API,
+)
 
 
 class DatabaseServicePlugin(object):

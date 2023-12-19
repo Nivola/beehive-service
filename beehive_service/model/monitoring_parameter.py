@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from sqlalchemy import Column, String, Text, Float
 
@@ -17,8 +18,9 @@ class MonitoringParameter(Base):
     );
     Configurazione del monitoraggio
     """
-    __tablename__ = 'parameter_monitoring'
-    __table_args__ = {'mysql_engine': 'InnoDB'}
+
+    __tablename__ = "parameter_monitoring"
+    __table_args__ = {"mysql_engine": "InnoDB"}
     parameter = Column(String(50), primary_key=True, nullable=False)
     tval = Column(Text, nullable=True)
     nval = Column(Float, nullable=True)

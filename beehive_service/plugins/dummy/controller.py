@@ -1,24 +1,26 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
-from beehive_service.entity.service_type import ApiServiceTypeContainer, ApiServiceType, ApiServiceTypePlugin, \
-    AsyncApiServiceTypePlugin
+from beehive_service.entity.service_type import (
+    ApiServiceTypeContainer,
+    ApiServiceType,
+    ApiServiceTypePlugin,
+    AsyncApiServiceTypePlugin,
+)
 
 
 class ApiDummySTContainer(ApiServiceTypeContainer):
-    plugintype = 'DummyService'
-    objuri = 'dummystcontainer'
-    objname = 'dummystcontainer'
-    objdesc = 'DummySTContainer'
+    plugintype = "DummyService"
+    objuri = "dummystcontainer"
+    objname = "dummystcontainer"
+    objdesc = "DummySTContainer"
 
     def __init__(self, *args, **kvargs):
         """ """
         ApiServiceTypeContainer.__init__(self, *args, **kvargs)
 
-        self.child_classes = [
-            ApiDummySTChild
-        ]
+        self.child_classes = [ApiDummySTChild]
 
     def info(self):
         """Get object info
@@ -114,10 +116,10 @@ class ApiDummySTContainer(ApiServiceTypeContainer):
 
 
 class ApiDummySTChild(ApiServiceTypePlugin):
-    plugintype = 'DummyServiceSyncChild'
-    objuri = 'dummystchild'
-    objname = 'dummystchild'
-    objdesc = 'DummySTChild'
+    plugintype = "DummyServiceSyncChild"
+    objuri = "dummystchild"
+    objname = "dummystchild"
+    objdesc = "DummySTChild"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -134,9 +136,7 @@ class ApiDummySTChild(ApiServiceTypePlugin):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ApiServiceTypePlugin.info(self)
-        info.update({
-            'resourceInfo': 'resourceInfo DummySTChild default value'
-        })
+        info.update({"resourceInfo": "resourceInfo DummySTChild default value"})
         return info
 
     def detail(self):
@@ -199,10 +199,10 @@ class ApiDummySTChild(ApiServiceTypePlugin):
 
 
 class ApiDummySTAsyncChild(AsyncApiServiceTypePlugin):
-    plugintype = 'DummyServiceAsyncChild'
-    objuri = 'dummystchild'
-    objname = 'dummystchild'
-    objdesc = 'DummySTAsyncChild'
+    plugintype = "DummyServiceAsyncChild"
+    objuri = "dummystchild"
+    objname = "dummystchild"
+    objdesc = "DummySTAsyncChild"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -220,9 +220,7 @@ class ApiDummySTAsyncChild(AsyncApiServiceTypePlugin):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ApiServiceTypePlugin.info(self)
-        info.update({
-            'resourceInfo': 'resourceInfo DummySTAsyncChild'
-        })
+        info.update({"resourceInfo": "resourceInfo DummySTAsyncChild"})
         return info
 
     # def execCMD(self, oid):

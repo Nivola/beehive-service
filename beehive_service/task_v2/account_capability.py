@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import logging
 from time import sleep
 from beehive.common.apimanager import ApiObject, ApiManagerError
-from beehive_service.controller import ApiAccount, ApiAccountCapability, ServiceController
+from beehive_service.controller import (
+    ApiAccount,
+    ApiAccountCapability,
+    ServiceController,
+)
 from beehive_service.model import Account
 from beehive_service.model import SrvStatusType
 from beehive.common.task_v2 import TaskError, task_step, run_sync_task
@@ -23,10 +27,10 @@ class CAPABILITY_TASK_SETTINGS(object):
 
 
 class AddAccountCapabilityTask(ServiceTask):
-    name = 'add_account_capability'
-    inner_type = 'TASK'
-    prefix = 'celery-task-shared-'
-    prefix_stack = 'celery-task-stack-'
+    name = "add_account_capability"
+    inner_type = "TASK"
+    prefix = "celery-task-shared-"
+    prefix_stack = "celery-task-stack-"
     expire = 3600
     entity_class: ApiObject = ApiAccount
     controller = None
@@ -48,10 +52,10 @@ class AddAccountCapabilityTask(ServiceTask):
         :return: ApiAccount, ApiAccountCapability
         """
         account = self.controller.get_entity(ApiAccount, Account, account_id)
-        self.set_data('account', account)
+        self.set_data("account", account)
 
         capability: ApiAccountCapability = self.controller.get_capability(capability_id)
-        self.set_data('capability', capability)
+        self.set_data("capability", capability)
 
         return account, capability
 
@@ -94,35 +98,35 @@ class AddAccountCapabilityTask(ServiceTask):
             :return:
             """
             for n in nodes:
-                if n['data'].get('name', '') == service_name and n['data'].get('type', '') == service_type:
+                if n["data"].get("name", "") == service_name and n["data"].get("type", "") == service_type:
                     return n
             return None
 
         # create node for each service
         for service in item_list:
             node = {
-                'dependant': [],  # the list of dependant services
-                'required': None,  # the
-                'data': service,  # the service definition
+                "dependant": [],  # the list of dependant services
+                "required": None,  # the
+                "data": service,  # the service definition
             }
             nodes.append(node)
 
         for node in nodes:
-            req = node['data'].get('require', None)
+            req = node["data"].get("require", None)
             if req is not None:
-                s = find_service(req['name'], req['type'])
+                s = find_service(req["name"], req["type"])
                 if s is not None:
-                    node['required'] = s
-                    node['required']['dependant'].append(node)
+                    node["required"] = s
+                    node["required"]["dependant"].append(node)
 
         # roots level 0 the first services to be created
         level = []
         # the services in the levels
         level_item = []
         for node in nodes:
-            if node['required'] is None:
+            if node["required"] is None:
                 level.append(node)
-                level_item.append(node['data'])
+                level_item.append(node["data"])
         # visit.append(level)
         visit.append(level_item)
         cursor = level
@@ -131,9 +135,9 @@ class AddAccountCapabilityTask(ServiceTask):
             level = []
             level_item = []
             for r in cursor:
-                for s in r['dependant']:
+                for s in r["dependant"]:
                     level.append(s)
-                    level_item.append(s['data'])
+                    level_item.append(s["data"])
             if len(level) > 0:
                 # visit.append(level)
                 visit.append(level_item)
@@ -175,22 +179,22 @@ class AddAccountCapabilityTask(ServiceTask):
         """
         state = self.__get_service_state(uuid)
         elapsed = 0
-        while state not in [SrvStatusType.ACTIVE, SrvStatusType.ERROR, 'TIMEOUT']:
-            self.progress(msg='Wait for service %s' % uuid)
+        while state not in [SrvStatusType.ACTIVE, SrvStatusType.ERROR, "TIMEOUT"]:
+            self.progress(msg="Wait for service %s" % uuid)
             sleep(delta)
             state = self.__get_service_state(uuid)
             elapsed += delta
             if elapsed > maxtime and state != accepted_state:
-                state = 'TIMEOUT'
+                state = "TIMEOUT"
 
         if state == SrvStatusType.ERROR:
-            self.progress(msg='Wait for service %s - ERROR' % uuid)
-            raise TaskError('Wait for service %s got error' % uuid)
-        if state == 'TIMEOUT':
-            self.progress(msg='Wait for service %s - TIMEOUT' % uuid)
-            raise TaskError('Wait for service %s got timeout' % uuid)
+            self.progress(msg="Wait for service %s - ERROR" % uuid)
+            raise TaskError("Wait for service %s got error" % uuid)
+        if state == "TIMEOUT":
+            self.progress(msg="Wait for service %s - TIMEOUT" % uuid)
+            raise TaskError("Wait for service %s got timeout" % uuid)
 
-        self.progress(msg='Wait for service %s - STOP' % uuid)
+        self.progress(msg="Wait for service %s - STOP" % uuid)
 
     def __check_template(self, plugintype, template):
         if template is None:
@@ -198,9 +202,11 @@ class AddAccountCapabilityTask(ServiceTask):
 
         # get service def
         service_def, tot = self.controller.get_paginated_service_defs(
-            plugintype=plugintype, filter_expired=False, name=template)
+            plugintype=plugintype, filter_expired=False, name=template
+        )
+
         if tot < 1 or tot > 1:
-            raise TaskError('Error retrieving service definition %s' % template)
+            raise TaskError("Error retrieving service definition %s - plugintype: %s" % (template, plugintype))
 
         return service_def[0].uuid
 
@@ -211,25 +217,31 @@ class AddAccountCapabilityTask(ServiceTask):
         :param service_definition_id: service definition id
         :return:
         """
-        desc = 'Account service %s' % name
-        plugin = self.controller.add_service_type_plugin(service_definition_id, account.oid, name=name, desc=desc,
-                                                         instance_config={}, sync=True)
-        prepared_sync_task = getattr(plugin, 'active_task', None)
+        desc = "Account service %s" % name
+        plugin = self.controller.add_service_type_plugin(
+            service_definition_id,
+            account.oid,
+            name=name,
+            desc=desc,
+            instance_config={},
+            sync=True,
+        )
+        prepared_sync_task = getattr(plugin, "active_task", None)
         if prepared_sync_task is not None:
             run_sync_task(prepared_sync_task, self, self.current_step_id)
-        self.progress(msg='create core service %s' % name)
+        self.progress(msg="create core service %s" % name)
         return plugin
 
     def __create_simple_service(self, account, plugintype, name, template=None, params=None):
         if params is None:
             params = {}
         service_factory = {
-            'ComputeImage': self.controller.api_client.create_vpcaas_image,
-            'ComputeVPC': self.controller.api_client.create_vpcaas_vpc,
-            'ComputeSecurityGroup': self.controller.api_client.create_vpcaas_sg,
-            'ComputeSubnet': self.controller.api_client.create_vpcaas_subnet,
-            'NetworkHealthMonitor': self.controller.api_client.create_netaas_health_monitor,
-            'NetworkListener': self.controller.api_client.create_netaas_listener,
+            "ComputeImage": self.controller.api_client.create_vpcaas_image,
+            "ComputeVPC": self.controller.api_client.create_vpcaas_vpc,
+            "ComputeSecurityGroup": self.controller.api_client.create_vpcaas_sg,
+            "ComputeSubnet": self.controller.api_client.create_vpcaas_subnet,
+            "NetworkHealthMonitor": self.controller.api_client.create_netaas_health_monitor,
+            "NetworkListener": self.controller.api_client.create_netaas_listener,
         }
 
         func = service_factory.get(plugintype)
@@ -240,12 +252,17 @@ class AddAccountCapabilityTask(ServiceTask):
     def __exist_service_instance(self, account, plugintype, name):
         # get service inst
         service_inst, tot = self.controller.get_paginated_service_instances(
-            plugintype=plugintype, filter_expired=False, account_id=account.oid, authorize=False, name=name)
+            plugintype=plugintype,
+            filter_expired=False,
+            account_id=account.oid,
+            authorize=False,
+            name=name,
+        )
         if tot < 1:
-            self.logger.warning('Error retrieving service instance %s' % name)
+            self.logger.warning("Error retrieving service instance %s" % name)
             return None
         if tot > 1:
-            self.logger.warning('Error retrieving service instance %s' % name)
+            self.logger.warning("Error retrieving service instance %s" % name)
             return service_inst[0]
         return service_inst[0]
 
@@ -270,15 +287,15 @@ class AddAccountCapabilityTask(ServiceTask):
         """
         res = {}
         try:
-            service_name = service.get('name')
-            res['service'] = service_name
+            service_name = service.get("name")
+            res["service"] = service_name
 
-            service_type = service.get('type')
-            service_template = service.get('template', None)
-            service_params = service.get('params', {})
-            service_require = service.get('require', {})
-            service_require_name = service_require.get('name', None)
-            service_require_type = service_require.get('type', None)
+            service_type = service.get("type")
+            service_template = service.get("template", None)
+            service_params = service.get("params", {})
+            service_require = service.get("require", {})
+            service_require_name = service_require.get("name", None)
+            service_require_type = service_require.get("type", None)
 
             # check service already exists and in correct status
             service_inst = self.__exist_service_instance(account, service_type, service_name)
@@ -287,12 +304,12 @@ class AddAccountCapabilityTask(ServiceTask):
                     # delete service if not active
                     type_plugin = service_inst.get_service_type_plugin()
                     type_plugin.delete(force=True, sync=True)
-                    prepared_sync_task = getattr(type_plugin, 'active_task', None)
+                    prepared_sync_task = getattr(type_plugin, "active_task", None)
                     if prepared_sync_task is not None:
                         run_sync_task(prepared_sync_task, self, self.current_step_id)
-                    self.progress(msg='delete service %s' % service_name)
+                    self.progress(msg="delete service %s" % service_name)
                 else:
-                    self.progress(msg='service %s already exists' % service_name)
+                    self.progress(msg="service %s already exists" % service_name)
                     # res['status'] = service_inst.status
                     # res['response'] = 'Already exists'
                     return res
@@ -306,38 +323,54 @@ class AddAccountCapabilityTask(ServiceTask):
                 # synchronous wait for ServiceInstance' s status
                 service_inst_parent = self.__exist_service_instance(account, service_require_type, service_require_name)
                 if service_inst_parent is None:
-                    self.progress(msg='required service %s does not exist' % service_require_name)
+                    self.progress(msg="required service %s does not exist" % service_require_name)
                     # res['status'] = SrvStatusType.ERROR
                     # res['response'] = 'required service %s does not exist' % service_require_name
                     return res
                 elif service_inst_parent.status != SrvStatusType.ACTIVE:
-                    self.progress(msg='required service %s is not active' % service_require_name)
+                    self.progress(msg="required service %s is not active" % service_require_name)
                     # res['status'] = service_inst_parent.status
                     # res['response'] = 'required service %s is not active' % service_require_name
                     return res
 
             # create service
-            self.logger.warn(service_type)
-            if service_type in ['ComputeService', 'DatabaseService', 'StorageService', 'AppEngineService',
-                                'NetworkService', 'LoggingService', 'MonitoringService']:
+            self.logger.info("add_service - service_type: %s" % service_type)
+            if service_type in [
+                "ComputeService",
+                "DatabaseService",
+                "StorageService",
+                "AppEngineService",
+                "NetworkService",
+                "LoggingService",
+                "MonitoringService",
+            ]:
                 service_def = self.__check_template(service_type, service_template)
                 plugin = self.__create_core_service(account, service_name, service_def)
             else:
                 service_def = self.__check_template(service_type, service_template)
-                self.__create_simple_service(account, service_type, service_name, template=service_def,
-                                             params=service_params)
+                self.__create_simple_service(
+                    account,
+                    service_type,
+                    service_name,
+                    template=service_def,
+                    params=service_params,
+                )
 
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise TaskError('service %s creation error: %s' % (service.get('name'), str(ex)))
+            raise TaskError("service %s creation error: %s" % (service.get("name"), str(ex)))
         return True
 
     def add_definitions(self, accont: ApiAccount, definitions: List[str]):
         for definition in definitions:
             try:
                 apidefinition = self.controller.check_service_definition(definition)
-                self.controller.add_account_service_definition(accont.model.id, apidefinition.model.id, account=accont,
-                                                               servicedefinition=apidefinition)
+                self.controller.add_account_service_definition(
+                    accont.model.id,
+                    apidefinition.model.id,
+                    account=accont,
+                    servicedefinition=apidefinition,
+                )
             except Exception as ex:
                 self.logger.warning(ex)
                 pass
@@ -345,7 +378,7 @@ class AddAccountCapabilityTask(ServiceTask):
     def failure(self, params, error):
         # get account and capability
         try:
-            account_id = params.get('account')
+            account_id = params.get("account")
             account, capability = self.get_account_and_capability(account_id, self._current_capability)
             account.set_capability_status(capability.oid, SrvStatusType.ERROR_CREATION)
         except ApiManagerError as ex:
@@ -372,7 +405,7 @@ class AddAccountCapabilityTask(ServiceTask):
         :param dict params: step params
         :return: True, params
         """
-        account_id = params.get('account')
+        account_id = params.get("account")
         task._current_capability = capability_id
         account: ApiAccount
         capability: ApiAccountCapability
@@ -380,13 +413,13 @@ class AddAccountCapabilityTask(ServiceTask):
 
         account.set_capability_status(capability.oid, SrvStatusType.BUILDING)
 
-        #add account service definitions
+        # add account service definitions
         definitions = capability.definitions
         task.add_definitions(account, definitions)
         # add services
         services: List[dict] = capability.services
 
-        task.progress(msg='capability services: %s' % services)
+        task.progress(msg="capability services: %s" % services)
         ordered_services: List[List[dict]] = task.__get_creation_order(services)
         # ordered_services.reverse()
         for service_list in ordered_services:
@@ -394,14 +427,14 @@ class AddAccountCapabilityTask(ServiceTask):
         res = None
         for service_list in ordered_services:
             for service in service_list:
-                task.progress(msg='Scheduling check for %s' % service['name'])
+                task.progress(msg="Scheduling check for %s" % service["name"])
                 # task.get_session(reopen=True)
                 res = task.add_service(account, service)
 
         # set account status
         account, capability = task.get_account_and_capability(account_id, capability_id)
         account.set_capability_status(capability.oid, SrvStatusType.ACTIVE)
-        task.progress(msg='Ready to Set capability status for account  %s' % account.name)
+        task.progress(msg="Ready to Set capability status for account  %s" % account.name)
 
         return True, params
 

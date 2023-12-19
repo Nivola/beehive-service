@@ -1,19 +1,20 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive.common.apimanager import ApiObject
+
 # from beehive_service.controller.ApiAccount import ApiAccount
 from beehive_service.entity import ServiceApiObject
 
 
 class ApiServiceTag(ServiceApiObject):
-    """Service tag
-    """
-    objdef = ApiObject.join_typedef('Organization.Division.Account', 'ServiceTag')
-    objuri = 'tag'
-    objname = 'tag'
-    objdesc = 'Service Tag'
+    """Service tag"""
+
+    objdef = ApiObject.join_typedef("Organization.Division.Account", "ServiceTag")
+    objuri = "tag"
+    objname = "tag"
+    objdesc = "Service Tag"
 
     def __init__(self, *args, **kvargs):
         ServiceApiObject.__init__(self, *args, **kvargs)
@@ -22,8 +23,8 @@ class ApiServiceTag(ServiceApiObject):
         self.delete_object = self.manager.delete_tag
 
         if self.model is not None:
-            self.services = self.model.__dict__.get('services', None)
-            self.links = self.model.__dict__.get('links', None)
+            self.services = self.model.__dict__.get("services", None)
+            self.links = self.model.__dict__.get("links", None)
 
     def info(self):
         """Get tag info
@@ -34,10 +35,7 @@ class ApiServiceTag(ServiceApiObject):
         """
         info = ServiceApiObject.info(self)
         if self.services is not None:
-            info.update({
-                'services': self.services,
-                'links': self.links
-            })
+            info.update({"services": self.services, "links": self.links})
         return info
 
     def detail(self):
@@ -50,7 +48,7 @@ class ApiServiceTag(ServiceApiObject):
         res = []
         cont = []
 
-        ''' TODO
+        """ TODO
         try:
             # containers
             containers = self.manager.get_containers_from_tags([self.name])
@@ -106,11 +104,8 @@ class ApiServiceTag(ServiceApiObject):
         except Exception as ex:
             self.logger.warn('No service found for tag %s: %s' %
                             (self.name, ex), exc_info=True)
-        '''
+        """
         info = ServiceApiObject.info(self)
         if self.services is not None:
-            info.update({
-                'services': self.services,
-                'links': self.links
-            })
+            info.update({"services": self.services, "links": self.links})
         return info

@@ -1,32 +1,37 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_service.views import ServiceApiView
 
 
-class DescribeDBSchemas (ServiceApiView):
-    '''
-        List database schema
-    '''
-    pass
+class DescribeDBSchemas(ServiceApiView):
+    """
+    List database schema
+    """
 
-class CreateDBSchema (ServiceApiView):
-    '''
-        Create a database schema
-    '''
     pass
 
 
-class DeleteDBSchema (ServiceApiView):
-    '''
-        Delete a database schema
-    '''
+class CreateDBSchema(ServiceApiView):
+    """
+    Create a database schema
+    """
+
     pass
 
 
-class ModifiyDBSchema (ServiceApiView):
-    '''
-        Delete a database schema
-    '''
+class DeleteDBSchema(ServiceApiView):
+    """
+    Delete a database schema
+    """
+
+    pass
+
+
+class ModifiyDBSchema(ServiceApiView):
+    """
+    Delete a database schema
+    """
+
     pass

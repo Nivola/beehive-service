@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 # TODO Deorecated
 # TODO delete this file
@@ -28,27 +28,27 @@ def create_mount_target_task(self, options):
     """
     self.set_operation()
     params = self.get_shared_data()
-    data = params.get(u'data')
+    data = params.get("data")
 
     # validate input params
-    instance_id = params.pop(u'id')
-    network = params.get(u'network')
-    self.update(u'PROGRESS', msg=u'Get configuration params')
+    instance_id = params.pop("id")
+    network = params.get("network")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # run action over orchestrator entity
     self.get_session()
     plugin = self.get_type_plugin(instance_id)
-    self.update(u'PROGRESS', msg=u'Get plugin %s' % plugin)
+    self.update("PROGRESS", msg="Get plugin %s" % plugin)
 
     # create share
     plugin.update_status(SrvStatusType.UPDATING)
     res = plugin.create_mount_target_resource(self, **data)
-    self.update(u'PROGRESS', msg=u'Create share resource %s' % res)
+    self.update("PROGRESS", msg="Create share resource %s" % res)
 
     # update configuration
     # plugin.set_config(u'mount_target_data.network', network)
     plugin.update_status(SrvStatusType.ACTIVE)
-    self.update(u'PROGRESS', msg=u'Set plugin %s configuration' % plugin)
+    self.update("PROGRESS", msg="Set plugin %s configuration" % plugin)
 
     return res
 
@@ -71,27 +71,27 @@ def delete_mount_target_task(self, options):
     """
     self.set_operation()
     params = self.get_shared_data()
-    data = params.get(u'data')
+    data = params.get("data")
 
     # validate input params
-    instance_id = params.pop(u'id')
-    self.update(u'PROGRESS', msg=u'Get configuration params')
+    instance_id = params.pop("id")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # run action over orchestrator entity
     self.get_session()
     plugin = self.get_type_plugin(instance_id)
-    self.update(u'PROGRESS', msg=u'Get plugin %s' % plugin)
+    self.update("PROGRESS", msg="Get plugin %s" % plugin)
 
     # delete share
     plugin.update_status(SrvStatusType.UPDATING)
     res = plugin.delete_mount_target_resource(self)
-    self.update(u'PROGRESS', msg=u'Create share resource %s' % res)
+    self.update("PROGRESS", msg="Create share resource %s" % res)
 
     # update configuration
     # plugin.set_config(u'mount_target_data', None)
     plugin.update_status(SrvStatusType.ACTIVE)
     # plugin.instance.update(status=SrvStatusType.ACTIVE, resource_uuid=None)
-    self.update(u'PROGRESS', msg=u'Set plugin %s configuration' % plugin)
+    self.update("PROGRESS", msg="Set plugin %s configuration" % plugin)
 
     return res
 
@@ -114,27 +114,27 @@ def mount_grant_operation_task(self, options):
     """
     self.set_operation()
     params = self.get_shared_data()
-    data = params.get(u'data')
+    data = params.get("data")
 
     # validate input params
-    instance_id = params.pop(u'id')
-    self.update(u'PROGRESS', msg=u'Get configuration params')
+    instance_id = params.pop("id")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # run action over orchestrator entity
     self.get_session()
     plugin = self.get_type_plugin(instance_id)
-    self.update(u'PROGRESS', msg=u'Get plugin %s' % plugin)
+    self.update("PROGRESS", msg="Get plugin %s" % plugin)
 
     # do grant operation
     plugin.update_status(SrvStatusType.UPDATING)
     res = plugin.do_file_system_grant_op(task=self, **data)
-    self.update(u'PROGRESS', msg=u'Create share resource %s' % res)
+    self.update("PROGRESS", msg="Create share resource %s" % res)
 
     # update configuration
     # plugin.set_config(u'mount_target_data', None)
     plugin.update_status(SrvStatusType.ACTIVE)
     # plugin.instance.update(status=SrvStatusType.ACTIVE, resource_uuid=None)
-    self.update(u'PROGRESS', msg=u'Set plugin %s configuration' % plugin)
+    self.update("PROGRESS", msg="Set plugin %s configuration" % plugin)
 
     return res
 
@@ -157,25 +157,25 @@ def update_efs_resource(self, options):
     """
     self.set_operation()
     params = self.get_shared_data()
-    data = params.get(u'data')
+    data = params.get("data")
 
     # validate input params
-    instance_id = params.pop(u'id')
-    self.update(u'PROGRESS', msg=u'Get configuration params')
+    instance_id = params.pop("id")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # run action over orchestrator entity
     self.get_session()
     plugin = self.get_type_plugin(instance_id)
-    self.update(u'PROGRESS', msg=u'Get plugin %s' % plugin)
+    self.update("PROGRESS", msg="Get plugin %s" % plugin)
 
     # create share
     plugin.update_status(SrvStatusType.UPDATING)
     res = plugin.ucreate_mount_target_resource(**data)
-    self.update(u'PROGRESS', msg=u'Create share resource %s' % res)
+    self.update("PROGRESS", msg="Create share resource %s" % res)
 
     # update configuration
     # plugin.set_config(u'mount_target_data.network', network)
     plugin.update_status(SrvStatusType.ACTIVE)
-    self.update(u'PROGRESS', msg=u'Set plugin %s configuration' % plugin)
+    self.update("PROGRESS", msg="Set plugin %s configuration" % plugin)
 
     return res

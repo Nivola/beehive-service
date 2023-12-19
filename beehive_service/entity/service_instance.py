@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from time import sleep
 
@@ -22,11 +22,11 @@ from beecell.simple import jsonDumps
 
 
 class ApiServiceInstance(ServiceApiObject):
-    module = 'ServiceModule'
-    objdef = 'Organization.Division.Account.ServiceInstance'
-    objuri = 'serviceinstance'
-    objname = 'serviceinstance'
-    objdesc = 'ServiceInstance'
+    module = "ServiceModule"
+    objdef = "Organization.Division.Account.ServiceInstance"
+    objuri = "serviceinstance"
+    objname = "serviceinstance"
+    objdesc = "ServiceInstance"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -50,23 +50,27 @@ class ApiServiceInstance(ServiceApiObject):
         #     self.status = self.model.status
 
         # child classes
-        self.child_classes = [
-            ApiServiceInstanceConfig,
-            ApiServiceLinkInst
-        ]
+        self.child_classes = [ApiServiceInstanceConfig, ApiServiceLinkInst]
 
         self.update_object = self.manager.update_service_instance
         self.delete_object = self.manager.delete
         self.expunge_object = self.manager.purge
 
     def __repr__(self):
-        return '<%s id=%s objid=%s name=%s, status=%s>' % (self.__class__.__module__ + '.' + self.__class__.__name__,
-                                                           self.oid, self.objid, self.name, self.status)
+        return "<%s id=%s objid=%s name=%s, status=%s>" % (
+            self.__class__.__module__ + "." + self.__class__.__name__,
+            self.oid,
+            self.objid,
+            self.name,
+            self.status,
+        )
 
     @property
     def config(self):
         if self.config_object is not None:
-            return obscure_data(self.config_object.json_cfg)
+            from copy import deepcopy
+
+            return obscure_data(deepcopy(self.config_object.json_cfg))
         else:
             return None
 
@@ -110,14 +114,14 @@ class ApiServiceInstance(ServiceApiObject):
         if self.model is not None:
             return self.model.last_error
         else:
-            return ''
+            return ""
 
     def is_active(self):
         """Check if object has status ACTIVE
 
         :return: True if active
         """
-        if self.status == 'ACTIVE':
+        if self.status == "ACTIVE":
             return True
         return False
 
@@ -167,7 +171,7 @@ class ApiServiceInstance(ServiceApiObject):
     # def set_params(self, attr_key, attr_value):
     #     """Set property in params
     #
-    #     :param attr_key: property name
+    #     :param attr_key: property nameuse_role
     #     :param attr_value: property value
     #     :return:
     #     """
@@ -184,28 +188,30 @@ class ApiServiceInstance(ServiceApiObject):
 
         parent = self.getParent()
         if parent is not None:
-            parent = {'uuid': parent.uuid, 'name': parent.name}
+            parent = {"uuid": parent.uuid, "name": parent.name}
         else:
             parent = {}
 
-        info.update({
-            'account_id': str(self.account_id),
-            'service_definition_id': str(self.service_definition_id),
-            'bpmn_process_id': self.bpmn_process_id,
-            'resource_uuid': self.resource_uuid,
-            'status': self.status,
-            'parent': parent,
-            'is_container': self.is_container(),
-            'config': self.config,
-            'last_error': self.model.last_error,
-            'params': self.model.params
-        })
+        info.update(
+            {
+                "account_id": str(self.account_id),
+                "service_definition_id": str(self.service_definition_id),
+                "bpmn_process_id": self.bpmn_process_id,
+                "resource_uuid": self.resource_uuid,
+                "status": self.status,
+                "parent": parent,
+                "is_container": self.is_container(),
+                "config": self.config,
+                "last_error": self.model.last_error,
+                "params": self.model.params,
+            }
+        )
 
         if self.account is not None:
-            info['account'] = self.account.small_info()
+            info["account"] = self.account.small_info()
 
         if self.definition is not None:
-            info['definition'] = self.definition.small_info()
+            info["definition"] = self.definition.small_info()
 
         return info
 
@@ -226,11 +232,11 @@ class ApiServiceInstance(ServiceApiObject):
         :param error: error [optional]
         """
         if self.update_object is not None:
-            data = {'oid': self.oid, 'status': status}
+            data = {"oid": self.oid, "status": status}
             if error is not None:
-                data['last_error'] = error
+                data["last_error"] = error
             self.update_object(**data)
-            self.logger.debug('Update status of %s to %s' % (self.uuid, status))
+            self.logger.debug("Update status of %s to %s" % (self.uuid, status))
 
     def set_resource(self, resource):
         """Update service instance resource
@@ -239,9 +245,9 @@ class ApiServiceInstance(ServiceApiObject):
         :param error: error [optional]
         """
         if self.update_object is not None:
-            data = {'oid': self.oid, 'resource_uuid': resource}
+            data = {"oid": self.oid, "resource_uuid": resource}
             self.update_object(**data)
-            self.logger.debug('Update resource of %s to %s' % (self.uuid, resource))
+            self.logger.debug("Update resource of %s to %s" % (self.uuid, resource))
 
     def pre_delete(self, *args, **kvargs):
         """Pre delete function. This function is used in delete method. Extend
@@ -279,15 +285,23 @@ class ApiServiceInstance(ServiceApiObject):
         servicetype_model = self.model.service_definition.service_type
         try:
             plugin_class = import_class(servicetype_model.objclass)
-            plugin = plugin_class(self.controller, oid=servicetype_model.id, objid=servicetype_model.objid,
-                                  name=servicetype_model.name, desc=servicetype_model.desc,
-                                  active=servicetype_model.active, model=servicetype_model)
+            plugin = plugin_class(
+                self.controller,
+                oid=servicetype_model.id,
+                objid=servicetype_model.objid,
+                name=servicetype_model.name,
+                desc=servicetype_model.desc,
+                active=servicetype_model.active,
+                model=servicetype_model,
+            )
             plugin.instance = self
-            self.logger.debug('Get service instance %s plugin type: %s' % (self.uuid, plugin))
+            self.logger.debug("Get service instance %s plugin type: %s" % (self.uuid, plugin))
         except Exception:
-            self.logger.error('', exc_info=1)
-            raise ApiManagerWarning('Plugin class "%s" not found  for ServiceType plugin "%s"' %
-                                    (servicetype_model.objclass, repr(servicetype_model)))
+            self.logger.error("", exc_info=1)
+            raise ApiManagerWarning(
+                'Plugin class "%s" not found  for ServiceType plugin "%s"'
+                % (servicetype_model.objclass, repr(servicetype_model))
+            )
 
         return plugin
 
@@ -297,12 +311,20 @@ class ApiServiceInstance(ServiceApiObject):
         :return: ApiServiceInstanceConfig instance
         :raises ApiManagerWarning: raise :class:`.ApiManagerWarning`
         """
-        configs, total = self.manager.get_paginated_service_instance_configs(service_instance_id=self.oid,
-                                                                             with_perm_tag=False)
+        configs, total = self.manager.get_paginated_service_instance_configs(
+            service_instance_id=self.oid, with_perm_tag=False
+        )
         if total > 0:
             c = configs[0]
-            config = ApiServiceInstanceConfig(self.controller, oid=c.id, objid=c.objid, name=c.name, desc=c.desc,
-                                              active=c.active, model=c)
+            config = ApiServiceInstanceConfig(
+                self.controller,
+                oid=c.id,
+                objid=c.objid,
+                name=c.name,
+                desc=c.desc,
+                active=c.active,
+                model=c,
+            )
             self.config_object = config
         return self.config_object
 
@@ -324,7 +346,7 @@ class ApiServiceInstance(ServiceApiObject):
 
         # check actual definition id is different from new id
         if self.service_definition_id == service_def.oid:
-            raise ApiManagerWarning('Service %s definition does not change' % self.uuid)
+            raise ApiManagerWarning("Service %s definition does not change" % self.uuid)
 
         service_def_config = service_def.get_active_config()
 
@@ -335,19 +357,25 @@ class ApiServiceInstance(ServiceApiObject):
 
         self.update_object(oid=self.oid, service_definition_id=service_def.oid)
 
-        self.logger.debug('Change compute service %s definition to %s' % (self.uuid, definition))
+        self.logger.debug("Change compute service %s definition to %s" % (self.uuid, definition))
         return service_def_config
 
     def get_child_instances(self, plugintype=None):
-        """Get instance children of a specific plugintype
-        """
+        """Get instance children of a specific plugintype"""
         instances = []
         childs = self.manager.get_service_instance_children(start_service_id=self.oid, plugintype=plugintype)
         for child in childs:
-            instance = ApiServiceInstance(self.controller, oid=child.id, objid=child.objid, name=child.name,
-                                          desc=child.desc, active=child.active, model=child)
+            instance = ApiServiceInstance(
+                self.controller,
+                oid=child.id,
+                objid=child.objid,
+                name=child.name,
+                desc=child.desc,
+                active=child.active,
+                model=child,
+            )
             instances.append(instance)
-        self.logger.debug('Get instance %s childs: %s' % (self.uuid, truncate(instances)))
+        self.logger.debug("Get instance %s childs: %s" % (self.uuid, truncate(instances)))
         return instances
 
     def is_container(self):
@@ -366,10 +394,10 @@ class ApiServiceInstance(ServiceApiObject):
 
         :return: ServiceInstance id
         """
-        entity = self.manager.get_service_instance_parent(self.oid)
-        if entity is not None:
-            return str(entity.id)
-        return None
+        res = self.manager.get_service_instance_parent_id(self.oid)
+        if res is not None:
+            res = "%s" % res
+        return res
 
     def has_parent(self):
         """Return True if parent service instance exists
@@ -389,8 +417,15 @@ class ApiServiceInstance(ServiceApiObject):
         entity = self.manager.get_service_instance_parent(self.oid)
         res = None
         if entity is not None:
-            res = ApiServiceInstance(self.controller, oid=entity.id, objid=entity.objid, name=entity.name,
-                                     active=entity.active, desc=entity.desc, model=entity)
+            res = ApiServiceInstance(
+                self.controller,
+                oid=entity.id,
+                objid=entity.objid,
+                name=entity.name,
+                active=entity.active,
+                desc=entity.desc,
+                model=entity,
+            )
         return res
 
     def getRoot(self):
@@ -404,13 +439,21 @@ class ApiServiceInstance(ServiceApiObject):
 
     def hasParent(self):
         """[DEPRECATED]"""
-        return self.model is not None and self.model.linkParent is not None and len(self.model.linkParent) == 1 \
-               and self.model.linkParent[0].start_service_id is not None
+        return (
+            self.model is not None
+            and self.model.linkParent is not None
+            and len(self.model.linkParent) == 1
+            and self.model.linkParent[0].start_service_id is not None
+        )
 
     def getParent(self):
         """[DEPRECATED]"""
-        if self.model is not None and self.model.linkParent is not None and len(self.model.linkParent) > 0 \
-                and self.model.linkParent[0].start_service_id is not None:
+        if (
+            self.model is not None
+            and self.model.linkParent is not None
+            and len(self.model.linkParent) > 0
+            and self.model.linkParent[0].start_service_id is not None
+        ):
             return self.controller.get_service_instance(self.model.linkParent[0].start_service_id)
         else:
             return None
@@ -425,17 +468,22 @@ class ApiServiceInstance(ServiceApiObject):
         return ServiceUtil.instanceApi(self.controller, ApiServiceInstanceConfig, active_cfg)
 
     def is_activable(self):
-        """ is it an activable instance
-            :return True if has no Parent or has Parent in active state. False otherwise
+        """is it an activable instance
+        :return True if has no Parent or has Parent in active state. False otherwise
         """
-        return (self.model.linkParent is None or len(self.model.linkParent) == 0) or (len(self.model.linkParent) == 1
-                and SrvStatusType.ACTIVE == self.model.linkParent[0].start_service.status) \
-                and SrvStatusType.CREATED == self.model.status
+        return (
+            (self.model.linkParent is None or len(self.model.linkParent) == 0)
+            or (
+                len(self.model.linkParent) == 1
+                and SrvStatusType.ACTIVE == self.model.linkParent[0].start_service.status
+            )
+            and SrvStatusType.CREATED == self.model.status
+        )
 
     @transaction
     def activeInstance(self):
         """"""
-        self.logger.debug('Acivate instance %s ' % self)
+        self.logger.debug("Acivate instance %s " % self)
         # plugin = self.instancePlugin(None, self)
 
         if self.model.linkChildren is not None and self.model.linkChildren.count() > 0:
@@ -450,18 +498,25 @@ class ApiServiceInstance(ServiceApiObject):
 
         :return str :resource uuid
         """
-        self.logger.info('Activate instance %s children - START ' % self)
+        self.logger.info("Activate instance %s children - START " % self)
         # find ServiceInstance children
         children_instance = self.manager.get_service_instance_for_update(self.oid)
 
         for child in children_instance:
-            self.logger.debug('Activate children: %s' % child)
-            instChild = ApiServiceInstance(self.controller, oid=child.id, objid=child.objid, name=child.name,
-                                           desc=child.desc, active=child.active, model=child)
+            self.logger.debug("Activate children: %s" % child)
+            instChild = ApiServiceInstance(
+                self.controller,
+                oid=child.id,
+                objid=child.objid,
+                name=child.name,
+                desc=child.desc,
+                active=child.active,
+                model=child,
+            )
 
             instChild.activeInstance()
 
-        self.logger.info('Activate instance %s children - STOP ' % self)
+        self.logger.info("Activate instance %s children - STOP " % self)
         return self.model.uuid
 
     def state_change_manager(self, old_status, new_status, data={}):
@@ -472,40 +527,40 @@ class ApiServiceInstance(ServiceApiObject):
         if old_status is None:
             old_status = self.status
 
-        updateData = {'status': new_status}
+        updateData = {"status": new_status}
         if old_status == SrvStatusType.DRAFT:
             if new_status == SrvStatusType.DRAFT:
-                self.logger.info('Set status=%s' % new_status)
-                updateData.update({'bpmn_process_id': data.get('process_id')})
+                self.logger.info("Set status=%s" % new_status)
+                updateData.update({"bpmn_process_id": data.get("process_id")})
 
             elif new_status == SrvStatusType.PENDING:
-                self.logger.info('Set status=%s' % new_status)
-                updateData.update({'resource_uuid': data.get('resource_uuid')})
+                self.logger.info("Set status=%s" % new_status)
+                updateData.update({"resource_uuid": data.get("resource_uuid")})
 
             elif new_status == SrvStatusType.ACTIVE:
-                self.logger.info('Set status=%s' % new_status)
-                updateData.update({'resource_uuid': data.get('resource_uuid')})
+                self.logger.info("Set status=%s" % new_status)
+                updateData.update({"resource_uuid": data.get("resource_uuid")})
 
             else:
-                raise ApiManagerWarning('invalid state change from %s to %s' % (old_status, new_status))
+                raise ApiManagerWarning("invalid state change from %s to %s" % (old_status, new_status))
 
         elif old_status == SrvStatusType.PENDING:
             if new_status == SrvStatusType.PENDING:
                 pass
             elif new_status == SrvStatusType.CREATED:
-                self.logger.info('Set status=%s' % new_status)
-                updateData.update({'resource_uuid': data.get('resource_uuid')})
+                self.logger.info("Set status=%s" % new_status)
+                updateData.update({"resource_uuid": data.get("resource_uuid")})
             else:
-                raise ApiManagerWarning('invalid state change from %s to %s' % (old_status, new_status))
+                raise ApiManagerWarning("invalid state change from %s to %s" % (old_status, new_status))
 
         elif old_status == SrvStatusType.CREATED:
             if new_status == SrvStatusType.CREATED:
                 pass
             elif new_status == SrvStatusType.ACTIVE:
-                self.logger.info('Set status=%s' % new_status)
+                self.logger.info("Set status=%s" % new_status)
 
             else:
-                raise ApiManagerWarning('invalid state change from %s to %s' % (old_status, new_status))
+                raise ApiManagerWarning("invalid state change from %s to %s" % (old_status, new_status))
 
         elif old_status == SrvStatusType.ACTIVE:
             if new_status == SrvStatusType.STOPPED:
@@ -513,52 +568,53 @@ class ApiServiceInstance(ServiceApiObject):
             elif new_status == SrvStatusType.ACTIVE:
                 return
             else:
-                raise ApiManagerWarning('invalid state change from %s to %s' % (old_status, new_status))
+                raise ApiManagerWarning("invalid state change from %s to %s" % (old_status, new_status))
         elif old_status == SrvStatusType.STOPPED:
             if new_status == SrvStatusType.ACTIVE:
                 pass
             elif new_status == SrvStatusType.DELETED:
                 self.delete()
             else:
-                raise ApiManagerWarning('invalid state change from %s to %s' % (old_status, new_status))
+                raise ApiManagerWarning("invalid state change from %s to %s" % (old_status, new_status))
 
         self.update(**updateData)
 
     def getInstanceChildren(self, plugintype=None):
-        """Get instance children of a specific plugintype [DEPRECATE]
-        """
-        return (ServiceUtil.instanceApi(self.controller, ApiServiceInstance,
-                                        self.manager.get_service_instance_children(
-                                            start_service_id=self.oid, plugintype=plugintype)))
+        """Get instance children of a specific plugintype [DEPRECATE]"""
+        return ServiceUtil.instanceApi(
+            self.controller,
+            ApiServiceInstance,
+            self.manager.get_service_instance_children(start_service_id=self.oid, plugintype=plugintype),
+        )
 
     def getInstanceChildrenHierarchy(self, plugintype=None, tree=[]):
-        """Get instance children of a specific plugintype
-        """
+        """Get instance children of a specific plugintype"""
 
         # TBD: list of status to check
         status_list = [SrvStatusType.ACTIVE]
 
-        children = ServiceUtil.instanceApi(self.controller, ApiServiceInstance,
-                                           self.manager.get_service_instance_children(
-                                               start_service_id=self.oid, plugintype=plugintype))
+        children = ServiceUtil.instanceApi(
+            self.controller,
+            ApiServiceInstance,
+            self.manager.get_service_instance_children(start_service_id=self.oid, plugintype=plugintype),
+        )
         for child in children:
             # TBD: check if user can view child
             if child.is_active() is True:
                 if child.status in status_list:
                     details = child.detail()
-                    details.pop('is_container')
-                    details.pop('bpmn_process_id')
-                    details.pop('resource_uuid')
-                    details.pop('service_definition_id')
+                    details.pop("is_container")
+                    details.pop("bpmn_process_id")
+                    details.pop("resource_uuid")
+                    details.pop("service_definition_id")
                     tree.append(details)
-                    self.logger.warning(' $$$ %s' % child.getPluginTypeName())
+                    self.logger.warning(" $$$ %s" % child.getPluginTypeName())
                     child.getInstanceChildrenHierarchy(tree=tree)
 
         return tree
 
     def getInstanceByResourceUUID(self, resource_uuid):
-        """Get a service instance using the related resource uuid
-        """
+        """Get a service instance using the related resource uuid"""
         if resource_uuid is None:
             return None
         res = self.controller.get_service_instances(resource_uuid=resource_uuid)
@@ -583,7 +639,7 @@ class ApiServiceInstance(ServiceApiObject):
     #
     # links
     #
-    @trace(op='view')
+    @trace(op="view")
     def get_linked_services(self, link_type=None, link_type_filter=None, *args, **kvargs):
         """Get linked services
 
@@ -597,20 +653,27 @@ class ApiServiceInstance(ServiceApiObject):
         :return: :py:class:`list` of :py:class:`ResourceLink`
         :raise ApiManagerError:
         """
+
         def get_entities(*args, **kvargs):
-            res, total = self.manager.get_linked_services(service=self.oid, link_type=link_type,
-                                                          link_type_filter=link_type_filter, *args, **kvargs)
+            res, total = self.manager.get_linked_services(
+                service=self.oid,
+                link_type=link_type,
+                link_type_filter=link_type_filter,
+                *args,
+                **kvargs,
+            )
             return res, total
 
         def customize(entities, *args, **kvargs):
             return entities
 
-        res, total = self.controller.get_paginated_entities(ApiServiceInstance, get_entities,
-                                                            customize=customize, *args, **kvargs)
-        self.logger.debug('Get linked service instances: %s' % res)
+        res, total = self.controller.get_paginated_entities(
+            ApiServiceInstance, get_entities, customize=customize, *args, **kvargs
+        )
+        self.logger.debug("Get linked service instances: %s" % res)
         return res, total
 
-    @trace(op='link-add.insert')
+    @trace(op="link-add.insert")
     def add_link(self, name=None, type=None, end_service=None, attributes={}):
         """Add service links
 
@@ -630,15 +693,21 @@ class ApiServiceInstance(ServiceApiObject):
         # get service
         end_service_id = self.controller.get_service_instance(oid=end_service).oid
 
-        link = self.controller.add_link(name, type, account=self.account_id, start_service=self.oid,
-                                        end_service=end_service_id, attributes=attributes)
+        link = self.controller.add_link(
+            name,
+            type,
+            account=self.account_id,
+            start_service=self.oid,
+            end_service=end_service_id,
+            attributes=attributes,
+        )
 
         return link
 
     #
     # tags
     #
-    @trace(op='view')
+    @trace(op="view")
     def get_tags(self):
         """list tags
 
@@ -647,7 +716,7 @@ class ApiServiceInstance(ServiceApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('view')
+        self.verify_permisssions("view")
 
         try:
             tags, tot = self.controller.get_tags(service=self.oid)
@@ -655,10 +724,10 @@ class ApiServiceInstance(ServiceApiObject):
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex.desc, code=400)
 
-        self.logger.debug('get service instance %s tags: %s' % (self.uuid, tags))
+        self.logger.debug("get service instance %s tags: %s" % (self.uuid, tags))
         return tags
 
-    @trace(op='update')
+    @trace(op="update")
     def add_tag(self, value):
         """Add tag
 
@@ -668,7 +737,7 @@ class ApiServiceInstance(ServiceApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         try:
             # get tag
@@ -680,13 +749,13 @@ class ApiServiceInstance(ServiceApiObject):
 
         try:
             res = self.manager.add_service_tag(self.model, tag.model)
-            self.logger.info('Add tag %s to service %s: %s' % (value, self.name, res))
+            self.logger.info("Add tag %s to service %s: %s" % (value, self.name, res))
             return res
-        except (TransactionError) as ex:
+        except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex.desc, code=400)
 
-    @trace(op='update')
+    @trace(op="update")
     def remove_tag(self, value):
         """Remove tag
 
@@ -696,16 +765,16 @@ class ApiServiceInstance(ServiceApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # get tag
         tag = self.controller.get_tag(value)
 
         try:
             res = self.manager.remove_service_tag(self.model, tag.model)
-            self.logger.info('Remove tag %s from service %s: %s' % (value, self.name, res))
+            self.logger.info("Remove tag %s from service %s: %s" % (value, self.name, res))
             return res
-        except (TransactionError) as ex:
+        except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex.desc, code=400)
 
@@ -717,15 +786,18 @@ class ApiServiceInstance(ServiceApiObject):
         :param maxtime:
         :return: str status
         """
-        self.logger.info('wait for status: %s' % self.uuid)
+        self.logger.info("wait for status: %s" % self.uuid)
         if isinstance(statuslist, list) and len(statuslist) > 0:
             state = self.model.status
             elapsed = 0
             while state not in statuslist:
                 if elapsed > maxtime:
-                    msg = 'Service Instance timeout: %s uuid=%s' % (self.uuid, self.name)
+                    msg = "Service Instance timeout: %s uuid=%s" % (
+                        self.uuid,
+                        self.name,
+                    )
                     self.logger.error(msg)
-                    raise Exception('Service timeout: %s uuid=%s' % (self.uuid, self.name))
+                    raise Exception("Service timeout: %s uuid=%s" % (self.uuid, self.name))
                 sleep(delta)
                 # todo update model
                 # self.controller.get_session().refresh(self.model)
@@ -733,18 +805,18 @@ class ApiServiceInstance(ServiceApiObject):
                 state = self.model.status
                 elapsed += delta
 
-            self.logger.info('Service %s reach Status %s ' % (self.uuid, state))
+            self.logger.info("Service %s reach Status %s " % (self.uuid, state))
             return state
         else:
-            self.logger.error('Error got no status to wait for')
-            raise Exception('Error no status to wait for')
+            self.logger.error("Error got no status to wait for")
+            raise Exception("Error no status to wait for")
 
 
 class ApiServiceInstanceConfig(ServiceApiObject):
-    objdef = ApiObject.join_typedef(ApiServiceInstance.objdef, 'ServiceInstanceConfig')
-    objuri = 'instanceconfig'
-    objname = 'instanceconfig'
-    objdesc = 'ServiceInstanceConfig'
+    objdef = ApiObject.join_typedef(ApiServiceInstance.objdef, "ServiceInstanceConfig")
+    objuri = "instanceconfig"
+    objname = "instanceconfig"
+    objdesc = "ServiceInstanceConfig"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -775,10 +847,12 @@ class ApiServiceInstanceConfig(ServiceApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ServiceApiObject.info(self)
-        info.update({
-            'service_instance_id': str(self.service_instance_id),
-            'json_cfg': self.json_cfg,
-        })
+        info.update(
+            {
+                "service_instance_id": str(self.service_instance_id),
+                "json_cfg": self.json_cfg,
+            }
+        )
         return info
 
     def detail(self):
@@ -838,12 +912,12 @@ class ApiServiceInstanceConfig(ServiceApiObject):
 
 
 class ApiServiceInstanceLink(ServiceApiObject):
-    """
-    """
-    objdef = 'Organization.Division.Account.ServiceLink'
-    objuri = 'links'
-    objname = 'link'
-    objdesc = 'Service link'
+    """ """
+
+    objdef = "Organization.Division.Account.ServiceLink"
+    objuri = "links"
+    objname = "link"
+    objdesc = "Service link"
 
     def __init__(self, *args, **kvargs):
         ServiceApiObject.__init__(self, *args, **kvargs)
@@ -896,11 +970,11 @@ class ApiServiceInstanceLink(ServiceApiObject):
         start_service = self.get_start_service()
         end_service = self.get_end_service()
 
-        info['details'] = {
-            'attributes': self.attribs,
-            'type': self.model.type,
-            'start_service': start_service.small_info() if start_service is not None else None,
-            'end_service': end_service.small_info() if end_service is not None else None
+        info["details"] = {
+            "attributes": self.attribs,
+            "type": self.model.type,
+            "start_service": start_service.small_info() if start_service is not None else None,
+            "end_service": end_service.small_info() if end_service is not None else None,
         }
 
         return info
@@ -918,7 +992,7 @@ class ApiServiceInstanceLink(ServiceApiObject):
         """ """
         try:
             start_service = self.controller.get_service_instance(self.model.start_service_id)
-        except:
+        except Exception:
             start_service = None
         return start_service
 
@@ -927,7 +1001,7 @@ class ApiServiceInstanceLink(ServiceApiObject):
         end_service = None
         try:
             end_service = self.controller.get_service_instance(self.model.end_service_id)
-        except:
+        except Exception:
             start_service = None
         return end_service
 
@@ -949,21 +1023,21 @@ class ApiServiceInstanceLink(ServiceApiObject):
         :raise ApiManagerError:
         """
         # get services
-        start_service = kvargs.pop('start_service', None)
+        start_service = kvargs.pop("start_service", None)
         if start_service is not None:
-            kvargs['start_service_id'] = self.controller.get_service_instance(start_service).oid
-        end_service = kvargs.pop('end_service', None)
+            kvargs["start_service_id"] = self.controller.get_service_instance(start_service).oid
+        end_service = kvargs.pop("end_service", None)
         if end_service is not None:
-            kvargs['end_service_id'] = self.controller.get_service_instance(end_service).oid
-        attributes = kvargs.pop('attributes', None)
+            kvargs["end_service_id"] = self.controller.get_service_instance(end_service).oid
+        attributes = kvargs.pop("attributes", None)
         if attributes is not None:
-            kvargs['attributes'] = jsonDumps(attributes)
+            kvargs["attributes"] = jsonDumps(attributes)
 
         return kvargs
 
     # tags
     #
-    @trace(op='tag-assign.update')
+    @trace(op="tag-assign.update")
     def add_tag(self, value):
         """Add tag
 
@@ -974,20 +1048,20 @@ class ApiServiceInstanceLink(ServiceApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # get tag
         tag = self.controller.get_tag(value)
 
         try:
             res = self.manager.add_link_tag(self.model, tag.model)
-            self.logger.info('Add tag %s to link %s: %s' % (value, self.name, res))
+            self.logger.info("Add tag %s to link %s: %s" % (value, self.name, res))
             return res
-        except (TransactionError) as ex:
+        except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex.desc, code=400)
 
-    @trace(op='tag-deassign.update')
+    @trace(op="tag-deassign.update")
     def remove_tag(self, value):
         """Remove tag
 
@@ -998,25 +1072,25 @@ class ApiServiceInstanceLink(ServiceApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # get tag
         tag = self.controller.get_tag(value)
 
         try:
             res = self.manager.remove_link_tag(self.model, tag.model)
-            self.logger.info('Remove tag %s from link %s: %s' % (value, self.name, res))
+            self.logger.info("Remove tag %s from link %s: %s" % (value, self.name, res))
             return res
-        except (TransactionError) as ex:
+        except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex.desc, code=400)
 
 
 class ApiServiceLinkInst(ApiServiceLink):
-    objdef = ApiObject.join_typedef(ApiServiceInstance.objdef, 'ServiceLinkInst')
-    objuri = 'servicelinkinst'
-    objname = 'servicelinkinst'
-    objdesc = 'servicelinkinst'
+    objdef = ApiObject.join_typedef(ApiServiceInstance.objdef, "ServiceLinkInst")
+    objuri = "servicelinkinst"
+    objname = "servicelinkinst"
+    objdesc = "servicelinkinst"
 
     def __init__(self, *args, **kvargs):
         """ """

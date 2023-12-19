@@ -10,16 +10,18 @@ from beehive_service_netaas.networkservice.views.vpc import CreateVpc, DescribeV
 class DescribeVpcs10(DescribeVpcs):
     pass
 
+
 class CreateVpc10(CreateVpc):
     pass
 
+
 class ComputeVpcAPI(ApiView):
     @staticmethod
-    def register_api(module, rules=None, **kwargs):
-        base = module.base_path + '/computeservices/vpc'
+    def register_api(module, dummyrules=None, **kwargs):
+        base = module.base_path + "/computeservices/vpc"
         rules = [
-            ('%s/describevpcs' % base, 'GET', DescribeVpcs10, {}),
-            ('%s/createvpc' % base, 'POST', CreateVpc10, {}),
+            ("%s/describevpcs" % base, "GET", DescribeVpcs10, {}),
+            ("%s/createvpc" % base, "POST", CreateVpc10, {}),
         ]
 
         ApiView.register_api(module, rules, **kwargs)

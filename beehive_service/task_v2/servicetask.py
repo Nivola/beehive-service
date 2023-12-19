@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive.common.data import operation
 from beehive_service.controller import ApiAccount
@@ -11,19 +11,19 @@ from typing import List, Type, Tuple, Any, Union, Dict, Callable
 
 class ServiceTask(BaseTask):
     abstract = True
-    name = 'add_account_capability'
-    inner_type = 'TASK'
-    prefix = 'celery-task-shared-'
-    prefix_stack = 'celery-task-stack-'
+    name = "add_account_capability"
+    inner_type = "TASK"
+    prefix = "celery-task-shared-"
+    prefix_stack = "celery-task-stack-"
     expire = 3600
     entity_class = ApiAccount
     controller: ServiceController = None
 
     @staticmethod
     def has_session():
-        return getattr(operation, 'session', None) is not None
+        return getattr(operation, "session", None) is not None
 
-    def register_callback(self, callback: Callable=None, onfailure: bool=True):
+    def register_callback(self, callback: Callable = None, onfailure: bool = True):
         """Register a callback collable in case of success or failure
 
         :param callback:  a closure to be called
@@ -31,24 +31,30 @@ class ServiceTask(BaseTask):
         :return:
         """
         if onfailure:
-            setattr(self, 'CB_ON_FAIL_CLOSURE', callback)
+            setattr(self, "CB_ON_FAIL_CLOSURE", callback)
         else:
-            setattr(self, 'CB_ON_SUCC_CLOSURE', callback)
+            setattr(self, "CB_ON_SUCC_CLOSURE", callback)
 
-    def call_callback(self, task_id: str, retval: Any=None, exc: Exception=None, onfailure: bool=True):
+    def call_callback(
+        self,
+        task_id: str,
+        retval: Any = None,
+        exc: Exception = None,
+        onfailure: bool = True,
+    ):
         """Search for registered callback and execute them
 
         :param onfailure: if true call an failure  call back otherwise call on success call back
         :return:
         """
         if onfailure:
-            callback = getattr(self, 'CB_ON_FAIL_CLOSURE', None)
+            callback = getattr(self, "CB_ON_FAIL_CLOSURE", None)
         else:
-            callback = getattr(self, 'CB_ON_SUCC_CLOSURE', None)
+            callback = getattr(self, "CB_ON_SUCC_CLOSURE", None)
         if callable(callback):
             if not self.has_session():
                 self.get_session()
-            callback(task=self, task_id=task_id,  retval=retval, exc=exc)
+            callback(task=self, task_id=task_id, retval=retval, exc=exc)
             self.release_session()
 
     # def on_success(self, retval, task_id, args, kwargs):

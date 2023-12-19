@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive.common.task.job import Job, JobTask, task_local, job_task, job
 from beehive.common.task.manager import task_manager
@@ -27,8 +27,7 @@ class AbstractServiceTypePluginTask(object):
         :return: service type plugin instance
         :raises ApiManagerError: if query empty return error.
         """
-        plugin = task_local.controller.get_service_type_plugin(
-            instance, plugin_class=plugin_class, details=details)
+        plugin = task_local.controller.get_service_type_plugin(instance, plugin_class=plugin_class, details=details)
         return plugin
 
 
@@ -47,6 +46,7 @@ class ServiceTypePluginJob(Job, AbstractServiceTypePluginTask):
             def prova(self, objid, **kvargs):
                 pass
     """
+
     abstract = True
 
 
@@ -65,6 +65,7 @@ class ServiceTypePluginJobTask(JobTask, AbstractServiceTypePluginTask):
             def prova(self, options):
                 pass
     """
+
     abstract = True
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
@@ -84,7 +85,7 @@ class ServiceTypePluginJobTask(JobTask, AbstractServiceTypePluginTask):
 
         # get resource
         try:
-            plugin = self.get_type_plugin(params.get(u'id'), details=False)
+            plugin = self.get_type_plugin(params.get("id"), details=False)
 
             # update resource state
             plugin.update_status(SrvStatusType.ERROR, error=str(exc))
@@ -100,12 +101,11 @@ class ServiceTypePluginJobTask(JobTask, AbstractServiceTypePluginTask):
 #
 def import_task(task_def):
     if isinstance(task_def, dict):
-        components = task_def[u'task'].split(u'.')
-        mod = __import__(
-            u'.'.join(components[:-1]), globals(), locals(), [components[-1]], -1)
+        components = task_def["task"].split(".")
+        mod = __import__(".".join(components[:-1]), globals(), locals(), [components[-1]], -1)
         func = getattr(mod, components[-1], None)
 
-        task_def[u'task'] = import_func(task_def[u'task'])
+        task_def["task"] = import_func(task_def["task"])
         task = task_def
     else:
         task = import_func(task_def)
@@ -113,7 +113,7 @@ def import_task(task_def):
 
 
 def job_helper(inst, objid, params):
-    task_defs = params.pop(u'tasks')
+    task_defs = params.pop("tasks")
     tasks = []
     for task_def in task_defs:
         if isinstance(task_def, list):
@@ -128,7 +128,7 @@ def job_helper(inst, objid, params):
 
 
 @task_manager.task(bind=True, base=ServiceTypePluginJob)
-@job(entity_class=ApiServiceInstance, name=u'create.insert', delta=4)
+@job(entity_class=ApiServiceInstance, name="create.insert", delta=4)
 def job_type_plugin_instance_create(self, objid, params):
     """Create type plugin instance
 
@@ -152,7 +152,7 @@ def job_type_plugin_instance_create(self, objid, params):
 
 
 @task_manager.task(bind=True, base=ServiceTypePluginJob)
-@job(entity_class=ApiServiceInstance, name=u'update.update', delta=4)
+@job(entity_class=ApiServiceInstance, name="update.update", delta=4)
 def job_type_plugin_instance_update(self, objid, params):
     """Update type plugin instance
 
@@ -173,7 +173,7 @@ def job_type_plugin_instance_update(self, objid, params):
 
 
 @task_manager.task(bind=True, base=ServiceTypePluginJob)
-@job(entity_class=ApiServiceInstance, name=u'patch.update', delta=4)
+@job(entity_class=ApiServiceInstance, name="patch.update", delta=4)
 def job_type_plugin_instance_patch(self, objid, params):
     """Patch type plugin instance
 
@@ -194,7 +194,7 @@ def job_type_plugin_instance_patch(self, objid, params):
 
 
 @task_manager.task(bind=True, base=ServiceTypePluginJob)
-@job(entity_class=ApiServiceInstance, name=u'action.update', delta=4)
+@job(entity_class=ApiServiceInstance, name="action.update", delta=4)
 def job_type_plugin_instance_action(self, objid, params):
     """Send action to type plugin instance
 
@@ -215,7 +215,7 @@ def job_type_plugin_instance_action(self, objid, params):
 
 
 @task_manager.task(bind=True, base=ServiceTypePluginJob)
-@job(entity_class=ApiServiceInstance, name=u'remove.delete', delta=4)
+@job(entity_class=ApiServiceInstance, name="remove.delete", delta=4)
 def job_type_plugin_instance_delete(self, objid, params):
     """Delete type plugin instance
 
@@ -236,7 +236,7 @@ def job_type_plugin_instance_delete(self, objid, params):
 
 
 @task_manager.task(bind=True, base=ServiceTypePluginJob)
-@job(entity_class=ApiServiceInstance, name=u'action.update', delta=4)
+@job(entity_class=ApiServiceInstance, name="action.update", delta=4)
 def job_type_plugin_instance_action(self, objid, params):
     """Run type plugin instance action
 
@@ -281,22 +281,22 @@ def create_resource_task(self, options):
     params = self.get_shared_data()
 
     # validate input params
-    instance_id = params.get(u'id')
-    resource_params = params.get(u'resource_params')
-    self.progress(u'Get configuration params')
+    instance_id = params.get("id")
+    resource_params = params.get("resource_params")
+    self.progress("Get configuration params")
 
     # run action over orchestrator entity
     self.get_session()
     plugin = self.get_type_plugin(instance_id)
-    self.progress(u'Get plugin %s' % plugin)
+    self.progress("Get plugin %s" % plugin)
 
     # create resource
     res = plugin.create_resource(self, resource_params)
-    self.progress(u'Create resource %s' % res)
+    self.progress("Create resource %s" % res)
 
     # update configuration
     plugin.update_status(SrvStatusType.ACTIVE)
-    self.progress(u'Set plugin %s configuration' % plugin)
+    self.progress("Set plugin %s configuration" % plugin)
 
     return res
 
@@ -320,24 +320,24 @@ def update_resource_task(self, options):
     params = self.get_shared_data()
 
     # validate input params
-    instance_id = params.get(u'id')
-    resource_params = params.get(u'resource_params')
-    resource_uuid = params.get(u'resource_uuid')
-    self.progress(u'Get configuration params')
+    instance_id = params.get("id")
+    resource_params = params.get("resource_params")
+    resource_uuid = params.get("resource_uuid")
+    self.progress("Get configuration params")
 
     # run action over orchestrator entity
     self.get_session()
     plugin = self.get_type_plugin(instance_id)
-    self.progress(u'Get plugin %s' % plugin)
+    self.progress("Get plugin %s" % plugin)
 
     # update resource
     if resource_uuid is not None:
         res = plugin.update_resource(self, **resource_params)
-        self.progress(u'Update resource %s' % res)
+        self.progress("Update resource %s" % res)
 
     # update configuration
     plugin.update_status(SrvStatusType.ACTIVE)
-    self.progress(u'Set plugin %s configuration' % plugin)
+    self.progress("Set plugin %s configuration" % plugin)
 
     return True
 
@@ -362,24 +362,24 @@ def patch_resource_task(self, options):
     params = self.get_shared_data()
 
     # validate input params
-    instance_id = params.get(u'id')
-    resource_params = params.get(u'resource_params')
-    resource_uuid = params.get(u'resource_uuid')
-    self.progress(u'Get configuration params')
+    instance_id = params.get("id")
+    resource_params = params.get("resource_params")
+    resource_uuid = params.get("resource_uuid")
+    self.progress("Get configuration params")
     logger.warn(resource_params)
     # run action over orchestrator entity
     self.get_session()
     plugin = self.get_type_plugin(instance_id)
-    self.progress(u'Get plugin %s' % plugin)
+    self.progress("Get plugin %s" % plugin)
 
     # update resource
     if resource_uuid is not None:
         res = plugin.patch_resource(self, **resource_params)
-        self.progress(u'Patch resource %s' % res)
+        self.progress("Patch resource %s" % res)
 
     # update configuration
     plugin.update_status(SrvStatusType.ACTIVE)
-    self.progress(u'Set plugin %s configuration' % plugin)
+    self.progress("Set plugin %s configuration" % plugin)
 
     return True
 
@@ -404,20 +404,20 @@ def action_resource_task(self, options):
     params = self.get_shared_data()
 
     # validate input params
-    instance_id = params.get(u'id')
-    resource_params = params.get(u'resource_params')
-    resource_uuid = params.get(u'resource_uuid')
-    self.progress(u'Get configuration params')
+    instance_id = params.get("id")
+    resource_params = params.get("resource_params")
+    resource_uuid = params.get("resource_uuid")
+    self.progress("Get configuration params")
 
     # run action over orchestrator entity
     self.get_session()
     plugin = self.get_type_plugin(instance_id)
-    self.progress(u'Get plugin %s' % plugin)
+    self.progress("Get plugin %s" % plugin)
 
     # send action to resource
     if resource_uuid is not None:
         res = plugin.action_resource(self, **resource_params)
-        self.progress(u'Send action to resource %s' % res)
+        self.progress("Send action to resource %s" % res)
 
     # # update configuration
     # plugin.update_status(SrvStatusType.ACTIVE)
@@ -446,23 +446,23 @@ def delete_resource_task(self, options):
     params = self.get_shared_data()
 
     # validate input params
-    instance_id = params.get(u'id')
-    resource_params = params.get(u'resource_params')
-    resource_uuid = params.get(u'resource_uuid')
-    self.progress(u'Get configuration params')
+    instance_id = params.get("id")
+    resource_params = params.get("resource_params")
+    resource_uuid = params.get("resource_uuid")
+    self.progress("Get configuration params")
 
     # run action over orchestrator entity
     self.get_session()
     plugin = self.get_type_plugin(instance_id)
-    self.progress(u'Get plugin %s' % plugin)
+    self.progress("Get plugin %s" % plugin)
 
     # delete resource
     if resource_uuid is not None:
         res = plugin.delete_resource(self, resource_params)
-        self.progress(u'Delete resource %s' % res)
+        self.progress("Delete resource %s" % res)
 
     # update configuration
     plugin.delete_instance()
-    self.progress(u'Set plugin %s configuration' % plugin)
+    self.progress("Set plugin %s configuration" % plugin)
 
     return True

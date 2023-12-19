@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from typing import Union
 from beehive_service.model.service_definition import ServiceConfig
@@ -18,12 +18,12 @@ from six import text_type, binary_type
 class ApiServiceConfig(ServiceApiObject):
     pass
 
-class ApiServiceDefinition(ServiceApiObject):
-    objdef = 'ServiceType.ServiceDefinition'
-    objuri = 'servicedefinition'
-    objname = 'servicedefinition'
-    objdesc = 'ServiceDefinition'
 
+class ApiServiceDefinition(ServiceApiObject):
+    objdef = "ServiceType.ServiceDefinition"
+    objuri = "servicedefinition"
+    objname = "servicedefinition"
+    objdesc = "ServiceDefinition"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -38,39 +38,33 @@ class ApiServiceDefinition(ServiceApiObject):
             self.status = self.model.status
 
         # child classes
-        self.child_classes = [
-            ApiServiceConfig,
-            ApiServiceLinkDef
-        ]
+        self.child_classes = [ApiServiceConfig, ApiServiceLinkDef]
 
         self.update_object = self.manager.update_service_definition
         self.delete_object = self.manager.delete
 
     @property
     def service_category(self) -> str:
-        """ Return the service category for the Service definition
-        """
+        """Return the service category for the Service definition"""
         if self.model is None:
             return None
         return self.model.service_type.plugintype.service_category
 
     @property
     def hierarchical_category(self) -> str:
-        """ Return the service category for the Service definition
-        """
+        """Return the service category for the Service definition"""
         if self.model is None:
             return None
         return self.model.service_type.plugintype.category
 
     @property
     def plugin_name(self) -> str:
-        """ Return the service plugin name
-        """
+        """Return the service plugin name"""
         if self.model is None:
             return None
         return self.model.service_type.plugintype.name_type
 
-    def info(self)->dict:
+    def info(self) -> dict:
         """Get object info
 
         :return: Dictionary with object info.
@@ -78,11 +72,13 @@ class ApiServiceDefinition(ServiceApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ServiceApiObject.info(self)
-        info.update({
-            'service_type_id': str(self.service_type_id),
-            'status': self.status,
-            'is_default': str2bool(self.model.is_default)
-        })
+        info.update(
+            {
+                "service_type_id": str(self.service_type_id),
+                "status": self.status,
+                "is_default": str2bool(self.model.is_default),
+            }
+        )
         return info
 
     def detail(self) -> dict:
@@ -133,12 +129,18 @@ class ApiServiceDefinition(ServiceApiObject):
         if self.config_object is not None:
             return self.config_object
 
-        configs, total = self.manager.get_paginated_service_configs(service_definition_id=self.oid,
-                                                                    with_perm_tag=False)
+        configs, total = self.manager.get_paginated_service_configs(service_definition_id=self.oid, with_perm_tag=False)
         if total > 0:
             c = configs[0]
-            config = ApiServiceConfig(self.controller, oid=c.id, objid=c.objid, name=c.name, desc=c.desc,
-                                      active=c.active, model=c)
+            config = ApiServiceConfig(
+                self.controller,
+                oid=c.id,
+                objid=c.objid,
+                name=c.name,
+                desc=c.desc,
+                active=c.active,
+                model=c,
+            )
             self.config_object = config
         return self.config_object
 
@@ -171,7 +173,7 @@ class ApiServiceDefinition(ServiceApiObject):
             # else:
             #     name = self.name
             self.update_object(oid=self.oid, status=status)
-            self.logger.debug('Update status of %s to %s' % (self.uuid, status))
+            self.logger.debug("Update status of %s to %s" % (self.uuid, status))
 
     def post_delete(self, *args, **kvargs):
         """Post delete function. This function is used in delete method. Extend
@@ -188,10 +190,10 @@ class ApiServiceDefinition(ServiceApiObject):
 
 
 class ApiServiceConfig(ServiceApiObject):
-    objdef = ApiObject.join_typedef(ApiServiceDefinition.objdef, 'ServiceConfig')
-    objuri = 'serviceconfig'
-    objname = 'serviceconfig'
-    objdesc = 'ServiceConfig'
+    objdef = ApiObject.join_typedef(ApiServiceDefinition.objdef, "ServiceConfig")
+    objuri = "serviceconfig"
+    objname = "serviceconfig"
+    objdesc = "ServiceConfig"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -226,11 +228,13 @@ class ApiServiceConfig(ServiceApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ServiceApiObject.info(self)
-        info.update({
-            'service_definition_id': str(self.service_definition_id),
-            'params': self.params,
-            'params_type': self.params_type,
-        })
+        info.update(
+            {
+                "service_definition_id": str(self.service_definition_id),
+                "params": self.params,
+                "params_type": self.params_type,
+            }
+        )
         return info
 
     def detail(self):
@@ -243,7 +247,7 @@ class ApiServiceConfig(ServiceApiObject):
         info = self.info()
         return info
 
-    def get_json_property(self, attr_key)-> Union[dict, None]:
+    def get_json_property(self, attr_key) -> Union[dict, None]:
         """Get property from config
 
         :param attr_key: property name. Can be a composed name like k1.k2.k3
@@ -268,8 +272,7 @@ class ApiServiceConfig(ServiceApiObject):
             self.update(params=self.params)
 
     def getJsonProperty(self, attrKey):
-        """
-        """
+        """ """
         if self.params is None or attrKey is None:
             return None
         else:
@@ -277,10 +280,10 @@ class ApiServiceConfig(ServiceApiObject):
 
 
 class ApiServiceLinkDef(ApiServiceLink):
-    objdef = ApiObject.join_typedef(ApiServiceDefinition.objdef, 'ServiceLinkDef')
-    objuri = 'servicelinkdef'
-    objname = 'servicelinkdef'
-    objdesc = 'servicelinkdef'
+    objdef = ApiObject.join_typedef(ApiServiceDefinition.objdef, "ServiceLinkDef")
+    objuri = "servicelinkdef"
+    objname = "servicelinkdef"
+    objdesc = "servicelinkdef"
 
     def __init__(self, *args, **kvargs):
         """ """

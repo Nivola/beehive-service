@@ -1,21 +1,32 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
-from beehive_service.plugins.monitoringservice.controller import ApiMonitoringInstance, ApiMonitoringService
-from beehive_service.plugins.monitoringservice.controller import ApiMonitoringFolder
+from beehive_service.plugins.monitoringservice.controller import (
+    ApiMonitoringInstance,
+    ApiMonitoringService,
+    ApiMonitoringFolder,
+)
+from beehive_service.plugins.monitoringservice.controller_alert import ApiMonitoringAlert
 from beehive_service.plugins.monitoringservice.views import MonitoringServiceAPI
-from beehive_service.plugins.monitoringservice.views.folder import MonitoringFolderServiceAPI
-from beehive_service.plugins.monitoringservice.views.monitoring_instance import MonitoringInstanceServiceAPI
+from beehive_service.plugins.monitoringservice.views.folder import (
+    MonitoringFolderServiceAPI,
+)
+from beehive_service.plugins.monitoringservice.views.alert import MonitoringAlertServiceAPI
+from beehive_service.plugins.monitoringservice.views.monitoring_instance import (
+    MonitoringInstanceServiceAPI,
+)
 
 
 class MonitoringServicePlugin(object):
     def __init__(self, module):
         self.module = module
         self.st_plugins = [
-            ApiMonitoringService, 
+            ApiMonitoringService,
             ApiMonitoringFolder,
-            ApiMonitoringInstance
+            ApiMonitoringInstance,
+            ApiMonitoringAlert,
         ]
 
     def init(self):
@@ -27,6 +38,7 @@ class MonitoringServicePlugin(object):
         apis = [
             MonitoringServiceAPI,
             MonitoringFolderServiceAPI,
-            MonitoringInstanceServiceAPI
+            MonitoringInstanceServiceAPI,
+            MonitoringAlertServiceAPI,
         ]
         self.module.set_apis(apis)

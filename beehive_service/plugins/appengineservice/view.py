@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 # TODO Delete this file
 # deprecato sono attualmetee caricati beehive_service.plugins.appengineservice.views.AppengineServiceAPI
 # e beehive_service.plugins.appengineservice.views.instance.AppEngineInstanceAPI

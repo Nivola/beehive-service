@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import json
 
@@ -13,12 +13,12 @@ from beecell.simple import jsonDumps
 
 
 class ApiServiceInstanceLink1(ServiceApiObject):
-    """
-    """
-    objdef = ServiceApiObject.join_typedef(ApiAccount.objdef, 'ServiceLink')
-    objuri = 'links'
-    objname = 'link'
-    objdesc = 'Service link'
+    """ """
+
+    objdef = ServiceApiObject.join_typedef(ApiAccount.objdef, "ServiceLink")
+    objuri = "links"
+    objname = "link"
+    objdesc = "Service link"
 
     def __init__(self, *args, **kvargs):
         ServiceApiObject.__init__(self, *args, **kvargs)
@@ -70,11 +70,11 @@ class ApiServiceInstanceLink1(ServiceApiObject):
         start_service = self.get_start_service()
         end_service = self.get_end_service()
 
-        info['details'] = {
-            'attributes': self.attribs,
-            'type': self.model.type,
-            'start_service': start_service.small_info(),
-            'end_service': end_service.small_info()
+        info["details"] = {
+            "attributes": self.attribs,
+            "type": self.model.type,
+            "start_service": start_service.small_info(),
+            "end_service": end_service.small_info(),
         }
 
         return info
@@ -116,21 +116,21 @@ class ApiServiceInstanceLink1(ServiceApiObject):
         :raise ApiManagerError:
         """
         # get services
-        start_service = kvargs.pop('start_service', None)
+        start_service = kvargs.pop("start_service", None)
         if start_service is not None:
-            kvargs['start_service_id'] = self.controller.get_service_instance(start_service).oid
-        end_service = kvargs.pop('end_service', None)
+            kvargs["start_service_id"] = self.controller.get_service_instance(start_service).oid
+        end_service = kvargs.pop("end_service", None)
         if end_service is not None:
-            kvargs['end_service_id'] = self.controller.get_service_instance(end_service).oid
-        attributes = kvargs.pop('attributes', None)
+            kvargs["end_service_id"] = self.controller.get_service_instance(end_service).oid
+        attributes = kvargs.pop("attributes", None)
         if attributes is not None:
-            kvargs['attributes'] = jsonDumps(attributes)
+            kvargs["attributes"] = jsonDumps(attributes)
 
         return kvargs
 
     # tags
     #
-    @trace(op='tag-assign.update')
+    @trace(op="tag-assign.update")
     def add_tag(self, value):
         """Add tag
 
@@ -141,20 +141,20 @@ class ApiServiceInstanceLink1(ServiceApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # get tag
         tag = self.controller.get_tag(value)
 
         try:
             res = self.manager.add_link_tag(self.model, tag.model)
-            self.logger.info('Add tag %s to link %s: %s' % (value, self.name, res))
+            self.logger.info("Add tag %s to link %s: %s" % (value, self.name, res))
             return res
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex.desc, code=400)
 
-    @trace(op='tag-deassign.update')
+    @trace(op="tag-deassign.update")
     def remove_tag(self, value):
         """Remove tag
 
@@ -165,14 +165,14 @@ class ApiServiceInstanceLink1(ServiceApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # get tag
         tag = self.controller.get_tag(value)
 
         try:
             res = self.manager.remove_link_tag(self.model, tag.model)
-            self.logger.info('Remove tag %s from link %s: %s' % (value, self.name, res))
+            self.logger.info("Remove tag %s from link %s: %s" % (value, self.name, res))
             return res
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)

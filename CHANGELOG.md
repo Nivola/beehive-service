@@ -1,4 +1,51 @@
 # Changelog
+## Version 1.15.0
+
+* Added ...
+  * new metrics collecting logic
+  * monitoring alert service
+
+* Fixed ...
+  * minor fixies
+
+* Integrated ...
+
+## Version 1.14.0
+
+* Added ...
+  * method to get avz by site
+  * set session for playing a sigle account's role
+* Fixed ...
+  * refacoring load balancer
+  * service def get require no permissions
+  * database name check
+  * deregister moinitoring when delete resource
+  * refactoring backup
+  * check specified volume is at least as big as that of the template whe crating servrs
+
+* Integrated ...
+## Version 1.13.0
+
+* Added ...
+* Fixed ...
+  * grafana dashboard copy
+  * minor fixies
+
+
+* Integrated ...
+## Version 1.12.0
+
+* Added ...
+  * eleasticsearch upgrade
+
+* Fixed ...
+  * security group rule deletion
+  * instant consumes
+  * error while deleting a sopped server when monitoring is enabled
+  * synchronization of account's users in monitoring as a service when user ha no e-mail
+  * errors adding account capabilities
+
+* Integrated ...
 
 ## Version 1.11.0 (oct 21, 2022)
 

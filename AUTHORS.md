@@ -1,11 +1,14 @@
-beehive-service is written and maintained by: 
+beehive-service is written and maintained by:
 
-* Sergio Tonani
-* Antonio Brasile
-* Gianni Doria
-* Daniela Ferrarini
 * Ahmad Nazha
+* Alessandro More'
+* Antonio Brasile
+* Daniela Ferraini
 * Davide Sacchetto
+* Fabrizio Cosci
 * Filippo Vallero
 * Franco Frattini
-* Alessandro More'
+* Gianni Doria
+* Pasquale Lepera
+* Pietro Pilolli
+* Sergio Tonani

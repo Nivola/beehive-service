@@ -1,38 +1,39 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import json
 from six.moves.urllib.parse import urlencode
 from time import sleep
 from beecell.remote import NotFoundException
 from beecell.simple import str2bool, truncate, dict_get, format_date
+from beecell.types.type_id import is_name
 from beehive.common.apimanager import ApiObject, ApiManagerError
 from beehive.common.data import trace, operation
 from beehive.common.task_v2 import prepare_or_run_task
 from beehive_service.entity import ServiceApiObject
 from beehive_service.entity.service_definition import ApiServiceDefinition
-from beehive_service.entity.service_instance import ApiServiceInstance, ApiServiceInstanceConfig
+from beehive_service.entity.service_instance import (
+    ApiServiceInstance,
+    ApiServiceInstanceConfig,
+)
 from beehive_service.model import SrvStatusType, ServiceInstance
 from beehive_service.service_util import __SRV_MODULE_BASE_PREFIX__
 from typing import List, Type, Tuple, Any, Union, Dict
-from logging import getLogger
-
-logger = getLogger(__name__)
 
 
 class ApiServiceType(ServiceApiObject):
-    objdef = 'ServiceType'
-    objuri = 'servicetype'
-    objname = 'servicetype'
-    objdesc = 'ServiceType'
+    objdef = "ServiceType"
+    objuri = "servicetype"
+    objname = "servicetype"
+    objdesc = "ServiceType"
 
-    INVALID_PROCESS_KEY = 'invalid_key'
+    INVALID_PROCESS_KEY = "invalid_key"
 
-    PROCESS_KEY_CREATION = 'instanceCreate'
-    PROCESS_KEY_DELETE = 'instanceDelete'
-    PROCESS_KEY_UPDATE = 'instanceUpdate'
-    PROCESS_ADD_RULE = 'addRule'
+    PROCESS_KEY_CREATION = "instanceCreate"
+    PROCESS_KEY_DELETE = "instanceDelete"
+    PROCESS_KEY_UPDATE = "instanceUpdate"
+    PROCESS_ADD_RULE = "addRule"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -57,7 +58,7 @@ class ApiServiceType(ServiceApiObject):
         self.child_classes = [
             # ApiServiceCostParam,
             ApiServiceDefinition,
-            ApiServiceProcess
+            ApiServiceProcess,
         ]
 
         self.update_object = self.manager.update_service_type
@@ -72,13 +73,15 @@ class ApiServiceType(ServiceApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ServiceApiObject.info(self)
-        info.update({
-            'status': self.status,
-            'objclass': self.objclass,
-            'plugintype': self.plugintype,
-            'flag_container': str2bool(self.flag_container),
-            'template_cfg': self.template_cfg
-        })
+        info.update(
+            {
+                "status": self.status,
+                "objclass": self.objclass,
+                "plugintype": self.plugintype,
+                "flag_container": str2bool(self.flag_container),
+                "template_cfg": self.template_cfg,
+            }
+        )
         return info
 
     def detail(self):
@@ -94,17 +97,17 @@ class ApiServiceType(ServiceApiObject):
     def update_name(self, name):
         if self.update_object is not None:
             self.update_object(oid=self.oid, name=name)
-            self.logger.debug('Update name of %s to %s' % (self.uuid, name))
+            self.logger.debug("Update name of %s to %s" % (self.uuid, name))
 
     def update_desc(self, desc):
         if self.update_object is not None:
             self.update_object(oid=self.oid, desc=desc)
-            self.logger.debug('Update desc of %s to %s' % (self.uuid, desc))
+            self.logger.debug("Update desc of %s to %s" % (self.uuid, desc))
 
     def update_status(self, status):
         if self.update_object is not None:
             self.update_object(oid=self.oid, status=status)
-            self.logger.debug('Update status of %s to %s' % (self.uuid, status))
+            self.logger.debug("Update status of %s to %s" % (self.uuid, status))
 
     def post_delete(self, *args, **kvargs):
         """Post delete function. This function is used in delete method. Extend this function to execute action after
@@ -279,12 +282,12 @@ class ApiServiceType(ServiceApiObject):
 
 
 class ApiServiceTypePlugin(ApiServiceType):
-    INVALID_PROCESS_KEY = 'invalid_key'
+    INVALID_PROCESS_KEY = "invalid_key"
 
-    PROCESS_KEY_CREATION = 'instanceCreate'
-    PROCESS_KEY_DELETE = 'instanceDelete'
-    PROCESS_KEY_UPDATE = 'instanceUpdate'
-    PROCESS_ADD_RULE = 'addRule'
+    PROCESS_KEY_CREATION = "instanceCreate"
+    PROCESS_KEY_DELETE = "instanceDelete"
+    PROCESS_KEY_UPDATE = "instanceUpdate"
+    PROCESS_ADD_RULE = "addRule"
 
     create_task = None
     update_task = None
@@ -386,39 +389,41 @@ class ApiServiceTypePlugin(ApiServiceType):
 
         self.parent = self.instance.get_parent()
         if self.parent is not None:
-            parent = {'uuid': self.parent.uuid, 'name': self.parent.name}
+            parent = {"uuid": self.parent.uuid, "name": self.parent.name}
         else:
             parent = {}
 
-        info.update({
-            '__meta__': {
-                'objid': self.instance.objid,
-                'type': self.instance.objtype,
-                'definition': self.instance.objdef,
-                'uri': self.instance.objuri,
-            },
-            'id': self.instance.oid,
-            'uuid': self.instance.uuid,
-            'name': self.instance.name,
-            # 'account_id': str(self.instance.account_id),
-            'account': self.instance.account.small_info(),
-            'definition_id': str(self.instance.service_definition_id),
-            'definition_name': self.definition_name,
-            'bpmn_process_id': self.instance.bpmn_process_id,
-            'resource_uuid': self.instance.resource_uuid,
-            'status': self.get_status(),
-            'parent': parent,
-            'is_container': str2bool(self.instance.is_container()),
-            'config': self.instance.config,
-            'last_error': self.instance.model.last_error,
-            'plugintype': self.plugintype,
-            'tags': self.tags,
-            'date': {
-                'creation': format_date(self.instance.model.creation_date),
-                'modified': format_date(self.instance.model.modification_date),
-                'expiry': format_date(self.instance.model.expiry_date),
+        info.update(
+            {
+                "__meta__": {
+                    "objid": self.instance.objid,
+                    "type": self.instance.objtype,
+                    "definition": self.instance.objdef,
+                    "uri": self.instance.objuri,
+                },
+                "id": self.instance.oid,
+                "uuid": self.instance.uuid,
+                "name": self.instance.name,
+                # 'account_id': str(self.instance.account_id),
+                "account": self.instance.account.small_info(),
+                "definition_id": str(self.instance.service_definition_id),
+                "definition_name": self.definition_name,
+                "bpmn_process_id": self.instance.bpmn_process_id,
+                "resource_uuid": self.instance.resource_uuid,
+                "status": self.get_status(),
+                "parent": parent,
+                "is_container": str2bool(self.instance.is_container()),
+                "config": self.instance.config,
+                "last_error": self.instance.model.last_error,
+                "plugintype": self.plugintype,
+                "tags": self.tags,
+                "date": {
+                    "creation": format_date(self.instance.model.creation_date),
+                    "modified": format_date(self.instance.model.modification_date),
+                    "expiry": format_date(self.instance.model.expiry_date),
+                },
             }
-        })
+        )
 
         # if self.account is not None:
         #     info['account'] = self.account.small_info()
@@ -455,14 +460,14 @@ class ApiServiceTypePlugin(ApiServiceType):
         # check status
         accepted_state = [SrvStatusType.ACTIVE, SrvStatusType.ERROR]
         if self.get_status() not in accepted_state:
-            raise ApiManagerError('Service is not in a correct status')
+            raise ApiManagerError("Service is not in a correct status")
 
     def is_active(self):
         """Check if object has status ACTIVE
 
         :return: True if active
         """
-        if self.get_status() == 'ACTIVE':
+        if self.get_status() == "ACTIVE":
             return True
         return False
 
@@ -498,12 +503,19 @@ class ApiServiceTypePlugin(ApiServiceType):
             plugintype = plugin_class.plugintype
         childs = self.manager.get_service_instance_children(start_service_id=self.instance.oid, plugintype=plugintype)
         for child in childs:
-            instance = ApiServiceInstance(self.controller, oid=child.id, objid=child.objid, name=child.name,
-                                          desc=child.desc, active=child.active, model=child)
+            instance = ApiServiceInstance(
+                self.controller,
+                oid=child.id,
+                objid=child.objid,
+                name=child.name,
+                desc=child.desc,
+                active=child.active,
+                model=child,
+            )
             instance.get_main_config()
             plugin = instance.get_service_type_plugin()
             plugins.append(plugin)
-        self.logger.debug('Get type plugin instance %s childs: %s' % (self.uuid, truncate(plugins)))
+        self.logger.debug("Get type plugin instance %s childs: %s" % (self.uuid, truncate(plugins)))
         return plugins
 
     def is_availability_zone_active(self, compute_zone, availability_zone_name):
@@ -513,7 +525,7 @@ class ApiServiceTypePlugin(ApiServiceType):
         :param availability_zone_name: availability zone name
         :return: True or False
         """
-        if self.get_resource_availability_zone_status(compute_zone, availability_zone_name) == 'ACTIVE':
+        if self.get_resource_availability_zone_status(compute_zone, availability_zone_name) == "ACTIVE":
             return True
         return False
 
@@ -694,7 +706,7 @@ class ApiServiceTypePlugin(ApiServiceType):
     #
     # update
     #
-    @trace(op='update')
+    @trace(op="update")
     def update(self, **params):
         """Update service using a celery task or the synchronous function update_internal.
 
@@ -705,7 +717,7 @@ class ApiServiceTypePlugin(ApiServiceType):
         :raises ApiManagerError: if query empty return error.
         """
         # verify permissions
-        self.instance.verify_permisssions('update')
+        self.instance.verify_permisssions("update")
 
         # check status
         self.check_status()
@@ -714,28 +726,28 @@ class ApiServiceTypePlugin(ApiServiceType):
 
         # run an optional pre update function
         params = self.pre_update(**params)
-        self.logger.debug('params after pre update: %s' % params)
+        self.logger.debug("params after pre update: %s" % params)
 
         # change resource state
         self.update_status(SrvStatusType.BUILDING)
 
         # get sync status of the task
-        sync = params.pop('sync', False)
-        self.logger.debug('task sync: %s' % sync)
+        sync = params.pop("sync", False)
+        self.logger.debug("task sync: %s" % sync)
 
         # force update with internal update
-        force = params.pop('force', False)
-        self.logger.debug('Force update: %s' % force)
+        force = params.pop("force", False)
+        self.logger.debug("Force update: %s" % force)
 
         # get param to update in the service instance record
-        parent_id = params.pop('parent_id', None)
-        resource_uuid = params.pop('resource_uuid', None)
-        tags = params.pop('tags', None)
+        parent_id = params.pop("parent_id", None)
+        resource_uuid = params.pop("resource_uuid", None)
+        tags = params.pop("tags", None)
 
         # update model
-        update_model_params = {'oid': self.instance.oid}
+        update_model_params = {"oid": self.instance.oid}
         if resource_uuid is not None:
-            update_model_params['resource_uuid'] = resource_uuid
+            update_model_params["resource_uuid"] = resource_uuid
 
         self.instance.update_object(**update_model_params)
 
@@ -743,50 +755,51 @@ class ApiServiceTypePlugin(ApiServiceType):
         if parent_id is not None:
             parent_plugin = self.controller.get_service_type_plugin(parent_id)
             # link instance to parent instance
-            link_name = 'lnk_%s_%s' % (parent_plugin.instance.oid, self.instance.oid)
+            link_name = "lnk_%s_%s" % (parent_plugin.instance.oid, self.instance.oid)
             self.controller.add_service_instlink(link_name, parent_plugin.instance.oid, self.instance.oid)
-            self.logger.info('Link service instance %s to parent instance %s' %
-                             (self.instance.uuid, parent_plugin.instance.uuid))
+            self.logger.info(
+                "Link service instance %s to parent instance %s" % (self.instance.uuid, parent_plugin.instance.uuid)
+            )
 
         # update tags
         if tags is not None:
-            cmd = tags.get('cmd')
-            values = tags.get('values')
+            cmd = tags.get("cmd")
+            values = tags.get("values")
             try:
                 # add tag
-                if cmd == 'add':
+                if cmd == "add":
                     for value in values:
                         self.instance.add_tag(value)
                         # controller.create_service_tag(srv_inst, srv_inst.account_id, value)
-                        self.logger.debug('Add tag %s to service instance %s' % (value, self.instance.uuid))
-                elif cmd == 'delete':
+                        self.logger.debug("Add tag %s to service instance %s" % (value, self.instance.uuid))
+                elif cmd == "delete":
                     for value in values:
                         # controller.delete_service_tag(srv_inst, srv_inst.account_id, value)
                         self.instance.remove_tag(value)
-                        self.logger.debug('Remove tag %s from service instance %s' % (value, self.instance.uuid))
+                        self.logger.debug("Remove tag %s from service instance %s" % (value, self.instance.uuid))
             except Exception as e:
                 self.logger.debug(e)
         try:
             # update resource using asynchronous celery task
             if self.update_task is not None and force is False:
                 base_params = {
-                    'alias': self.plugintype + '.update',
-                    'id': self.instance.oid,
-                    'uuid': self.instance.uuid,
-                    'objid': self.instance.objid,
-                    'resource_uuid': self.check_resource(),
-                    'resource_params': {},
-                    'name': self.instance.name
+                    "alias": self.plugintype + ".update",
+                    "id": self.instance.oid,
+                    "uuid": self.instance.uuid,
+                    "objid": self.instance.objid,
+                    "resource_uuid": self.check_resource(),
+                    "resource_params": {},
+                    "name": self.instance.name,
                 }
                 base_params.update(**params)
                 params = base_params
 
                 params.update(self.get_user())
                 res = prepare_or_run_task(self.instance, self.update_task, params, sync=sync)
-                self.logger.info('run update task: %s' % res[0])
+                self.logger.info("run update task: %s" % res[0])
 
                 if sync is False:
-                    self.active_task = res[0]['taskid']
+                    self.active_task = res[0]["taskid"]
                 if sync is True:
                     self.active_task = res[0]
 
@@ -801,7 +814,7 @@ class ApiServiceTypePlugin(ApiServiceType):
                 self.post_update(**params)
 
                 self.update_status(SrvStatusType.ACTIVE)
-                self.logger.info('Update service %s' % self.instance.uuid)
+                self.logger.info("Update service %s" % self.instance.uuid)
 
         except Exception as ex:
             self.logger.error(ex, exc_info=1)
@@ -813,7 +826,7 @@ class ApiServiceTypePlugin(ApiServiceType):
     #
     # patch
     #
-    @trace(op='update')
+    @trace(op="update")
     def patch(self, **params):
         """Update service using a celery task or the synchronous function patch_internal.
 
@@ -823,7 +836,7 @@ class ApiServiceTypePlugin(ApiServiceType):
         :raises ApiManagerError: if query empty return error.
         """
         # verify permissions
-        self.instance.verify_permisssions('update')
+        self.instance.verify_permisssions("update")
 
         # check status
         self.check_status()
@@ -832,35 +845,35 @@ class ApiServiceTypePlugin(ApiServiceType):
 
         # run an optional pre patch function
         params = self.pre_patch(**params)
-        self.logger.debug('params after pre udpate: %s' % params)
+        self.logger.debug("params after pre udpate: %s" % params)
 
         # change resource state
         self.update_status(SrvStatusType.BUILDING)
 
         # get sync status of the task
-        sync = params.pop('sync', False)
-        self.logger.debug('task sync: %s' % sync)
+        sync = params.pop("sync", False)
+        self.logger.debug("task sync: %s" % sync)
 
         try:
             # patch resource using asynchronous celery task
             if self.patch_task is not None:
                 base_params = {
-                    'alias': self.plugintype + '.patch',
-                    'id': self.instance.oid,
-                    'uuid': self.instance.uuid,
-                    'objid': self.instance.objid,
-                    'resource_uuid': self.check_resource(),
-                    'name': self.instance
+                    "alias": self.plugintype + ".patch",
+                    "id": self.instance.oid,
+                    "uuid": self.instance.uuid,
+                    "objid": self.instance.objid,
+                    "resource_uuid": self.check_resource(),
+                    "name": self.instance,
                 }
                 base_params.update(**params)
                 params = base_params
 
                 params.update(self.get_user())
                 res = prepare_or_run_task(self.instance, self.patch_task, params, sync=sync)
-                self.logger.info('run patch task: %s' % res[0])
+                self.logger.info("run patch task: %s" % res[0])
 
                 if sync is False:
-                    self.active_task = res[0]['taskid']
+                    self.active_task = res[0]["taskid"]
                 if sync is True:
                     self.active_task = res[0]
 
@@ -875,7 +888,7 @@ class ApiServiceTypePlugin(ApiServiceType):
                 self.post_patch(**params)
 
                 self.update_status(SrvStatusType.ACTIVE)
-                self.logger.info('Update service %s' % self.instance.uuid)
+                self.logger.info("Update service %s" % self.instance.uuid)
 
         except Exception as ex:
             self.logger.error(ex, exc_info=1)
@@ -887,7 +900,7 @@ class ApiServiceTypePlugin(ApiServiceType):
     #
     # action
     #
-    @trace(op='update')
+    @trace(op="update")
     def action(self, **params):
         """Send action to service using a celery task.
         Call pre_action in order to customize parameter and post_action in order to finalize the action
@@ -902,7 +915,7 @@ class ApiServiceTypePlugin(ApiServiceType):
         :raises ApiManagerError: if query empty return error.
         """
         # verify permissions
-        self.instance.verify_permisssions('update')
+        self.instance.verify_permisssions("update")
 
         # check status
         # if self.get_status() not in [SrvStatusType.ACTIVE]:
@@ -910,16 +923,16 @@ class ApiServiceTypePlugin(ApiServiceType):
 
         # run an optional pre update function
         params = self.pre_action(**params)
-        self.logger.debug('params after pre action: %s' % params)
+        self.logger.debug("params after pre action: %s" % params)
 
         # change resource state
         # self.update_status(SrvStatusType.BUILDING)
 
         # get sync status of the task
-        sync = params.pop('sync', False)
-        self.logger.debug('task sync: %s' % sync)
+        sync = params.pop("sync", False)
+        self.logger.debug("task sync: %s" % sync)
 
-        action_task = params.pop('action_task', self.action_task)
+        action_task = params.pop("action_task", self.action_task)
         # action_task_workflow = params.pop('action_task_workflow', self.action_task_workflow)
 
         try:
@@ -927,26 +940,26 @@ class ApiServiceTypePlugin(ApiServiceType):
             # if self.action_task is not None:
             if action_task is not None:
                 base_params = {
-                    'alias': self.plugintype + '.action',
-                    'id': self.instance.oid,
-                    'uuid': self.instance.uuid,
-                    'objid': self.instance.objid,
-                    'resource_uuid': self.check_resource(),
-                    'name': self.instance.name
+                    "alias": self.plugintype + ".action",
+                    "id": self.instance.oid,
+                    "uuid": self.instance.uuid,
+                    "objid": self.instance.objid,
+                    "resource_uuid": self.check_resource(),
+                    "name": self.instance.name,
                 }
                 base_params.update(**params)
                 params = base_params
 
-                if params.get('steps', None) is None:
-                    step = 'beehive_service.task_v2.servicetypeplugin.TypePluginInstanceActionTask.action_resource_step'
-                    params['steps'] = [step]
+                if params.get("steps", None) is None:
+                    step = "beehive_service.task_v2.servicetypeplugin.TypePluginInstanceActionTask.action_resource_step"
+                    params["steps"] = [step]
 
                 params.update(self.get_user())
                 res = prepare_or_run_task(self.instance, self.action_task, params, sync=sync)
-                self.logger.info('run action task: %s' % res[0])
+                self.logger.info("run action task: %s" % res[0])
 
                 if sync is False:
-                    self.active_task = res[0]['taskid']
+                    self.active_task = res[0]["taskid"]
                 if sync is True:
                     self.active_task = res[0]
 
@@ -994,13 +1007,13 @@ class ApiServiceTypePlugin(ApiServiceType):
         # delete all links
         links, tot = self.controller.get_links(service=self.instance.oid)
         for link in links:
-            self.logger.debug('expunge link %s' % link.uuid)
+            self.logger.debug("expunge link %s" % link.uuid)
             link.expunge()
 
         # delete instance
         self.instance.expunge()
 
-    @trace(op='delete')
+    @trace(op="delete")
     def delete(self, **params):
         """Delete service using a celery task or the synchronous function delete_resource.
 
@@ -1008,39 +1021,39 @@ class ApiServiceTypePlugin(ApiServiceType):
         :param params.force: force delete for any states
         :param params.propagate: if True propagate delete to all cmp modules
         :param params.sync: if True run sync task, if False run async task
-        :return: celery task instance
+        :return: none
         :raises ApiManagerError: if query empty return error.
         """
         # verify permissions
-        self.instance.verify_permisssions('delete')
+        self.instance.verify_permisssions("delete")
 
-        force = params.get('force', False)
-        propagate = params.get('propagate', True)
-        sync = params.pop('sync', False)
+        force = params.get("force", False)
+        propagate = params.get("propagate", True)
+        sync = params.pop("sync", False)
 
         # check status
         # if self.get_status() not in [SrvStatusType.ACTIVE, SrvStatusType.DRAFT, SrvStatusType.PENDING,
         #                              SrvStatusType.ERROR]:
         if force is False:
             if self.get_status() not in [SrvStatusType.ACTIVE, SrvStatusType.ERROR]:
-                raise ApiManagerError('Service is not in a correct status')
+                raise ApiManagerError("Service is not in a correct status")
 
         # verify service has no childs TODO:
         # params['child_num'] = self.manager.count_resource(parent_id=self.oid)
 
         if propagate is False:
-            self.logger.info('Stop service %s delete propagation' % self.instance.uuid)
+            self.logger.info("Stop service %s delete propagation" % self.instance.uuid)
 
             # change resource state
             self.update_status(SrvStatusType.DELETING)
 
             self.delete_instance()
-            self.logger.info('Delete service %s' % self.instance.uuid)
-            return True
+            self.logger.info("Delete service %s" % self.instance.uuid)
+            return
 
         # run an optional pre delete function
         params = self.pre_delete(**params)
-        self.logger.debug('params after pre delete: %s' % params)
+        self.logger.debug("params after pre delete: %s" % params)
 
         # if params['child_num'] > 0:
         #     raise ApiManagerError('Resource %s has %s childs. It can not be expunged' %
@@ -1054,21 +1067,21 @@ class ApiServiceTypePlugin(ApiServiceType):
             if self.delete_task is not None:
                 # setup task params
                 data = {
-                    'alias': self.plugintype + '.delete',
-                    'id': self.instance.oid,
-                    'uuid': self.instance.uuid,
-                    'objid': self.instance.objid,
-                    'resource_uuid': self.check_resource(),
-                    'name': self.instance.name
+                    "alias": self.plugintype + ".delete",
+                    "id": self.instance.oid,
+                    "uuid": self.instance.uuid,
+                    "objid": self.instance.objid,
+                    "resource_uuid": self.check_resource(),
+                    "name": self.instance.name,
                 }
                 params.update(data)
 
                 params.update(self.get_user())
                 res = prepare_or_run_task(self.instance, self.delete_task, params, sync=sync)
-                self.logger.info('run delete task: %s' % res[0])
+                self.logger.info("run delete task: %s" % res[0])
 
                 if sync is False:
-                    self.active_task = res[0]['taskid']
+                    self.active_task = res[0]["taskid"]
                 if sync is True:
                     self.active_task = res[0]
 
@@ -1082,19 +1095,17 @@ class ApiServiceTypePlugin(ApiServiceType):
                 # post delete function
                 self.post_delete(**params)
                 self.delete_instance()
-                self.logger.info('Delete service %s' % self.instance.uuid)
+                self.logger.info("Delete service %s" % self.instance.uuid)
 
         except Exception as ex:
             self.logger.error(ex, exc_info=1)
             self.update_status(SrvStatusType.ERROR, error=ex)
             raise
 
-        return True
-
     #
     # tags
     #
-    @trace(op='update')
+    @trace(op="update")
     def add_tag(self, value):
         """Add tag
 
@@ -1107,7 +1118,7 @@ class ApiServiceTypePlugin(ApiServiceType):
         if self.check_resource() is not None:
             self.create_resource_tag(value)
 
-    @trace(op='update')
+    @trace(op="update")
     def remove_tag(self, value):
         """Remove tag
 
@@ -1123,7 +1134,7 @@ class ApiServiceTypePlugin(ApiServiceType):
     #
     # links
     #
-    @trace(op='view')
+    @trace(op="view")
     def get_linked_services(self, link_type=None, link_type_filter=None, *args, **kvargs):
         """Get linked services
 
@@ -1139,21 +1150,34 @@ class ApiServiceTypePlugin(ApiServiceType):
         :return: :py:class:`list` of :py:class:`ResourceLink`
         :raise ApiManagerError:
         """
+
         def get_entities(*args, **kvargs):
-            res, total = self.manager.get_linked_services(service=self.instance.oid, link_type=link_type,
-                                                          link_type_filter=link_type_filter, *args, **kvargs)
+            res, total = self.manager.get_linked_services(
+                service=self.instance.oid,
+                link_type=link_type,
+                link_type_filter=link_type_filter,
+                *args,
+                **kvargs,
+            )
             return res, total
 
         def customize(entities, *args, **kvargs):
             return entities
 
-        res, total = self.controller.get_paginated_entities(ApiServiceInstance, get_entities,
-                                                            customize=customize, *args, **kvargs)
-        self.logger.debug('Get linked service instances: %s' % res)
+        res, total = self.controller.get_paginated_entities(
+            ApiServiceInstance, get_entities, customize=customize, *args, **kvargs
+        )
+        self.logger.debug("Get linked service instances: %s" % res)
         return res, total
 
-    @trace(op='insert')
-    def add_link(self, name: str=None, type:str =None, end_service: int=None, attributes=None):
+    @trace(op="insert")
+    def add_link(
+        self,
+        name: str = None,
+        type: str = None,
+        end_service: int = None,
+        attributes=None,
+    ):
         """Add resource links
 
         :param name: link name
@@ -1163,13 +1187,18 @@ class ApiServiceTypePlugin(ApiServiceType):
         :return: link uuid
         :raise ApiManagerError:
         """
-        link_uuid = self.controller.add_link(name=name, type=type, account=self.instance.account_id,
-                                             start_service=self.instance.oid, end_service=end_service,
-                                             attributes=attributes)
+        link_uuid = self.controller.add_link(
+            name=name,
+            type=type,
+            account=self.instance.account_id,
+            start_service=self.instance.oid,
+            end_service=end_service,
+            attributes=attributes,
+        )
         link = self.controller.get_link(link_uuid)
         return link
 
-    @trace(op='delete')
+    @trace(op="delete")
     def del_link(self, end_service, type):
         """Delete a link that terminate on the end_service
 
@@ -1195,12 +1224,12 @@ class ApiServiceTypePlugin(ApiServiceType):
 
         if resource is None:
             check = False
-            msg = 'resource does not exist'
+            msg = "resource does not exist"
         else:
             check = True
             msg = None
-        res = {'check': check, 'msg': msg}
-        self.logger.debug2('Check service %s: %s' % (self.uuid, res))
+        res = {"check": check, "msg": msg}
+        self.logger.debug2("Check service %s: %s" % (self.uuid, res))
         return res
 
     #
@@ -1213,25 +1242,25 @@ class ApiServiceTypePlugin(ApiServiceType):
         :param module: module where task is executed
         :return:
         """
-        msg = ''
-        if module == 'resource':
-            uri = '/v2.0/nrs/worker/tasks/%s/status' % taskid
-        elif module == 'service':
-            uri = '/v2.0/nws/worker/tasks/%s/status' % taskid
+        msg = ""
+        if module == "resource":
+            uri = "/v2.0/nrs/worker/tasks/%s/status" % taskid
+        elif module == "service":
+            uri = "/v2.0/nws/worker/tasks/%s/status" % taskid
         else:
-            uri = '/v2.0/nws/worker/tasks/%s/status' % taskid
+            uri = "/v2.0/nws/worker/tasks/%s/status" % taskid
         try:
-            res = self.api_client.admin_request('resource', uri, 'get', silent=True)
-            task = res.get('task_instance')
-            state = task.get('status')
-            self.logger.info('Get task %s state: %s' % (taskid, state))
-            if state == 'FAILURE':
+            res = self.api_client.admin_request("resource", uri, "get", silent=True)
+            task = res.get("task_instance")
+            state = task.get("status")
+            self.logger.info("Get task %s state: %s" % (taskid, state))
+            if state == "FAILURE":
                 msg = self.__get_task_error(taskid, module)
             return state, msg
         except (NotFoundException, Exception) as ex:
             self.logger.error(ex)
             msg = ex
-            return 'FAILURE', msg
+            return "FAILURE", msg
 
     def __get_task_error(self, taskid, module):
         """Query api to get task trace
@@ -1240,48 +1269,48 @@ class ApiServiceTypePlugin(ApiServiceType):
         :param module: module where task is executed
         :return: task error
         """
-        if module == 'resource':
-            uri = '/v2.0/nrs/worker/tasks/%s/trace' % taskid
-        elif module == 'service':
-            uri = '/v2.0/nws/worker/tasks/%s/trace' % taskid
+        if module == "resource":
+            uri = "/v2.0/nrs/worker/tasks/%s/trace" % taskid
+        elif module == "service":
+            uri = "/v2.0/nws/worker/tasks/%s/trace" % taskid
         else:
-            uri = '/v2.0/nws/worker/tasks/%s/trace' % taskid
+            uri = "/v2.0/nws/worker/tasks/%s/trace" % taskid
         try:
-            res = self.api_client.admin_request('resource', uri, 'get', silent=True)
-            trace = res.get('task_trace')[-1]['message']
-            self.logger.error('Get task %s trace: %s' % (taskid, trace))
+            res = self.api_client.admin_request("resource", uri, "get", silent=True)
+            trace = res.get("task_trace")[-1]["message"]
+            self.logger.error("Get task %s trace: %s" % (taskid, trace))
             return trace
         except Exception:
             return None
 
-    def get_task_result(self, taskid, module='resource'):
+    def get_task_result(self, taskid, module="resource"):
         """Query api to get task result
 
         :param taskid: task id to query
         :param module: module where task is executed [default=resource]
         :return: task result
         """
-        if module == 'resource':
-            uri = '/v2.0/nrs/worker/tasks/%s' % taskid
-        elif module == 'service':
-            uri = '/v2.0/nws/worker/tasks/%s' % taskid
+        if module == "resource":
+            uri = "/v2.0/nrs/worker/tasks/%s" % taskid
+        elif module == "service":
+            uri = "/v2.0/nws/worker/tasks/%s" % taskid
         else:
-            uri = '/v2.0/nws/worker/tasks/%s' % taskid
+            uri = "/v2.0/nws/worker/tasks/%s" % taskid
         try:
-            res = self.api_client.admin_request('resource', uri, 'get', silent=True)
-            task = res.get('task_instance')
-            state = task.get('status')
+            res = self.api_client.admin_request("resource", uri, "get", silent=True)
+            task = res.get("task_instance")
+            state = task.get("status")
             result = None
-            if state == 'SUCCESS':
-                result = task.get('result')
-                self.logger.info('Get task %s result: %s' % (taskid, result))
+            if state == "SUCCESS":
+                result = task.get("result")
+                self.logger.info("Get task %s result: %s" % (taskid, result))
             return result
         except (NotFoundException, Exception) as ex:
             self.logger.error(ex)
             return None
 
     # FF: ex maxtime=1200
-    def wait_for_task(self, taskid, delta=2, maxtime=3600, task=None, module='resource'):
+    def wait_for_task(self, taskid, delta=2, maxtime=3600, task=None, module="resource"):
         """Wait for task
 
         :param taskid: task id
@@ -1293,41 +1322,41 @@ class ApiServiceTypePlugin(ApiServiceType):
         """
 
         try:
-            self.logger.info('Wait for task: %s' % taskid)
+            self.logger.info("Wait for task: %s" % taskid)
             state, statemsg = self.__get_task_status(taskid, module)
             elapsed = 0
-            while state not in ['SUCCESS', 'FAILURE', 'TIMEOUT']:
+            while state not in ["SUCCESS", "FAILURE", "TIMEOUT"]:
                 sleep(delta)
                 state, statemsg = self.__get_task_status(taskid, module)
                 if task is not None:
-                    task.progress(msg='Get %s task %s status: %s' % (module, taskid, state))
+                    task.progress(msg="Get %s task %s status: %s" % (module, taskid, state))
                 elapsed += delta
                 if elapsed > maxtime:
-                    state = 'TIMEOUT'
+                    state = "TIMEOUT"
 
-            if state == 'TIMEOUT':
-                msg = '%s task %s timeout' % (module, taskid)
+            if state == "TIMEOUT":
+                msg = "%s task %s timeout" % (module, taskid)
                 self.logger.error(msg)
                 if task is not None:
-                    task.progress(msg='error - %s' % msg)
-                raise ApiManagerError('%s action timeout' % module)
-            elif state == 'FAILURE':
+                    task.progress(msg="error - %s" % msg)
+                raise ApiManagerError("%s action timeout" % module)
+            elif state == "FAILURE":
                 # err = self.__get_task_error(taskid, module)
-                msg = '%s task %s error: %s' % (module, taskid, statemsg)
+                msg = "%s task %s error: %s" % (module, taskid, statemsg)
                 self.logger.error(msg)
                 if task is not None:
-                    task.progress(msg='error - %s' % msg)
-                raise ApiManagerError('%s action error: %s' % (module, statemsg))
+                    task.progress(msg="error - %s" % msg)
+                raise ApiManagerError("%s action error: %s" % (module, statemsg))
 
             if task is not None:
-                task.progress(msg='%s task %s SUCCESS' % (module, taskid))
-            self.logger.info('%s task %s SUCCESS' % (module, taskid))
+                task.progress(msg="%s task %s SUCCESS" % (module, taskid))
+            self.logger.info("%s task %s SUCCESS" % (module, taskid))
 
             return state
         except ApiManagerError as ex:
             self.logger.error(ex.value, exc_info=1)
             if task is not None:
-                task.progress(msg='error - %s' % ex)
+                task.progress(msg="error - %s" % ex)
             self.update_status(SrvStatusType.ERROR, error=ex.value)
             raise Exception(ex)
 
@@ -1341,8 +1370,8 @@ class ApiServiceTypePlugin(ApiServiceType):
         """
         try:
             if self.instance.resource_uuid is not None:
-                uri = '/v1.0/nrs/entities/%s' % self.instance.resource_uuid
-                self.controller.api_client.admin_request('resource', uri, 'get', data='')
+                uri = "/v1.0/nrs/entities/%s" % self.instance.resource_uuid
+                self.controller.api_client.admin_request("resource", uri, "get", data="")
                 return self.instance.resource_uuid
             else:
                 return None
@@ -1393,22 +1422,22 @@ class ApiServiceTypePlugin(ApiServiceType):
         """
         return None
 
-    def delete_resource(self, task, *args, **kvargs):
+    def delete_resource(self, task, *args, **kvargs) -> bool:
         """Delete resource
 
         :param task: celery task reference
         :param args: custom positional args
         :param kvargs: custom key=value args
-        :return: True
+        :return: True if deleted
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         if self.check_resource() is None:
-            return True
+            return False
 
         try:
-            uri = '/v1.0/nrs/entities/%s?force=true' % self.instance.resource_uuid
-            res = self.controller.api_client.admin_request('resource', uri, 'delete', data='')
-            taskid = res.get('taskid', None)
+            uri = "/v1.0/nrs/entities/%s?force=true" % self.instance.resource_uuid
+            res = self.controller.api_client.admin_request("resource", uri, "delete", data="")
+            taskid = res.get("taskid", None)
         except ApiManagerError as ex:
             self.logger.error(ex, exc_info=1)
             self.instance.update_status(SrvStatusType.ERROR, error=ex.value)
@@ -1420,7 +1449,7 @@ class ApiServiceTypePlugin(ApiServiceType):
 
         if taskid is not None:
             self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-        self.logger.debug('Delete compute instance resources: %s' % res)
+        self.logger.debug("Delete compute instance resources: %s" % res)
 
         return True
 
@@ -1431,23 +1460,23 @@ class ApiServiceTypePlugin(ApiServiceType):
         :return: resource tag uuid
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        name = '%s$%s' % (__SRV_MODULE_BASE_PREFIX__, tag_name)
+        name = "%s$%s" % (__SRV_MODULE_BASE_PREFIX__, tag_name)
 
         try:
-            tag_resource = self.api_client.admin_request('resource', '/v1.0/nrs/tags/%s' % name, 'get')
-            self.logger.debug('Resource tag %s was found' % name)
+            tag_resource = self.api_client.admin_request("resource", "/v1.0/nrs/tags/%s" % name, "get")
+            self.logger.debug("Resource tag %s was found" % name)
         except ApiManagerError as ex:
-            self.logger.warn('Resource tag %s was not found. Create a new one' % name)
-            uri = '/v1.0/nrs/tags'
-            data = {'resourcetag': {'value': name}}
-            tag_resource = self.controller.api_client.admin_request('resource', uri, 'post', data=data)
+            self.logger.warn("Resource tag %s was not found. Create a new one" % name)
+            uri = "/v1.0/nrs/tags"
+            data = {"resourcetag": {"value": name}}
+            tag_resource = self.controller.api_client.admin_request("resource", uri, "post", data=data)
 
-        data = {'resource': {'tags': {'cmd': 'add', 'values': [name]}, 'force': True}}
-        uri = '/v1.0/nrs/entities/%s' % self.instance.resource_uuid
-        self.api_client.admin_request('resource', uri, 'put', data=data)
-        self.logger.debug('Add resource tag %s to resource %s' % (name, self.instance.resource_uuid))
+        data = {"resource": {"tags": {"cmd": "add", "values": [name]}, "force": True}}
+        uri = "/v1.0/nrs/entities/%s" % self.instance.resource_uuid
+        self.api_client.admin_request("resource", uri, "put", data=data)
+        self.logger.debug("Add resource tag %s to resource %s" % (name, self.instance.resource_uuid))
 
-        return tag_resource.get('uuid')
+        return tag_resource.get("uuid")
 
     def delete_resource_tag(self, tag_name):
         """Remove resource tag
@@ -1457,17 +1486,17 @@ class ApiServiceTypePlugin(ApiServiceType):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         # deassign tag
-        name = '%s$%s' % (__SRV_MODULE_BASE_PREFIX__, tag_name)
-        data = {'resource': {'tags': {'cmd': 'remove', 'values': [name]}, 'force': True}}
-        uri = '/v1.0/nrs/entities/%s' % self.instance.resource_uuid
-        self.api_client.admin_request('resource', uri, 'put', data=data)
-        self.logger.debug('Remove resource tag %s from resource %s' % (name, self.instance.resource_uuid))
+        name = "%s$%s" % (__SRV_MODULE_BASE_PREFIX__, tag_name)
+        data = {"resource": {"tags": {"cmd": "remove", "values": [name]}, "force": True}}
+        uri = "/v1.0/nrs/entities/%s" % self.instance.resource_uuid
+        self.api_client.admin_request("resource", uri, "put", data=data)
+        self.logger.debug("Remove resource tag %s from resource %s" % (name, self.instance.resource_uuid))
 
         # remove tag
-        name = '%s$%s' % (__SRV_MODULE_BASE_PREFIX__, tag_name)
-        uri = '/v1.0/nrs/tags/%s' % name
-        self.controller.api_client.admin_request('resource', uri, 'delete', data=data)
-        self.logger.debug('Remove resource tag %s ' % name)
+        name = "%s$%s" % (__SRV_MODULE_BASE_PREFIX__, tag_name)
+        uri = "/v1.0/nrs/tags/%s" % name
+        self.controller.api_client.admin_request("resource", uri, "delete", data=data)
+        self.logger.debug("Remove resource tag %s " % name)
 
         return True
 
@@ -1479,10 +1508,27 @@ class ApiServiceTypePlugin(ApiServiceType):
         :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        uri = '/v1.0/nrs/provider/compute_zones/%s/availability_zones' % compute_zone
-        res = self.controller.api_client.admin_request('resource', uri, 'get', data='').get('availability_zones', [])
-        self.controller.logger.debug('Get compute service %s availability zones: %s' % (compute_zone, truncate(res)))
+        uri = "/v1.0/nrs/provider/compute_zones/%s/availability_zones" % compute_zone
+        res = self.controller.api_client.admin_request("resource", uri, "get", data="").get("availability_zones", [])
+        self.controller.logger.debug("Get compute service %s availability zones: %s" % (compute_zone, truncate(res)))
         return res
+
+    def get_resource_availability_zone_by_site(self, compute_zone, site):
+        """Get compute service availability zones
+
+        :param compute_zone: compute zone id, uuid or name
+        :param site: parent site id, uuid or name
+
+        :return: Dictionary with availability zone details
+        :rtype: dict
+        :raises ApiManagerError: raise :class:`.ApiManagerError`
+        """
+        res = self.get_resource_availability_zones(compute_zone)
+        if is_name(site):
+            avz = [avz for avz in res if dict_get(avz, "site.name") == site]
+        else:
+            avz = [avz for avz in res if dict_get(avz, "site.id") == site]
+        return avz[0]
 
     def get_resource_main_availability_zone(self):
         """Get service instance main availability zone
@@ -1492,9 +1538,9 @@ class ApiServiceTypePlugin(ApiServiceType):
         """
         try:
             if self.instance.resource_uuid is not None:
-                uri = '/v1.0/nrs/entities/%s' % self.instance.resource_uuid
-                res = self.controller.api_client.admin_request('resource', uri, 'get', data='')
-                return dict_get(res, 'resource.attributes.availability_zone', default=None)
+                uri = "/v1.0/nrs/entities/%s" % self.instance.resource_uuid
+                res = self.controller.api_client.admin_request("resource", uri, "get", data="")
+                return dict_get(res, "resource.attributes.availability_zone", default=None)
             else:
                 return None
         except ApiManagerError as ex:
@@ -1512,10 +1558,10 @@ class ApiServiceTypePlugin(ApiServiceType):
         avzs = self.get_resource_availability_zones(compute_zone)
         res = None
         for avz in avzs:
-            if dict_get(avz, 'site.name') == availability_zone_name:
-                res = dict_get(avz, 'state')
+            if dict_get(avz, "site.name") == availability_zone_name:
+                res = dict_get(avz, "state")
         if res is None:
-            raise ApiManagerError('Availability zone %s was not found' % availability_zone_name)
+            raise ApiManagerError("Availability zone %s was not found" % availability_zone_name)
         return res
 
     def check_quotas(self, compute_zone, quotas):
@@ -1526,9 +1572,9 @@ class ApiServiceTypePlugin(ApiServiceType):
         :return: True
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        data = {'quotas': quotas}
-        uri = '/v1.0/nrs/provider/compute_zones/%s/quotas/check' % compute_zone
-        self.controller.api_client.admin_request('resource', uri, 'put', data=data, timeout=180)
+        data = {"quotas": quotas}
+        uri = "/v1.0/nrs/provider/compute_zones/%s/quotas/check" % compute_zone
+        self.controller.api_client.admin_request("resource", uri, "put", data=data, timeout=180)
         return True
 
     def get_flavor(self, flavor_resource_uuid):
@@ -1539,9 +1585,9 @@ class ApiServiceTypePlugin(ApiServiceType):
         :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        uri = '/v1.0/nrs/provider/flavors/%s' % flavor_resource_uuid
-        flavor = self.controller.api_client.admin_request('resource', uri, 'get').get('flavor')
-        self.logger.debug('Get resource flavor: %s' % flavor)
+        uri = "/v1.0/nrs/provider/flavors/%s" % flavor_resource_uuid
+        flavor = self.controller.api_client.admin_request("resource", uri, "get").get("flavor")
+        self.logger.debug("Get resource flavor: %s" % flavor)
 
         return flavor
 
@@ -1553,47 +1599,48 @@ class ApiServiceTypePlugin(ApiServiceType):
         :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        uri = '/v1.0/nrs/provider/images/%s' % image_resource_uuid
-        image = self.controller.api_client.admin_request('resource', uri, 'get').get('image')
-        self.logger.debug('Get resource image: %s' % image)
+        uri = "/v1.0/nrs/provider/images/%s" % image_resource_uuid
+        image = self.controller.api_client.admin_request("resource", uri, "get").get("image")
+        self.logger.debug("Get resource image: %s" % image)
 
         return image
 
 
 class AsyncApiServiceTypePlugin(ApiServiceTypePlugin):
-    """Basic async resource
-    """
-    task_path = 'beehive_service.task_v2.servicetypeplugin.AbstractServiceTypePluginTask.'
+    """Basic async resource"""
 
-    create_task = 'beehive_service.task_v2.servicetypeplugin.service_type_plugin_inst_task'
-    update_task = 'beehive_service.task_v2.servicetypeplugin.service_type_plugin_inst_update_task'
-    patch_task = 'beehive_service.task_v2.servicetypeplugin.service_type_plugin_inst_patch_task'
-    delete_task = 'beehive_service.task_v2.servicetypeplugin.service_type_plugin_inst_delete_task'
-    action_task = 'beehive_service.task_v2.servicetypeplugin.service_type_plugin_inst_action_task'
+    task_path = "beehive_service.task_v2.servicetypeplugin.AbstractServiceTypePluginTask."
+
+    create_task = "beehive_service.task_v2.servicetypeplugin.service_type_plugin_inst_task"
+    update_task = "beehive_service.task_v2.servicetypeplugin.service_type_plugin_inst_update_task"
+    patch_task = "beehive_service.task_v2.servicetypeplugin.service_type_plugin_inst_patch_task"
+    delete_task = "beehive_service.task_v2.servicetypeplugin.service_type_plugin_inst_delete_task"
+    action_task = "beehive_service.task_v2.servicetypeplugin.service_type_plugin_inst_action_task"
+    import_task = None
 
 
 class ApiServiceTypeContainer(AsyncApiServiceTypePlugin):
-    objuri = 'stcontainer'
-    objname = 'stcontainer'
-    objdesc = 'ServiceTypeContainer'
+    objuri = "stcontainer"
+    objname = "stcontainer"
+    objdesc = "ServiceTypeContainer"
 
     def __init__(self, *args, **kvargs):
         """ """
         ApiServiceTypePlugin.__init__(self, *args, **kvargs)
 
-    @trace(op='view')
+    @trace(op="view")
     def get_resource(self):
         """Get resource info
 
         :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        uri = '/v1.0/nrs/provider/compute_zones/%s' % self.instance.resource_uuid
-        instances = self.controller.api_client.admin_request('resource', uri, 'get', data='').get('compute_zone')
-        self.logger.debug('Get compute service resource: %s' % truncate(instances))
+        uri = "/v1.0/nrs/provider/compute_zones/%s" % self.instance.resource_uuid
+        instances = self.controller.api_client.admin_request("resource", uri, "get", data="").get("compute_zone")
+        self.logger.debug("Get compute service resource: %s" % truncate(instances))
         return instances
 
-    @trace(op='view')
+    @trace(op="view")
     def list_resources(self, uuids=None, tags=None, page=0, size=100):
         """Get resources info
 
@@ -1606,17 +1653,15 @@ class ApiServiceTypeContainer(AsyncApiServiceTypePlugin):
         if tags is None:
             tags = []
 
-        data = {
-            'size': size,
-            'page': page
-        }
+        data = {"size": size, "page": page}
         if len(uuids) > 0:
-            data['uuids'] = ','.join(uuids)
+            data["uuids"] = ",".join(uuids)
         if len(tags) > 0:
-            data['tags'] = ','.join(tags)
-        instances = self.controller.api_client.admin_request('resource', '/v1.0/nrs/provider/compute_zones', 'get',
-                                                             data=urlencode(data)).get('compute_zones', [])
-        self.logger.debug('Get compute service resources: %s' % truncate(instances))
+            data["tags"] = ",".join(tags)
+        instances = self.controller.api_client.admin_request(
+            "resource", "/v1.0/nrs/provider/compute_zones", "get", data=urlencode(data)
+        ).get("compute_zones", [])
+        self.logger.debug("Get compute service resources: %s" % truncate(instances))
         return instances
 
     def get_resource_quotas(self):
@@ -1626,9 +1671,9 @@ class ApiServiceTypeContainer(AsyncApiServiceTypePlugin):
         :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        uri = '/v1.0/nrs/provider/compute_zones/%s/quotas' % self.instance.resource_uuid
-        res = self.controller.api_client.admin_request('resource', uri, 'get', data='').get('quotas', [])
-        self.controller.logger.debug('Get compute service %s quotas: %s' % (self.instance.resource_uuid, truncate(res)))
+        uri = "/v1.0/nrs/provider/compute_zones/%s/quotas" % self.instance.resource_uuid
+        res = self.controller.api_client.admin_request("resource", uri, "get", data="").get("quotas", [])
+        self.controller.logger.debug("Get compute service %s quotas: %s" % (self.instance.resource_uuid, truncate(res)))
         return res
 
     def set_resource_quotas(self, task, quotas):
@@ -1640,10 +1685,10 @@ class ApiServiceTypeContainer(AsyncApiServiceTypePlugin):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         try:
-            data = {'quotas': quotas}
-            uri = '/v1.0/nrs/provider/compute_zones/%s/quotas' % self.instance.resource_uuid
-            res = self.controller.api_client.admin_request('resource', uri, 'put', data=data)
-            taskid = res.get('taskid', None)
+            data = {"quotas": quotas}
+            uri = "/v1.0/nrs/provider/compute_zones/%s/quotas" % self.instance.resource_uuid
+            res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
+            taskid = res.get("taskid", None)
         except ApiManagerError as ex:
             self.logger.error(ex, exc_info=1)
             self.instance.update_status(SrvStatusType.ERROR, error=ex.value)
@@ -1655,7 +1700,7 @@ class ApiServiceTypeContainer(AsyncApiServiceTypePlugin):
 
         if taskid is not None:
             self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-        self.controller.logger.debug('Set compute service %s quotas: %s' % (self.instance.resource_uuid, truncate(res)))
+        self.controller.logger.debug("Set compute service %s quotas: %s" % (self.instance.resource_uuid, truncate(res)))
 
         return res
 
@@ -1681,10 +1726,10 @@ class ApiServiceTypeContainer(AsyncApiServiceTypePlugin):
 
         quote = self.get_resource_quotas()
         for quota in quote:
-            name = quota.get('quota')
+            name = quota.get("quota")
             if name.find(prefix) == 0:
-                name = name.replace(prefix+'.', '')
-                quota['quota'] = name
+                name = name.replace(prefix + ".", "")
+                quota["quota"] = name
                 attributes.append(quota)
 
         return attributes
@@ -1701,10 +1746,10 @@ class ApiServiceTypeContainer(AsyncApiServiceTypePlugin):
 
         quote = self.get_resource_quotas()
         for quota in quote:
-            name = quota.get('quota')
+            name = quota.get("quota")
             if name.find(prefix) == 0:
-                name = name.replace(prefix+'.', '')
-                quota['quota'] = name
+                name = name.replace(prefix + ".", "")
+                quota["quota"] = name
                 attributes.append(quota)
 
         return attributes
@@ -1760,10 +1805,10 @@ class ApiServiceTypeContainer(AsyncApiServiceTypePlugin):
 
 
 class ApiServiceProcess(ServiceApiObject):
-    objdef = ApiObject.join_typedef(ApiServiceType.objdef, 'ServiceProcess')
-    objuri = 'serviceprocess'
-    objname = 'serviceprocess'
-    objdesc = 'serviceprocess'
+    objdef = ApiObject.join_typedef(ApiServiceType.objdef, "ServiceProcess")
+    objuri = "serviceprocess"
+    objname = "serviceprocess"
+    objdesc = "serviceprocess"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -1796,12 +1841,14 @@ class ApiServiceProcess(ServiceApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ServiceApiObject.info(self)
-        info.update({
-            'service_type_id': str(self.service_type_id),
-            'method_key': self.method_key,
-            'process_key': self.process_key,
-            'template': self.template
-        })
+        info.update(
+            {
+                "service_type_id": str(self.service_type_id),
+                "method_key": self.method_key,
+                "process_key": self.process_key,
+                "template": self.template,
+            }
+        )
         return info
 
     def detail(self):

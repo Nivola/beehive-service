@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive.module.basic.views.status import StatusAPI
 from beehive.common.apimanager import ApiModule
@@ -8,7 +8,9 @@ from beehive_service.controller import ServiceController
 from beehive_service.views.account_v2 import AccountV20API
 from beehive_service.views.organization import OrganizationAPI
 from beehive_service.views.service_instance_v2 import ServiceInstanceAPI
-from beehive_service.views.legacy_service_instance import ServiceInstanceAPI as LegacyServiceInstanceAPI
+from beehive_service.views.legacy_service_instance import (
+    ServiceInstanceAPI as LegacyServiceInstanceAPI,
+)
 from beehive_service.views.division import DivisionAPI
 from beehive_service.views.capability import AccountCapabilityAPI
 from beehive_service.views.account import AccountAPI
@@ -30,12 +32,12 @@ from beehive_service.views.nivola import NivolaAPI
 
 
 class ServiceModule(ApiModule):
-    """Beehive Service Module
-    """
+    """Beehive Service Module"""
+
     def __init__(self, api_manager):
         """ """
-        self.name = 'ServiceModule'
-        self.base_path = 'nws'
+        self.name = "ServiceModule"
+        self.base_path = "nws"
 
         ApiModule.__init__(self, api_manager, self.name)
 
@@ -63,9 +65,7 @@ class ServiceModule(ApiModule):
             ServicePortalAPI,
             AccountCostAPI,
             NivolaAPI,
-
-
-            #questi moduli erano già commentati e non piu esposti
+            # questi moduli erano già commentati e non piu esposti
             # WalletAPI,
             # AccountV11API,
             # AgreementAPI,

@@ -1,22 +1,25 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import import_class
 from beehive.common.apimanager import ApiManagerError
 from beehive_service.entity import ServiceApiObject
 from beehive_service.controller.api_account import ApiAccount
-from beehive_service.entity.service_definition import ApiServiceDefinition, ApiServiceConfig
+from beehive_service.entity.service_definition import (
+    ApiServiceDefinition,
+    ApiServiceConfig,
+)
 from beehive_service.model import AccountServiceDefinition
 from beehive_service.model.base import SrvStatusType
 
 
 class ApiAccountServiceDefinition(ServiceApiObject):
-    module = 'ServiceModule'
-    objdef = 'Organization.Division.Account.CATEGORY.AccountServiceDefinition'
-    objuri = 'accountservicedefinition'
-    objname = 'accountservicedefinition'
-    objdesc = 'accountservicedefinition'
+    module = "ServiceModule"
+    objdef = "Organization.Division.Account.CATEGORY.AccountServiceDefinition"
+    objuri = "accountservicedefinition"
+    objname = "accountservicedefinition"
+    objdesc = "accountservicedefinition"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -36,8 +39,12 @@ class ApiAccountServiceDefinition(ServiceApiObject):
         self.expunge_object = self.manager.purge
 
     def __repr__(self):
-        return '<%s id=%s objid=%s name=%s>' % (self.__class__.__module__ + '.' + self.__class__.__name__,
-                                                self.oid, self.objid, self.name)
+        return "<%s id=%s objid=%s name=%s>" % (
+            self.__class__.__module__ + "." + self.__class__.__name__,
+            self.oid,
+            self.objid,
+            self.name,
+        )
 
     @property
     def config(self) -> ApiServiceConfig:
@@ -52,7 +59,8 @@ class ApiAccountServiceDefinition(ServiceApiObject):
                     name=self.model.service_definition.name,
                     desc=self.model.service_definition.desc,
                     active=self.model.service_definition.active,
-                    model=self.model.service_definition)
+                    model=self.model.service_definition,
+                )
             self._config = self._definition.get_main_config()
             return self._config
         else:
@@ -67,18 +75,19 @@ class ApiAccountServiceDefinition(ServiceApiObject):
 
     @property
     def account(self) -> ApiAccount:
-
         if self.model is None:
             return None
 
         if self._account is None:
-            self._account = ApiAccount(self.controller,
-                                       oid=self.model.account.id,
-                                       objid=self.model.account.objid,
-                                       name=self.model.account.name,
-                                       desc=self.model.account.desc,
-                                       active=self.model.account.active,
-                                       model=self.model.account)
+            self._account = ApiAccount(
+                self.controller,
+                oid=self.model.account.id,
+                objid=self.model.account.objid,
+                name=self.model.account.name,
+                desc=self.model.account.desc,
+                active=self.model.account.active,
+                model=self.model.account,
+            )
             return self.model._account
         else:
             return None
@@ -102,7 +111,8 @@ class ApiAccountServiceDefinition(ServiceApiObject):
                 name=self.model.service_definition.name,
                 desc=self.model.service_definition.desc,
                 active=self.model.service_definition.active,
-                model=self.model.service_definition)
+                model=self.model.service_definition,
+            )
             return self._definition
         else:
             return self._definition
@@ -174,26 +184,38 @@ class ApiAccountServiceDefinition(ServiceApiObject):
         servicetype_model = self.model.service_definition.service_type
         try:
             plugin_class = import_class(servicetype_model.objclass)
-            plugin = plugin_class(self.controller, oid=servicetype_model.id, objid=servicetype_model.objid,
-                                  name=servicetype_model.name, desc=servicetype_model.desc,
-                                  active=servicetype_model.active, model=servicetype_model)
+            plugin = plugin_class(
+                self.controller,
+                oid=servicetype_model.id,
+                objid=servicetype_model.objid,
+                name=servicetype_model.name,
+                desc=servicetype_model.desc,
+                active=servicetype_model.active,
+                model=servicetype_model,
+            )
             plugin.instance = self
-            self.logger.debug(
-                'Get service instance %s plugin type: %s' % (self.uuid, plugin))
+            self.logger.debug("Get service instance %s plugin type: %s" % (self.uuid, plugin))
         except Exception:
-            self.logger.error('', exc_info=1)
-            raise ApiManagerError('Plugin class "%s" not found  for ServiceType plugin "%s"' %
-                                    (servicetype_model.objclass, repr(servicetype_model)))
+            self.logger.error("", exc_info=1)
+            raise ApiManagerError(
+                'Plugin class "%s" not found  for ServiceType plugin "%s"'
+                % (servicetype_model.objclass, repr(servicetype_model))
+            )
 
         return plugin
 
     def is_activable(self):
-        """ is it an activable instance
-            :return True if has no Parent or has Parent in active state. False otherwise
+        """is it an activable instance
+        :return True if has no Parent or has Parent in active state. False otherwise
         """
-        return (self.model.linkParent is None or len(self.model.linkParent) == 0) or (len(self.model.linkParent) == 1
-            and SrvStatusType.ACTIVE == self.model.linkParent[0].start_service.status) \
+        return (
+            (self.model.linkParent is None or len(self.model.linkParent) == 0)
+            or (
+                len(self.model.linkParent) == 1
+                and SrvStatusType.ACTIVE == self.model.linkParent[0].start_service.status
+            )
             and SrvStatusType.CREATED == self.model.status
+        )
 
     def getPluginTypeName(self):
         return self.model.service_definition.service_type.plugintype.name_type

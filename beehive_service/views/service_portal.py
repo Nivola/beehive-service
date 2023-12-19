@@ -1,9 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
-from beehive.common.apimanager import SwaggerApiView, ApiView, PaginatedResponseSchema, PaginatedRequestQuerySchema,\
-    ApiObjectResponseDateSchema
+from beehive.common.apimanager import (
+    SwaggerApiView,
+    ApiView,
+    PaginatedResponseSchema,
+    PaginatedRequestQuerySchema,
+    ApiObjectResponseDateSchema,
+)
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive_service.views import ServiceApiView
@@ -11,87 +16,106 @@ from beehive_service.controller import ApiAccount, ApiDivision, ApiOrganization
 
 
 class GetPortalDescRoleResponseSchema(Schema):
-    generic_name = fields.String(required=True, example='AdminAccountRole', description='generic name entity role')
-    desc_sp = fields.String(required=True, example='Master di Account',
-                            description='generic descripion of entity role')
+    generic_name = fields.String(
+        required=True,
+        example="AdminAccountRole",
+        description="generic name entity role",
+    )
+    desc_sp = fields.String(
+        required=True,
+        example="Master di Account",
+        description="generic descripion of entity role",
+    )
 
 
 class GetPortalDescRoleRequestSchema(Schema):
-    role_name = fields.String(required=False, example='AdminAccountRole-9', description='name entity role',
-                              context='query')
+    role_name = fields.String(
+        required=False,
+        example="AdminAccountRole-9",
+        description="name entity role",
+        context="query",
+    )
 
 
 class GetPortalDescRole(ServiceApiView):
-    tags = ['service']
+    tags = ["service"]
     definitions = {
-        'GetPortalDescRoleResponseSchema': GetPortalDescRoleResponseSchema,
+        "GetPortalDescRoleResponseSchema": GetPortalDescRoleResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetPortalDescRoleRequestSchema)
     parameters_schema = GetPortalDescRoleRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetPortalDescRoleResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {200: {"description": "success", "schema": GetPortalDescRoleResponseSchema}}
+    )
     response_schema = GetPortalDescRoleResponseSchema
 
     def get(self, controller, data, *args, **kvargs):
         """
-         Returns the description of the requested role.
+        Returns the description of the requested role.
         """
-        templates = [ApiAccount.role_templates, ApiDivision.role_templates, ApiOrganization.role_templates]
+        templates = [
+            ApiAccount.role_templates,
+            ApiDivision.role_templates,
+            ApiOrganization.role_templates,
+        ]
         for i in range(len(templates)):
             for k in templates[i].keys():
                 role_items = templates[i].get(k)
-                if (role_items.get('name').split('-')[0] == data.get('role_name').split('-')[0]):
-                    return {'desc_sp': role_items.get('desc_sp'), 'generic_name': k}
+                if role_items.get("name").split("-")[0] == data.get("role_name").split("-")[0]:
+                    return {"desc_sp": role_items.get("desc_sp"), "generic_name": k}
         return None
 
 
 class ListPortalRolesParamResponseSchema(Schema):
-    name = fields.String(required=True, example='AdminAccountRole-1', description='name entity role')
-    desc_sp = fields.String(required=True, example='Master di Account',
-                            description='generic description of entity role')
+    name = fields.String(required=True, example="AdminAccountRole-1", description="name entity role")
+    desc_sp = fields.String(
+        required=True,
+        example="Master di Account",
+        description="generic description of entity role",
+    )
 
 
 class ListPortalRolesResponseSchema(Schema):
-    roles = fields.Nested(ListPortalRolesParamResponseSchema, required=True,  many=True)
+    roles = fields.Nested(ListPortalRolesParamResponseSchema, required=True, many=True)
 
 
 class ListPortalDescRole(ServiceApiView):
-    tags = ['service']
+    tags = ["service"]
     definitions = {
-        'ListPortalRolesResponseSchema': ListPortalRolesResponseSchema,
+        "ListPortalRolesResponseSchema": ListPortalRolesResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(Schema)
     parameters_schema = Schema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListPortalRolesResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListPortalRolesResponseSchema}})
     response_schema = ListPortalRolesResponseSchema
 
     def get(self, controller, data, *args, **kvargs):
         """
-         Returns a list of the all role description.
+        Returns a list of the all role description.
         """
-        templates = [ApiAccount.role_templates, ApiDivision.role_templates, ApiOrganization.role_templates]
-        roles = {'roles':[]}
+        templates = [
+            ApiAccount.role_templates,
+            ApiDivision.role_templates,
+            ApiOrganization.role_templates,
+        ]
+        roles = {"roles": []}
         resp = []
         for i in range(len(templates)):
             for k in templates[i].keys():
                 role_items = templates[i].get(k)
-                resp.append({'desc_sp': role_items.get('desc_sp'), 'name': role_items.get('name').split('-')[0]})
+                resp.append(
+                    {
+                        "desc_sp": role_items.get("desc_sp"),
+                        "name": role_items.get("name").split("-")[0],
+                    }
+                )
         if resp is not None:
-            roles.update({'roles': resp})
+            roles.update({"roles": resp})
         return roles
 
 
 class GetServiceInstantConsumeRequestSchema(Schema):
-    id = fields.Integer(required=True, description='id', context='path')
+    id = fields.Integer(required=True, description="id", context="path")
 
 
 class GetServiceInstantConsumeParamsResponseSchema(ApiObjectResponseDateSchema):
@@ -111,63 +135,71 @@ class GetServiceInstantConsumeResponseSchema(Schema):
 
 
 class GetServiceInstantConsume(ServiceApiView):
-    tags = ['service']
+    tags = ["service"]
     definitions = {
-        'GetServiceInstantConsumeResponseSchema': GetServiceInstantConsumeResponseSchema,
+        "GetServiceInstantConsumeResponseSchema": GetServiceInstantConsumeResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetServiceInstantConsumeRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetServiceInstantConsumeResponseSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": GetServiceInstantConsumeResponseSchema,
+            }
         }
-    })
+    )
 
     def get(self, controller, data, oid, *args, **kvargs):
         pass
 
 
 class ListServiceInstantConsumeRequestSchema(PaginatedRequestQuerySchema):
-    account_id = fields.String(required=False, context='query')
-    service_instance_id = fields.String(required=False, context='query')
-    plugin_name = fields.String(required=False, context='query')
+    account_id = fields.String(required=False, context="query")
+    service_instance_id = fields.String(required=False, context="query")
+    plugin_name = fields.String(required=False, context="query")
 
 
 class ListServiceInstantConsumeResponseSchema(PaginatedResponseSchema):
-    service_instant_consumes = fields.Nested(GetServiceInstantConsumeParamsResponseSchema, many=True, required=True,
-                                             allow_none=True)
+    service_instant_consumes = fields.Nested(
+        GetServiceInstantConsumeParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListServiceInstantConsume(ServiceApiView):
-    tags = ['service']
+    tags = ["service"]
     definitions = {
-        'ListServiceInstantConsumeResponseSchema': ListServiceInstantConsumeResponseSchema,
+        "ListServiceInstantConsumeResponseSchema": ListServiceInstantConsumeResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListServiceInstantConsumeRequestSchema)
     parameters_schema = ListServiceInstantConsumeRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListServiceInstantConsumeResponseSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": ListServiceInstantConsumeResponseSchema,
+            }
         }
-    })
+    )
 
     def get(self, controller, data, *args, **kvargs):
         pass
 
 
 class ServicePortalAPI(ApiView):
-    """Generic Service Object api routes:
-    """
+    """Generic Service Object api routes:"""
+
     @staticmethod
     def register_api(module, **kwargs):
-        base = 'nws'
+        base = "nws"
 
         rules = [
-            ('%s/roles/portaldesc' % base, 'GET', GetPortalDescRole, {}),
-            ('%s/roles/description' % base, 'GET', GetPortalDescRole, {}),
-            ('%s/roles/listportaldescription' % base, 'GET', ListPortalDescRole, {}),
-            ('%s/roles/listroledescription' % base, 'GET', ListPortalDescRole, {})
+            ("%s/roles/portaldesc" % base, "GET", GetPortalDescRole, {}),
+            ("%s/roles/description" % base, "GET", GetPortalDescRole, {}),
+            ("%s/roles/listportaldescription" % base, "GET", ListPortalDescRole, {}),
+            ("%s/roles/listroledescription" % base, "GET", ListPortalDescRole, {}),
         ]
 
         ApiView.register_api(module, rules, **kwargs)

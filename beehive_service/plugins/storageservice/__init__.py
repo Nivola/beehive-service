@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
-from beehive_service.plugins.storageservice.controller import ApiStorageService, ApiStorageEFS
+from beehive_service.plugins.storageservice.controller import (
+    ApiStorageService,
+    ApiStorageEFS,
+)
 from beehive_service.plugins.storageservice.views import StorageServiceAPI
 from beehive_service.plugins.storageservice.views.efs import StorageEfsServiceAPI
 
@@ -18,8 +21,5 @@ class StorageServicePlugin(object):
             service.init_object()
 
     def register(self):
-        apis = [
-            StorageServiceAPI,
-            StorageEfsServiceAPI
-        ]
+        apis = [StorageServiceAPI, StorageEfsServiceAPI]
         self.module.set_apis(apis)

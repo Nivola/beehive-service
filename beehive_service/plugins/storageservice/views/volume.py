@@ -1,18 +1,17 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_service.views import ServiceApiView
 
 
-class CreateVolume (ServiceApiView):
-
+class CreateVolume(ServiceApiView):
     pass
 
-class DeleteVolume (ServiceApiView):
 
+class DeleteVolume(ServiceApiView):
     pass
 
-class DescribeVolumes (ServiceApiView):
 
+class DescribeVolumes(ServiceApiView):
     pass

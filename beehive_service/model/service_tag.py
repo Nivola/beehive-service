@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, Table, ForeignKey
 from sqlalchemy.orm import relationship
@@ -10,15 +10,15 @@ from beehive_service.model.base import Base, BaseEntity, ApiBusinessObject
 
 
 class ServiceTag(ApiBusinessObject, Base):
-    __tablename__ = 'service_tag'
-    __table_args__ = {'mysql_engine': 'InnoDB'}
+    __tablename__ = "service_tag"
+    __table_args__ = {"mysql_engine": "InnoDB"}
 
     name = Column(String(100), unique=True)
     # instances = relationship("ServiceInstance", lazy='dynamic', secondary="tag_instance",
     #                          secondaryjoin="ServiceInstance.id==tag_instance.c.fk_service_instance_id",
     #                          passive_deletes=True)
 
-    def __init__(self, name, objid, desc='', active=True):
+    def __init__(self, name, objid, desc="", active=True):
         """Create new tag
 
         :param value: tag value
@@ -27,7 +27,7 @@ class ServiceTag(ApiBusinessObject, Base):
 
 
 class ServiceTagWithInstance(ApiBusinessObject, declarative_base()):
-    __tablename__ = 'service_tag'
+    __tablename__ = "service_tag"
 
     id = Column(Integer, primary_key=True)
     uuid = Column(String(50), unique=True)
@@ -44,14 +44,14 @@ class ServiceTagWithInstance(ApiBusinessObject, declarative_base()):
 
 
 class ServiceTagCount(declarative_base()):
-    __tablename__ = 'service_tag'
+    __tablename__ = "service_tag"
 
     id = Column(Integer, primary_key=True)
     count = Column(Integer)
 
 
 class ServiceTagOccurrences(declarative_base()):
-    __tablename__ = 'service_tag'
+    __tablename__ = "service_tag"
 
     id = Column(Integer, primary_key=True)
     uuid = Column(String(50), unique=True)

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive.common.apimanager import ApiManagerWarning
 from beehive_service.controller.api_service_price_metric import ApiServicePriceMetric
@@ -8,10 +8,10 @@ from beehive_service.entity import ServiceApiObject
 
 
 class ApiServicePriceList(ServiceApiObject):
-    objdef = 'ServicePriceList'
-    objuri = 'servicepricelist'
-    objname = 'servicepricelist'
-    objdesc = 'servicepricelist'
+    objdef = "ServicePriceList"
+    objuri = "servicepricelist"
+    objname = "servicepricelist"
+    objdesc = "servicepricelist"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -37,12 +37,11 @@ class ApiServicePriceList(ServiceApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ServiceApiObject.info(self)
-        info.update({'flag_default': self.flag_default})
+        info.update({"flag_default": self.flag_default})
         return info
 
     def detail(self):
-        """Get object extended info
-        """
+        """Get object extended info"""
         info = self.info()
         return info
 
@@ -68,12 +67,11 @@ class ApiServicePriceList(ServiceApiObject):
         """
         # check there are active metrics prices
         if len(self.model.metrics_prices.all()) > 0:
-            msg = 'Price list %s has child metrics prices. Remove these before' % self.uuid
+            msg = "Price list %s has child metrics prices. Remove these before" % self.uuid
             self.logger.error(msg)
             raise ApiManagerWarning(msg)
 
         return kvargs
-
 
     def pre_expunge(self, *args, **kvargs):
         """Pre expunge function. This function is used in expunge method. Extend this function to manipulate and
@@ -85,7 +83,7 @@ class ApiServicePriceList(ServiceApiObject):
         :raise ApiManagerError:
         """
         if len(self.model.metrics_prices.all()) > 0:
-            msg = 'Price list %s has child metrics prices. Remove these before' % self.uuid
+            msg = "Price list %s has child metrics prices. Remove these before" % self.uuid
             self.logger.error(msg)
             raise ApiManagerWarning(msg)
 

@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive.common.apimanager import ApiObject
 from beehive_service.entity import ServiceApiObject
 
 
 class ApiServiceJob(ServiceApiObject):
-    objdef = 'ServiceJob'
-    objuri = 'servicejob'
-    objname = 'servicejob'
-    objdesc = 'servicejob'
+    objdef = "ServiceJob"
+    objuri = "servicejob"
+    objname = "servicejob"
+    objdesc = "servicejob"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -40,19 +40,20 @@ class ApiServiceJob(ServiceApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ServiceApiObject.info(self)
-        info.update({
-           'job' : str(self.job),
-           'account_id' : str(self.account_id),
-           'params' : self.params,
-           'task_id': self.task_id,
-           'last_error': self.last_error,
-           'status': self.status,
-           })
+        info.update(
+            {
+                "job": str(self.job),
+                "account_id": str(self.account_id),
+                "params": self.params,
+                "task_id": self.task_id,
+                "last_error": self.last_error,
+                "status": self.status,
+            }
+        )
         return info
 
     def detail(self):
-        """Get object extended info
-        """
+        """Get object extended info"""
         info = self.info()
         return info
 
