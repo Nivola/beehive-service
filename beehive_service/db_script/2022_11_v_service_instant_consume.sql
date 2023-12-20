@@ -1,3 +1,9 @@
+/*
+SPDX-License-Identifier: EUPL-1.2
+
+(C) Copyright 2018-2023 CSI-Piemonte
+
+*/
 -- service_stage.v_service_instant_consume_new source
 CREATE OR REPLACE VIEW v_service_instant_consume AS
 with vms as (
