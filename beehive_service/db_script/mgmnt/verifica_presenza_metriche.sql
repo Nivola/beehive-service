@@ -9,6 +9,12 @@ select min (period)  from aggregate_cost_store ac ;
 
 
 
+/*
+SPDX-License-Identifier: EUPL-1.2
+
+(C) Copyright 2018-2023 CSI-Piemonte
+
+*/
 
 set @dtp='2022-09-01';
 set @dtm='2022-09-27';

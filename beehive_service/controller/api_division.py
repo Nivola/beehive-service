@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2020-2022 CSI-Piemonte
+# (C) Copyright 2020-2023 CSI-Piemonte
 
 from beehive.common.apimanager import ApiManagerWarning
 from beehive_service.controller.authority_api_object import AuthorityApiObject

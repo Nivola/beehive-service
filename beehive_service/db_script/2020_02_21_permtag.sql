@@ -1,9 +1,10 @@
 /*
 SPDX-License-Identifier: EUPL-1.2
 
-(C) Copyright 2020-2022 CSI-Piemonte
+(C) Copyright 2018-2023 CSI-Piemonte
 
 */
+
 
 CREATE TABLE perm_tag (
   id int(11) NOT NULL AUTO_INCREMENT,

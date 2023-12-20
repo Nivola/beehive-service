@@ -1,3 +1,9 @@
+/*
+SPDX-License-Identifier: EUPL-1.2
+
+(C) Copyright 2018-2023 CSI-Piemonte
+
+*/
 -- MySQL dump 10.16  Distrib 10.1.48-MariaDB, for debian-linux-gnu (x86_64)
 --
 -- Host: 10.138.144.135    Database: service
