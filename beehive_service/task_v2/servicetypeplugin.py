@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.task_v2 import task_step, run_sync_task
 from beehive.common.task_v2.manager import task_manager
+from beehive_service.controller.api_account import ApiAccount
+from beehive_service.controller.api_service_tag import ApiServiceTag
 from beehive_service.entity.service_instance import ApiServiceInstance
 from beehive_service.model import SrvStatusType
 from beehive_service.task_v2 import ServiceTask
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -71,6 +74,11 @@ class AccountDeleteTask(ServiceTask):
 
         return account_id, params
 
+    def get_account_tags(self, account: ApiAccount):
+        objid_filter = account.objid + "%"
+        tags, total = self.controller.get_tags(objid=objid_filter, occurrences=False)
+        return tags
+
     @staticmethod
     @task_step()
     def delete_tags_step(task, step_id, params, *args, **kvargs):
@@ -83,10 +91,12 @@ class AccountDeleteTask(ServiceTask):
         :return: account_id, params
         """
         account_id = params.get("account")
-        account = task.get_account(account_id)
+        account: ApiAccount = task.get_account(account_id)
 
-        # account.delete_object(account.model)
-        # task.progress(step_id, msg='soft delete account %s' % account_id)
+        tags: ApiServiceTag = task.get_account_tags(account)
+        task.progress(step_id, msg="delete %s tags of account %s" % (len(tags), account_id))
+        for tag in tags:
+            tag.delete()
 
         return account_id, params
 
@@ -102,10 +112,30 @@ class AccountDeleteTask(ServiceTask):
         :return: account_id, params
         """
         account_id = params.get("account")
-        account = task.get_account(account_id)
+        from beehive_service.controller.api_account import ApiAccount
 
-        account.delete_object(account.model)
-        account.update_status(6)
+        account: ApiAccount = task.get_account(account_id)
+
+        close_account = params.get("close_account", False)
+        if close_account:
+            if account.update_object is not None:
+                status = ApiAccount.STATUS_CLOSED
+                expiry_date = datetime.today() + timedelta(days=ApiAccount.EXPIRE_DAYS)
+                account.update_object(oid=account.oid, service_status_id=status, expiry_date=expiry_date)
+
+            for k, v in account.role_templates.items():
+                role_name = v.get("name") % account.oid
+                account.logger.debug("delete_account_step - role_name %s - %s" % (k, role_name))
+
+                res_role_expire = account.controller.api_client.admin_request(
+                    "auth", "/v1.0/nas/roles/%s/expire/%s" % (role_name, ApiAccount.EXPIRE_DAYS), "delete"
+                )
+                account.logger.debug("delete_account_step - res_role_expire %s" % (res_role_expire))
+        else:
+            account.model.disable()
+            account.delete_object(account.model)
+            account.update_status(ApiAccount.STATUS_DELETED)
+
         task.progress(step_id, msg="soft delete account %s" % account_id)
 
         return account_id, params

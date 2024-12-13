@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive_service.controller.api_account import ApiAccount
 from typing import Dict
@@ -1571,12 +1571,12 @@ class TerminateInstances(ServiceApiView):
     )
     response_schema = TerminateInstancesResponseSchema
 
-    def delete(self, controller, data, *args, **kwargs):
+    def delete(self, controller: ServiceController, data, *args, **kwargs):
         instance_ids = data.pop("InstanceId_N")
 
         instances_set = []
         for instance_id in instance_ids:
-            type_plugin = controller.get_service_type_plugin(instance_id)
+            type_plugin: ApiComputeInstance = controller.get_service_type_plugin(instance_id)
             type_plugin.delete()
             instances_set.append({"instanceId": instance_id})
 

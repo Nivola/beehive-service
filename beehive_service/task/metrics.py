@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.task.job import Job, JobTask, task_local, job_task, job
 from beehive.common.task.util import end_task, start_task, join_task

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive_service.controller import ServiceController
 from marshmallow import fields, Schema
@@ -20,8 +20,10 @@ from beehive.common.apimanager import (
     ApiManagerWarning,
     CrudApiObjectTaskResponseSchema,
 )
+from beehive_service.entity.service_instance import ApiServiceInstance
 from beehive_service.entity.service_type import ApiServiceType, ApiServiceTypePlugin
 from beehive_service.model import SrvStatusType
+from beehive_service.plugins.computeservice.controller import ApiComputeInstance
 from beehive_service.views import (
     ServiceApiView,
     ApiServiceObjectRequestSchema,
@@ -35,11 +37,9 @@ class AccountResponseSchema(ApiObjectSmallResponseSchema):
 
 class ParentResponseSchema(Schema):
     uuid = fields.UUID(
-        required=True,
-        example="6d960236-d280-46d2-817d-f3ce8f0aeff7",
-        description="api object uuid",
+        required=False, example="6d960236-d280-46d2-817d-f3ce8f0aeff7", description="api object uuid", allow_none=True
     )
-    name = fields.String(required=True, default="test", example="test", description="entity name")
+    name = fields.String(required=False, default="test", example="test", description="entity name")
 
 
 class CheckResponseSchema(Schema):
@@ -57,7 +57,7 @@ class GetServiceInstanceParamsResponseSchema(ApiObjectResponseSchema):
     resource_uuid = fields.String(required=False, allow_none=True)
     config = fields.Dict(required=False, allow_none=True)
     version = fields.String(required=False, allow_none=True)
-    parent = fields.Nested(ParentResponseSchema, required=True, allow_none=True)
+    parent = fields.Nested(ParentResponseSchema, required=False, allow_none=True)
     is_container = fields.Boolean(required=False, allow_none=True)
     last_error = fields.String(required=False, allow_none=True)
     plugintype = fields.String(required=False, allow_none=True)
@@ -136,6 +136,9 @@ class ListServiceInstancesRequestSchema(
     resource_uuid = fields.String(required=False, context="query")
     parent_id = fields.String(required=False, context="query")
     plugintype = fields.String(required=False, context="query")
+    details = fields.Boolean(
+        required=False, description="if True and only one plugin type is selected show details (resource)", default=True
+    )
     tags = fields.String(
         context="query",
         description="List of tags. Use comma as separator if tags are in or. Use + " "separator if tags are in and",
@@ -155,6 +158,7 @@ class ListServiceInstancesResponseSchema(PaginatedResponseSchema):
 class ListServiceInstances(ServiceApiView):
     tags = ["service"]
     definitions = {
+        "ListServiceInstancesRequestSchema": ListServiceInstancesRequestSchema,
         "ListServiceInstancesResponseSchema": ListServiceInstancesResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListServiceInstancesRequestSchema)
@@ -164,13 +168,12 @@ class ListServiceInstances(ServiceApiView):
     )
     response_schema = ListServiceInstancesResponseSchema
 
-    def get(self, controller, data, *args, **kvargs):
+    def get(self, controller: ServiceController, data, *args, **kvargs):
         servicetags = data.pop("tags", None)
         if servicetags is not None and servicetags.find("+") > 0:
             data["servicetags_and"] = servicetags.split("+")
         elif servicetags is not None:
             data["servicetags_or"] = servicetags.split(",")
-
         service, total = controller.get_service_type_plugins(**data)
         res = [r.info() for r in service]
         return self.format_paginated_response(res, "serviceinsts", total, **data)
@@ -387,12 +390,86 @@ class UpdateServiceInstance(ServiceApiView):
     response_schema = CrudApiObjectTaskResponseSchema
 
     def put(self, controller, data, oid, *args, **kvargs):
-        type_plugin = controller.get_service_type_plugin(oid)
+        type_plugin: ApiComputeInstance = controller.get_service_type_plugin(oid)
         type_plugin.update(**data.get("serviceinst"))
 
         uuid = type_plugin.uuid
         taskid = type_plugin.active_task
         return {"uuid": uuid, "taskid": taskid}, 201
+
+
+class UpdateAccountServiceInstanceResponseSchema(Schema):
+    num_services = fields.Integer(required=False)
+
+
+class UpdateAccountServiceInstanceParamRequestSchema(Schema):
+    tags = fields.Nested(UpdateServiceInstanceTagRequestSchema, allow_none=True)
+
+
+class UpdateAccountServiceInstanceRequestSchema(Schema):
+    serviceinst = fields.Nested(UpdateAccountServiceInstanceParamRequestSchema, context="body")
+
+
+class UpdateAccountServiceInstanceBodyRequestSchema(GetApiObjectRequestSchema):
+    body = fields.Nested(UpdateAccountServiceInstanceRequestSchema, context="body")
+
+
+class UpdateAccountServiceInstance(ServiceApiView):
+    summary = "Update account's service instance"
+    description = "Update account's service instance"
+    tags = ["service"]
+    definitions = {
+        "UpdateAccountServiceInstanceRequestSchema": UpdateAccountServiceInstanceRequestSchema,
+        "UpdateAccountServiceInstanceResponseSchema": UpdateAccountServiceInstanceResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(UpdateAccountServiceInstanceBodyRequestSchema)
+    parameters_schema = UpdateAccountServiceInstanceRequestSchema
+    responses = SwaggerApiView.setResponses(
+        {201: {"description": "success", "schema": UpdateAccountServiceInstanceResponseSchema}}
+    )
+    response_schema = UpdateAccountServiceInstanceResponseSchema
+
+    def put(self, controller: ServiceController, data, oid, *args, **kvargs):
+        from beehive_service.plugins.computeservice.controller import ApiComputeInstance, ApiComputeVolume
+        from beehive_service.plugins.databaseservice.controller import ApiDatabaseServiceInstance
+
+        num_services = 0
+
+        params = data.get("serviceinst")
+        tags = params.pop("tags", None)
+        self.logger.info("update instance - tags: %s" % (tags))
+        if tags is not None:
+            cmd = tags.get("cmd")
+            values = tags.get("values")
+            # add tag
+            if cmd == "add":
+                type_plugins, total_insts = controller.get_service_type_plugins(
+                    account_id=oid, size=-1, flag_container=False
+                )
+                # self.logger.info("update instance - type_plugins: %s" % (len(type_plugins)))
+                self.logger.info("update instance - total_insts: %s" % (total_insts))
+
+                for type_plugin in type_plugins:
+                    self.logger.info("update instance - type_plugin: %s" % (type_plugin))
+                    if (
+                        isinstance(type_plugin, ApiComputeInstance)
+                        or isinstance(type_plugin, ApiComputeVolume)
+                        or isinstance(type_plugin, ApiDatabaseServiceInstance)
+                    ):
+                        num_services += 1
+                        res_apiServiceInstance: ApiServiceInstance = controller.get_service_instance(
+                            type_plugin.instance.oid
+                        )
+
+                        for value in values:
+                            self.logger.info(
+                                "update instance - oid: %s - value: %s" % (type_plugin.instance.oid, value)
+                            )
+                            res_apiServiceInstance.add_tag(value)
+                            # apiServiceTypePlugin: ApiServiceTypePlugin = type_plugin
+                            # apiServiceTypePlugin.instance.add_tag(value)
+
+        return {"num_services": num_services}
 
 
 class PatchServiceInstanceParamRequestSchema(Schema):
@@ -668,6 +745,7 @@ class ServiceInstanceAPI(ApiView):
                 {},
             ),
             ("%s/serviceinsts/<oid>/config" % base, "PUT", UpdateServiceConfig, {}),
+            ("%s/serviceinsts/account/<oid>" % base, "PUT", UpdateAccountServiceInstance, {}),
         ]
 
         kwargs["version"] = "v2.0"

@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.assert_util import AssertUtil
 from beehive_service.model.base import SrvStatusType
+
+__SITE_NAMES__ = ["SiteTorino01", "SiteTorino02", "SiteVercelli03", "SiteTorino05", "SiteGenova06"]
 
 __PLATFORM_NAME__ = ["OpenStack", "VMWare"]
 __PLATFORM_ID__ = ["10", "20"]
@@ -21,7 +23,7 @@ __RULE_GROUP_EGRESS__ = "RULE_GROUP_EGRESS"
 __SRV_STORAGE_PROTOCOL_TYPE__ = ["NFS", "CIFS"]
 __SRV_STORAGE_PROTOCOL_TYPE_NFS__ = "NFS"
 __SRV_STORAGE_PROTOCOL_TYPE_CIFS__ = "CIFS"
-__SRV_STORAGE_PREFIX_SHARE_PROTOCOL_DEFAULT__ = "netapp"
+# __SRV_STORAGE_PREFIX_SHARE_PROTOCOL_DEFAULT__ = "netapp" # non usato
 __SRV_STORAGE_PROTOCOL_TYPE_DEFAULT__ = __SRV_STORAGE_PROTOCOL_TYPE_NFS__
 __SRV_STORAGE_PERFORMANCE_MODE__ = ["generalPurpose", "localPurpose"]
 __SRV_STORAGE_PERFORMANCE_MODE_DEFAULT__ = "generalPurpose"

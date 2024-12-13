@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 from beehive_service.controller import ServiceController
 from beecell.simple import dict_get
 from beehive.common.data import transaction
@@ -183,10 +183,16 @@ class UpdateServiceDefinition(ServiceApiView):
         srv_def = controller.get_service_def(oid)
         data = data.get("servicedef")
         if "config" in data:
-            config = data.pop("config").split(":")
-            if len(config) < 2:
+            config: str = data.pop("config")
+            config_split = config.split(":")
+            if len(config_split) < 2:
                 raise ApiManagerError("Config syntax is wrong. Must be key:value")
-            srv_def.set_config(config[0], config[1])
+
+            # FIX value contains ":" (es. http url)
+            index_colon = config.index(":") + 1
+            value = config[index_colon:]
+            srv_def.set_config(config_split[0], value)
+
         resp = srv_def.update(**data)
         return {"uuid": resp}, 200
 
@@ -400,6 +406,38 @@ class GetServiceConfigPerms(ServiceApiView):
         return self.format_paginated_response(res, "perms", total, **data)
 
 
+class ListProductCodeRequestSchema(Schema):
+    filter_name = fields.String(Required=False, context="query")
+
+
+class ListProductCodeResponseSchema(Schema):
+    codes = fields.List(
+        fields.String(
+            required=True,
+            allow_none=True,
+        )
+    )
+
+
+class ListProductCode(ServiceApiView):
+    summary = "List product code"
+    description = "List product code"
+    tags = ["service"]
+    definitions = {
+        "ListProductCodeResponseSchema": ListProductCodeResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(ListProductCodeRequestSchema)
+    parameters_schema = ListProductCodeRequestSchema
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListProductCodeResponseSchema}})
+    response_schema = ListProductCodeResponseSchema
+
+    def get(self, controller: ServiceController, data, *args, **kwargs):
+        filter_name = data.get("filter_name")
+        self.logger.info("ListProductCode - filter_name: %s" % filter_name)
+        codes = controller.get_product_code(filter_name)
+        return codes
+
+
 class ServiceDefinitionAPI(ApiView):
     """ServiceInstance api routes:"""
 
@@ -419,6 +457,7 @@ class ServiceDefinitionAPI(ApiView):
             ("%s/servicecfgs" % base, "POST", CreateServiceConfig, {}),
             ("%s/servicecfgs/<oid>" % base, "PUT", UpdateServiceConfig, {}),
             ("%s/servicecfgs/<oid>" % base, "DELETE", DeleteServiceConfig, {}),
+            ("%s/product_codes" % base, "GET", ListProductCode, {}),
         ]
 
         ApiView.register_api(module, rules, **kwargs)

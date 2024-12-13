@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beehive.common.data import operation
@@ -218,7 +218,7 @@ class UpdateLoggingService(ServiceApiView):
         if tot > 0:
             inst_service = inst_services[0]
         else:
-            raise ApiManagerError("Account %s has no logging instance associated" % account_id)
+            raise ApiManagerError("Account %s has no logging service associated" % account_id)
 
         # get service def
         if def_id is not None:
@@ -312,7 +312,7 @@ class DescribeAccountAttributes(ServiceApiView):
             api_logging_service: ApiLoggingService = res[0]
             attribute_set = api_logging_service.aws_get_attributes()
         else:
-            raise ApiManagerError("Account %s has no logging instance associated" % data.get("owner_id"))
+            raise ApiManagerError("Account %s has no logging service associated" % data.get("owner_id"))
 
         res = {
             "DescribeAccountAttributesResponse": {
@@ -355,7 +355,7 @@ class DeleteLoggingService(ServiceApiView):
     def delete(self, controller, data, *args, **kwargs):
         instance_id = data.pop("instanceId")
 
-        type_plugin = controller.get_service_type_plugin(instance_id, plugin_class=ApiLoggingService)
+        type_plugin: ApiLoggingService = controller.get_service_type_plugin(instance_id, plugin_class=ApiLoggingService)
         type_plugin.delete()
 
         uuid = type_plugin.instance.uuid

@@ -1,10 +1,52 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
-
+# (C) Copyright 2018-2024 CSI-Piemonte
+from beehive.common.task_v2.manager import task_manager
 from beehive.common.task_v2 import task_step
 from beehive_service.model.base import SrvStatusType
 from datetime import datetime
+
+from beehive_service.task_v2.servicetypeplugin import TypePluginInstanceAddTask
+from beehive_service.plugins.storageservice.controller import ApiStorageEFS
+
+
+class EfsInstanceAddTask(TypePluginInstanceAddTask):
+    name = "efs_add_inst_task"
+    entity_class = ApiStorageEFS
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.steps = [EfsInstanceAddTask.create_volume_step]
+
+    @staticmethod
+    @task_step()
+    def create_volume_step(task, step_id, params, *args, **kvargs):
+        """
+        create volume. only for the new ontap api.
+        same as default service inst create task
+        but with conditional creation based on stass type
+        """
+        instance_id = params.pop("id")
+        resource_params = params.get("resource_params")
+
+        plugin = task.get_type_plugin(instance_id)
+
+        if resource_params is None:
+            task.progress(msg="Detected legacy staas type. Will not create resource now.")
+        else:
+            # create resource
+            res = plugin.create_resource(task, resource_params)
+            task.progress(step_id, msg="create resource %s" % res)
+
+        # update configuration
+        plugin.update_status(SrvStatusType.ACTIVE)
+        task.progress(step_id, msg="set plugin %s configuration" % plugin)
+
+        return True, params
+
+
+task_manager.tasks.register(EfsInstanceAddTask())
 
 
 @task_step()

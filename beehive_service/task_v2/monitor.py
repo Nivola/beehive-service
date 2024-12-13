@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from .servicetask import ServiceTask
 from beehive_service.controller import ServiceController, ApiAccount
@@ -52,7 +52,7 @@ class AcquisitionMonitorTask(ServiceTask):
 
         controller.add_job(task.request.id, "step_monitoring", params)
         msg, recipients = controller.compute_monitoring_message()
-        # recipients ="gianni.doria@consulenti.csi.it"
+        # recipients ="abcd@def.gh"
         if msg is not None and recipients is not None:
             # send email
             if controller.api_manager.mailer:

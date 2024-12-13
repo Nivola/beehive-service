@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
+from beehive_service.controller.api_division import ApiDivision
+from beehive_service.controller.api_orgnization import ApiOrganization
 from beehive_service.entity.service_definition import ApiServiceDefinition
 from beecell.simple import format_date
 from beehive.common.apimanager import (
@@ -66,6 +68,9 @@ class AccountResponseSchema(ApiObjectResponseSchema):
     email_support_link = fields.String(required=False, allow_none=True, default="")
     managed = fields.Boolean(required=False, allow_none=True, default=False)
     acronym = fields.String(required=False, allow_none=True, default="")
+    account_type = fields.String(required=False, allow_none=True, default="")
+    management_model = fields.String(required=False, allow_none=True, default="")
+    pods = fields.String(required=False, allow_none=True, default="")
 
 
 class ListAccountsV20ResponseSchema(PaginatedResponseSchema):
@@ -142,6 +147,13 @@ class DeleteAccountV20RequestSchema(Schema):
         context="query",
         description="if True delete all child tags before remove the account",
     )
+    close_account = fields.Boolean(
+        required=False,
+        missing=False,
+        example=False,
+        context="query",
+        description="if True close the account",
+    )
 
 
 class DeleteAccountV20RequestSchema2(GetApiObjectRequestSchema, DeleteAccountV20RequestSchema):
@@ -168,7 +180,7 @@ class DeleteAccountV20(ServiceApiView):
 
     def delete(self, controller, data, oid, *args, **kwargs):
         data["soft"] = True
-        account = controller.get_account(oid)
+        account: ApiAccount = controller.get_account(oid)
         resp = account.delete(**data)
         return resp
 
@@ -297,6 +309,65 @@ class AddAccountDefinitions(ServiceApiView):
         return {"definitions": res}
 
 
+class CheckAccountRequestSchema(Schema):
+    oid = fields.String(required=False, context="path", description="account id")
+
+
+class CheckAccountResponseSchema(PaginatedResponseSchema):
+    account = fields.Nested(AccountResponseSchema, required=True, allow_none=True)
+
+
+class CheckAccount(ServiceApiView):
+    summary = "Check account"
+    description = "Check account"
+    tags = ["authority"]
+    definitions = {
+        "CheckAccountRequestSchema": CheckAccountRequestSchema,
+        "CheckAccountResponseSchema": CheckAccountResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(CheckAccountRequestSchema)
+    parameters_schema = CheckAccountRequestSchema
+    responses = ServiceApiView.setResponses({200: {"description": "success", "schema": CheckAccountResponseSchema}})
+    response_schema = CheckAccountResponseSchema
+
+    # override service default
+    authorizable = False
+
+    def get(self, controller: ServiceController, data, oid, *args, **kwargs):
+        self.logger.debug("CheckAccount - data: %s" % data)
+        triplet: str = oid
+        oid = triplet.split(".")
+        accounts = None
+
+        # override authorize default of get_paginated_entities and get_entity
+        if len(oid) == 1:
+            accounts, total = controller.get_accounts(name=oid[0], authorize=False)
+        elif len(oid) == 2:
+            # get division
+            division: ApiDivision = controller.get_division(oid[0], authorize=False)
+            # get account
+            accounts, total = controller.get_accounts(name=oid[1], division_id=division.oid, authorize=False)
+        elif len(oid) == 3:
+            # get organization
+            organization: ApiOrganization = controller.get_organization(oid[0], authorize=False)
+            # get division
+            division: ApiDivision = controller.get_division(oid[1], organization_id=organization.oid, authorize=False)
+            # get account
+            accounts, total = controller.get_accounts(name=oid[2], division_id=division.oid, authorize=False)
+
+        resp = {}
+        if accounts and total == 1:
+            account: ApiAccount = accounts[0]
+            resp = {"uuid": account.uuid}
+
+        if total > 1:
+            raise Exception("There are some account with name %s. Select one using uuid" % triplet)
+        if total == 0:
+            raise Exception("The account %s does not exist" % triplet)
+
+        return resp
+
+
 class AccountV20API(ApiView):
     """AccountAPI version 2.0"""
 
@@ -304,6 +375,7 @@ class AccountV20API(ApiView):
     def register_api(module, dummyrules=None, **kwargs):
         base = "nws"
         rules = [
+            ("%s/accounts/<oid>/checkname" % base, "GET", CheckAccount, {"secure": False}),
             ("%s/accounts" % base, "GET", ListAccountsV20, {}),
             ("%s/accounts/<oid>" % base, "GET", GetAccountV20, {}),
             ("%s/accounts/<oid>" % base, "DELETE", DeleteAccountV20, {}),

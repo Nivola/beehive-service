@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
@@ -421,9 +421,9 @@ class CreateDBInstancesApiParamRequestSchema(Schema):
     # engine possibile value ['MySQL' | 'MariaDB' | 'PostgresSQL' | 'Oracle' | 'SQL Server']
     Engine = fields.String(
         required=True,
-        example="MySQL",
+        example="mysql",
         description="engine of DB instance",
-        validate=OneOf(["mysql", "oracle", "postgresql", "sqlserver"]),
+        validate=OneOf(["mysql", "oracle", "postgresql", "sqlserver", "mariadb"]),
     )
     EngineVersion = fields.String(required=True, example="5.7", description="engine version of DB instance")
 
@@ -538,7 +538,7 @@ class CreateDBInstances(ServiceApiView):
 
         data["computeZone"] = parent_inst.instance.resource_uuid
         inst = controller.add_service_type_plugin(
-            service_definition_id,
+            service_definition_id,  # flavor db.xx.yyyy
             account_id,
             name=name,
             desc=desc,
@@ -1123,8 +1123,8 @@ class DescribeDBInstanceEngineTypesApiRequestSchema(Schema):
 
 
 class DescribeDBInstanceEngineTypesParamsApiResponseSchema(Schema):
-    engine = fields.String(required=True, example="", description="")
-    engineVersion = fields.String(required=True, example="", description="")
+    engine = fields.String(required=True, example="postgresql", description="Database engine type")
+    engineVersion = fields.String(required=True, example="", description="Database engine version")
 
 
 class DescribeDBInstanceEngineTypesApi1ResponseSchema(Schema):
@@ -1168,6 +1168,7 @@ class DescribeDBInstanceEngineTypes(ServiceApiView):
     response_schema = DescribeDBInstanceEngineTypesApiResponseSchema
 
     def get(self, controller: ServiceController, data, *args, **kwargs):
+        # raise ApiManagerError("Deprecation Error please use non deprecated v2 ",410)
         instance_engines_set, total = controller.get_catalog_service_definitions(plugintype="VirtualService", size=-1)
         self.logger.warn(instance_engines_set)
 

@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from asyncio.log import logger
 from beecell.simple import format_date
 from beehive.common.apimanager import (
+    ApiManagerError,
     ApiObjectResponseDateSchema,
     ApiObjectSmallResponseSchema,
     ApiView,
@@ -33,6 +34,7 @@ from beehive_service.views import (
     ApiObjectRequestFiltersSchema,
 )
 from typing import List
+from .check import validate_account_name, validate_acronym
 
 try:
     from dateutil.parser import relativedelta
@@ -73,6 +75,9 @@ class AccountResponseSchema(ApiObjectResponseSchema):
     status = fields.String(required=False, allow_none=True, default="")
     division_name = fields.String(required=False, allow_none=True, default="")
     services = fields.Nested(AccountServiceResponseSchema, required=False, allow_none=True)
+    account_type = fields.String(required=False, allow_none=True, default="")
+    management_model = fields.String(required=False, allow_none=True, default="")
+    pods = fields.String(required=False, allow_none=True, default="")
 
 
 class ListAccountsResponseSchema(PaginatedResponseSchema):
@@ -93,23 +98,20 @@ class ListAccounts(ServiceApiView):
 
     def get(self, controller: ServiceController, data, *args, **kwargs):
         accounts, total = controller.get_accounts(**data)
-
-        # get divs
-        divs = self.get_division_idx(controller)
-
-        services = controller.count_service_instances_by_accounts(accounts=[a.oid for a in accounts])
-        for entity in accounts:
-            entity.services = services.get(entity.oid, None)
-            if entity.services is None:
-                entity.services = {"core": 0, "base": 0}
-
+        account_ids = [a.oid for a in accounts]
+        division_ids = [a.division_id for a in accounts]
+        fall_back_service = {"core": 0, "base": 0}
+        services = controller.count_service_instances_by_accounts(accounts=account_ids)
+        divs = self.get_division_idx(controller, division_id_list=division_ids)
         res = []
-        for r in accounts:
-            info = r.info()
-            info["division_name"] = getattr(divs[str(r.division_id)], "name")
+        for account in accounts:
+            info = account.info()
+            info["division_name"] = getattr(divs[f"{account.division_id}"], "name")
+            account.services = services.get(account.oid, None)
+            if account.services is None:
+                account.services = fall_back_service
             res.append(info)
         resp = self.format_paginated_response(res, "accounts", total, **data)
-
         return resp
 
 
@@ -117,19 +119,29 @@ class GetAccountResponseSchema(Schema):
     account = fields.Nested(AccountResponseSchema, required=True, allow_none=True)
 
 
+class GetAccountRequestSchema(Schema):
+    oid = fields.String(required=True, description="id, uuid or name", context="path")
+    # filter_expired = fields.String(required=False, allow_none=True)
+    filter_expired = fields.Boolean(required=False, missing=False)
+    active = fields.Boolean(missing=True, allow_none=True)
+
+
 class GetAccount(ServiceApiView):
     summary = "Get one account"
     description = "Get one account"
     tags = ["authority"]
     definitions = {
+        "GetAccountRequestSchema": GetAccountRequestSchema,
         "GetAccountResponseSchema": GetAccountResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = ServiceApiView.setResponses({200: {"description": "success", "schema": GetAccountResponseSchema}})
     response_schema = GetAccountResponseSchema
+    parameters_schema = GetAccountRequestSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
-        account = controller.get_account(oid)
+    def get(self, controller: ServiceController, data, oid, *args, **kwargs):
+        data.pop("oid")
+        account = controller.get_account(oid, **data)
         res = account.detail()
         resp = {"account": res}
         return resp
@@ -166,12 +178,13 @@ class CreateAccountServiceRequestSchema(CreateAccountServiceBaseRequestSchema):
 
 
 class CreateAccountParamRequestSchema(Schema):
-    name = fields.String(required=True, example="default")
+    name = fields.String(required=True, example="default", validate=validate_account_name)
     acronym = fields.String(
         required=False,
         default="default",
         example="prova",
         description="Account acronym. Set this for managed account",
+        validate=validate_acronym,
     )
     desc = fields.String(required=False, allow_none=True)
     division_id = fields.String(required=True)
@@ -182,6 +195,30 @@ class CreateAccountParamRequestSchema(Schema):
     email_support = fields.String(required=False, allow_none=True)
     email_support_link = fields.String(required=False, allow_none=True, default="")
     managed = fields.Boolean(required=False, description="if True account is managed", missing=True)
+    account_type = fields.String(
+        required=False,
+        allow_none=True,
+        validate=OneOf(
+            ["csi", "ente", "private"],
+            error="Field can be csi, ente, private",
+        ),
+    )
+    management_model = fields.String(
+        required=False,
+        allow_none=True,
+        validate=OneOf(
+            ["m1", "m2", "m3"],
+            error="Field can be m1, m2, m3",
+        ),
+    )
+    pods = fields.String(
+        required=False,
+        allow_none=True,
+        validate=OneOf(
+            ["p1p2p3", "p5p6"],
+            error="Field can be p1p2p3, p5p6",
+        ),
+    )
 
     @validates_schema
     def validate_parameters(self, data, *arg, **kvargs):
@@ -224,7 +261,7 @@ class CreateAccount(ServiceApiView):
 
 
 class UpdateAccountParamRequestSchema(Schema):
-    name = fields.String(required=False, default="default")
+    name = fields.String(required=False, default="default", validate=validate_account_name)
     desc = fields.String(required=False, default="default")
     note = fields.String(required=False, default="default")
     price_list_id = fields.String(required=False, allow_none=True)
@@ -234,7 +271,31 @@ class UpdateAccountParamRequestSchema(Schema):
     email_support_link = fields.String(required=False, default="default")
     active = fields.Boolean(required=False, default=False)
     ### aggiunto 5/7/19
-    acronym = fields.String(required=False, allow_none=True, default="")
+    acronym = fields.String(required=False, allow_none=True, default="", validate=validate_acronym)
+    account_type = fields.String(
+        required=False,
+        allow_none=True,
+        validate=OneOf(
+            ["csi", "ente", "private"],
+            error="Field can be csi, ente, private",
+        ),
+    )
+    management_model = fields.String(
+        required=False,
+        allow_none=True,
+        validate=OneOf(
+            ["m1", "m2", "m3"],
+            error="Field can be m1, m2, m3",
+        ),
+    )
+    pods = fields.String(
+        required=False,
+        allow_none=True,
+        validate=OneOf(
+            ["p1p2p3", "p5p6"],
+            error="Field can be p1p2p3, p5p6",
+        ),
+    )
 
 
 class UpdateAccountRequestSchema(Schema):
@@ -310,6 +371,7 @@ class DeleteAccount(ServiceApiView):
 
 
 class GetAccountRolesItemResponseSchema(Schema):
+    role = fields.String(required=True, example="AccountAdminRole-123456")
     name = fields.String(required=True, example="master")
     desc = fields.String(required=True, example="")
 
@@ -343,7 +405,9 @@ class ApiObjectResponseDateUsersSchema(ApiObjectResponseDateSchema):
 
 class GetAccountUsersItemResponseSchema(ApiObjectResponseSchema):
     role = fields.String(required=True, example="master")
-    email = fields.String(required=False)
+    email = fields.String(required=False, allow_none=True)
+    taxcode = fields.String(required=False, allow_none=True)
+    ldap = fields.String(required=False, allow_none=True)
     date = fields.Nested(ApiObjectResponseDateUsersSchema, required=True)
 
 
@@ -364,7 +428,7 @@ class GetAccountUsers(ServiceApiView):
     responses = ServiceApiView.setResponses({200: {"description": "success", "schema": GetAccountUsersResponseSchema}})
     response_schema = GetAccountUsersResponseSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ServiceController, data, oid, *args, **kwargs):
         account = controller.get_account(oid)
         res = account.get_users()
         return {"users": res, "count": len(res)}
@@ -403,8 +467,15 @@ class SetAccountUsers(ServiceApiView):
     )
     response_schema = CrudApiObjectSimpleResponseSchema
 
-    def post(self, controller, data, oid, *args, **kwargs):
+    def post(self, controller: ServiceController, data, oid, *args, **kwargs):
         account: ApiAccount = controller.get_account(oid)
+
+        from beehive_service.model.account import Account
+
+        model_account: Account = account.model
+        if not model_account.is_active_or_closed():
+            raise ApiManagerError(f"Accreditation not allowed on account {oid}")
+
         data = data.get("user")
         resp = account.set_user(**data)
         return {"uuid": resp}, 200
@@ -577,6 +648,8 @@ class GetAccountUsernameParamsResponseSchema(Schema):
     desc = fields.String(required=False, default="", description="Generic description")
     contact = fields.String(required=False, allow_none=True, description="Primary contact Account")
     email = fields.String(required=False, allow_none=True, description="email Account")
+    taxcode = fields.String(required=False, allow_none=True, description="taxcode Account")
+    ldap = fields.String(required=False, allow_none=True, description="ldap Account")
     account_name = fields.String(required=False, default="", description="name of Account")
     account_status = fields.String(required=False, default="", description="status of Account")
     roles = fields.Nested(
@@ -636,6 +709,9 @@ class AccountCapabilityAssociationServicesParamsSchema(Schema):
     vpc = fields.String(required=False)
     zone = fields.String(required=False)
     cidr = fields.String(required=False)
+    protocol = fields.String(required=False)
+    traffic_type = fields.String(required=False)
+    persistence = fields.String(required=False)
 
 
 class AccountCapabilityAssociationServicesSchema(Schema):
@@ -751,7 +827,7 @@ class GetAccountCapabilities(ServiceApiView):
 
 
 class AddAccountCapabilitiesRequestSchema(Schema):
-    capabilities = fields.List(fields.String(required=True, allow_none=True), required=True, allow_none=True)
+    capabilities = fields.List(fields.String(required=True, allow_none=False), required=True, allow_none=False)
 
 
 class AddAccountCapabilitiesBodyRequestSchema(GetApiObjectRequestSchema):
@@ -767,6 +843,15 @@ class AddAccountCapabilitiesResponseSchema(Schema):
 
 
 class AddAccountCapabilities(ServiceApiView):
+    """Add account capability
+
+    Args:
+        ServiceApiView (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
     summary = "Add account capability"
     description = "Add account capability"
     tags = ["authority"]
@@ -789,8 +874,67 @@ class AddAccountCapabilities(ServiceApiView):
 
     def post(self, controller: ServiceController, data: dict, oid, *args, **kwargs):
         account = controller.get_account(oid)
-        capabilities: List[str] = data.get("capabilities")
-        resp = account.add_capabilities(capabilities)
+        capabilities: str = data.get("capabilities")
+        if len(capabilities) > 1:
+            raise ApiManagerError("no more than a capability at a time can be added")
+        capability = capabilities[0]
+        resp = account.add_capability(capability)
+        return resp
+
+
+class UpdateAccountCapabilitiesRequestSchema(Schema):
+    capabilities = fields.List(fields.String(required=True, allow_none=False), required=True, allow_none=False)
+
+
+class UpdateAccountCapabilitiesBodyRequestSchema(GetApiObjectRequestSchema):
+    body = fields.Nested(UpdateAccountCapabilitiesRequestSchema, context="body")
+
+
+class UpdateAccountCapabilitiesResponseSchema(Schema):
+    taskid = fields.UUID(
+        default="db078b20-19c6-4f0e-909c-94745de667d4",
+        example="6d960236-d280-46d2-817d-f3ce8f0aeff7",
+        required=True,
+    )
+
+
+class UpdateAccountCapabilities(ServiceApiView):
+    """Update account capability
+
+    Args:
+        ServiceApiView (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
+    summary = "Update account capability"
+    description = "Update account capability"
+    tags = ["authority"]
+    definitions = {
+        "UpdateAccountCapabilitiesRequestSchema": UpdateAccountCapabilitiesRequestSchema,
+        "UpdateAccountCapabilitiesBodyRequestSchema": UpdateAccountCapabilitiesBodyRequestSchema,
+    }
+
+    parameters = SwaggerHelper().get_parameters(UpdateAccountCapabilitiesBodyRequestSchema)
+    parameters_schema = UpdateAccountCapabilitiesRequestSchema
+    responses = ServiceApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": UpdateAccountCapabilitiesResponseSchema,
+            },
+        }
+    )
+    response_schema = UpdateAccountCapabilitiesResponseSchema
+
+    def put(self, controller: ServiceController, data: dict, oid, *args, **kwargs):
+        account = controller.get_account(oid)
+        capabilities: str = data.get("capabilities")
+        if len(capabilities) > 1:
+            raise ApiManagerError("no more than a capability at a time can be updated")
+        capability = capabilities[0]
+        resp = account.update_capability(capability)
         return resp
 
 
@@ -798,6 +942,7 @@ class ListAccountTagsItemResponseSchema(ApiObjectResponseSchema):
     services = fields.Integer(required=False, default=0, missing=0)
     links = fields.Integer(required=False, default=0, missing=0)
     version = fields.Integer(required=False, allow_none=True)
+    ownerAlias = fields.String(required=False, allow_none=True)
 
 
 class ListAccountTagsResponseSchema(PaginatedResponseSchema):
@@ -824,7 +969,7 @@ class ListAccountTags(ServiceApiView):
     responses = ServiceApiView.setResponses({200: {"description": "success", "schema": ListAccountTagsResponseSchema}})
     response_schema = ListAccountTagsResponseSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ServiceController, data, oid, *args, **kwargs):
         objid_filter = controller.get_account(oid).objid + "%"
         res, total = controller.get_tags(objid=objid_filter)
 
@@ -928,13 +1073,18 @@ class SetSessionResponseSchema(Schema):
     msg = fields.String()
 
 
+class AccountOperationApiRequestSchema(Schema):
+    oid = fields.String(required=True, description="id, uuid", context="path")
+
+
 class AdministerAccount(ServiceApiView):
     summary = "Set current session permission as account Administrator"
     description = "Set current session permission as account Administrator"
     tags = ["authority"]
     definitions = {"SetSessionResponseSchema": SetSessionResponseSchema}
-    parameters = []
-    parameters_schema = GetActiveServicesByAccountApiRequestSchema
+    parameters = SwaggerHelper().get_parameters(AccountOperationApiRequestSchema)
+    # parameters_schema = AccountOperationApiRequestSchema
+
     responses = ServiceApiView.setResponses(
         {
             200: {
@@ -954,12 +1104,12 @@ class AdministerAccount(ServiceApiView):
 
 
 class ViewAccount(ServiceApiView):
-    summary = "Set current session permission as account Viewer"
+    summary = "Set current session permission as Account Viewer Role"
     description = "Set current session permission as account Viewer"
     tags = ["authority"]
     definitions = {"SetSessionResponseSchema": SetSessionResponseSchema}
-    parameters = []
-    parameters_schema = GetActiveServicesByAccountApiRequestSchema
+    parameters = SwaggerHelper().get_parameters(AccountOperationApiRequestSchema)
+    # parameters_schema = AccountOperationApiRequestSchema
     responses = ServiceApiView.setResponses(
         {
             200: {
@@ -979,12 +1129,12 @@ class ViewAccount(ServiceApiView):
 
 
 class OperateAccount(ServiceApiView):
-    summary = "Set current session permission as account Operator"
+    summary = "Set current session permission as Account Operator Role"
     description = "Set current session permission as account Operator"
     tags = ["authority"]
     definitions = {"SetSessionResponseSchema": SetSessionResponseSchema}
-    parameters = []
-    parameters_schema = GetActiveServicesByAccountApiRequestSchema
+    parameters = SwaggerHelper().get_parameters(AccountOperationApiRequestSchema)
+    # parameters_schema = AccountOperationApiRequestSchema
     responses = ServiceApiView.setResponses(
         {
             200: {
@@ -997,7 +1147,7 @@ class OperateAccount(ServiceApiView):
 
     def get(self, controller: ServiceController, data, oid, *args, **kwargs):
         # get account
-        role = ApiAccount.VIEWER
+        role = ApiAccount.OPERATOR
         account = controller.get_account(oid)
         account.play_role(role)
         return {"msg": f"you are now {role} of {account.name}"}
@@ -1038,6 +1188,12 @@ class AccountAPI(ApiView):
                 "%s/accounts/<oid>/capabilities" % base,
                 "POST",
                 AddAccountCapabilities,
+                {},
+            ),
+            (
+                "%s/accounts/<oid>/capabilities" % base,
+                "PUT",
+                UpdateAccountCapabilities,
                 {},
             ),
             ("%s/accounts/<oid>/userroles" % base, "GET", GetAccountUserRoles, {}),

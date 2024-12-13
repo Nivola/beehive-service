@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiView,
@@ -34,20 +34,20 @@ class GetServiceInstanceParamsResponseSchema(ApiObjectResponseSchema):
     config = fields.Dict(required=False, allow_none=True)
 
 
-class GetServiceInstanceResponseSchema(Schema):
+class V1GetServiceInstanceResponseSchema(Schema):
     serviceinst = fields.Nested(GetServiceInstanceParamsResponseSchema, required=True, allow_none=True)
 
 
 class GetServiceInstance(ServiceApiView):
     tags = ["service"]
     definitions = {
-        "GetServiceInstanceResponseSchema": GetServiceInstanceResponseSchema,
+        "V1GetServiceInstanceResponseSchema": V1GetServiceInstanceResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses(
-        {200: {"description": "success", "schema": GetServiceInstanceResponseSchema}}
+        {200: {"description": "success", "schema": V1GetServiceInstanceResponseSchema}}
     )
-    response_schema = GetServiceInstanceResponseSchema
+    response_schema = V1GetServiceInstanceResponseSchema
 
     def get(self, controller, data, oid, *args, **kvargs):
         srv_inst = controller.get_service_instance(oid)
@@ -73,7 +73,7 @@ class ListServiceInstancesRequestSchema(
     flag_container = fields.Boolean(context="query", description="if True show only container instances")
 
 
-class ListServiceInstancesResponseSchema(PaginatedResponseSchema):
+class V1ListServiceInstancesResponseSchema(PaginatedResponseSchema):
     serviceinsts = fields.Nested(
         GetServiceInstanceParamsResponseSchema,
         many=True,
@@ -85,14 +85,14 @@ class ListServiceInstancesResponseSchema(PaginatedResponseSchema):
 class ListServiceInstances(ServiceApiView):
     tags = ["service"]
     definitions = {
-        "ListServiceInstancesResponseSchema": ListServiceInstancesResponseSchema,
+        "V1ListServiceInstancesResponseSchema": V1ListServiceInstancesResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListServiceInstancesRequestSchema)
     parameters_schema = ListServiceInstancesRequestSchema
     responses = SwaggerApiView.setResponses(
-        {200: {"description": "success", "schema": ListServiceInstancesResponseSchema}}
+        {200: {"description": "success", "schema": V1ListServiceInstancesResponseSchema}}
     )
-    response_schema = ListServiceInstancesResponseSchema
+    response_schema = V1ListServiceInstancesResponseSchema
 
     def get(self, controller, data, *args, **kvargs):
         servicetags = data.pop("tags", None)

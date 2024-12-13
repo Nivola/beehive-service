@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beehive.common.data import operation
@@ -218,7 +218,7 @@ class UpdateMonitoringService(ServiceApiView):
         if tot > 0:
             inst_service = inst_services[0]
         else:
-            raise ApiManagerError("Account %s has no monitoring instance associated" % account_id)
+            raise ApiManagerError("Account %s has no monitoring service associated" % account_id)
 
         # get service def
         if def_id is not None:
@@ -312,7 +312,7 @@ class DescribeAccountAttributes(ServiceApiView):
             api_monitoring_service: ApiMonitoringService = res[0]
             attribute_set = api_monitoring_service.aws_get_attributes()
         else:
-            raise ApiManagerError("Account %s has no monitoring instance associated" % data.get("owner_id"))
+            raise ApiManagerError("Account %s has no monitoring service associated" % data.get("owner_id"))
 
         res = {
             "DescribeAccountAttributesResponse": {

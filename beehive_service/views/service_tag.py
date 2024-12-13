@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiView,
@@ -15,18 +15,23 @@ from beehive.common.apimanager import (
 )
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+from beehive_service.controller import ServiceController
+from beehive_service.controller.api_service_tag import ApiServiceTag
+from beehive_service.model.service_tag import ServiceTagOccurrences
 
 
 class ListTagsRequestSchema(PaginatedRequestQuerySchema):
     value = fields.String(context="query")
     service = fields.String(context="query")
     link = fields.String(context="query")
+    objid = fields.String(context="query")
 
 
 class ListTagsParamsResponseSchema(ApiObjectResponseSchema):
     services = fields.Integer(default=0)
     links = fields.Integer(default=0)
     version = fields.String(required=False, allow_none=True)
+    ownerAlias = fields.String(required=False, allow_none=True)
 
 
 class ListTagsResponseSchema(PaginatedResponseSchema):
@@ -50,6 +55,7 @@ class ListTags(SwaggerApiView):
 
         serviceController: ServiceController = controller
         tags, total = serviceController.get_tags(**data)
+
         res = [r.info() for r in tags]
         return self.format_paginated_response(res, "tags", total, **data)
 
@@ -142,7 +148,7 @@ class CreateTag(SwaggerApiView):
     responses = SwaggerApiView.setResponses({201: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
-    def post(self, controller, data, *args, **kwargs):
+    def post(self, controller: ServiceController, data, *args, **kwargs):
         resp = controller.add_tag(**data.get("tag"))
         return {"uuid": resp}, 201
 
@@ -186,8 +192,8 @@ class DeleteTag(SwaggerApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({204: {"description": "no response"}})
 
-    def delete(self, controller, data, oid, *args, **kwargs):
-        tag = controller.get_tag(oid)
+    def delete(self, controller: ServiceController, data, oid, *args, **kwargs):
+        tag: ApiServiceTag = controller.get_tag(oid)
         resp = tag.delete()
         return resp, 204
 

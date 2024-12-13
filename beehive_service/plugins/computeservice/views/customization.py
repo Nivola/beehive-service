@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from typing import Dict
 from flasgger import fields, Schema
@@ -616,6 +616,7 @@ class UpdateCustomization(ServiceApiView):
     def put(self, controller: ServiceController, data, *args, **kwargs):
         customization_id = data.pop("CustomizationId")
 
+        type_plugin: ApiComputeCustomization
         type_plugin = controller.get_service_type_plugin(customization_id)
         type_plugin.update()
 
@@ -684,7 +685,8 @@ class TerminateCustomization(ServiceApiView):
     def delete(self, controller: ServiceController, data, *args, **kwargs):
         customization_id = data.pop("CustomizationId")
 
-        type_plugin = controller.get_service_type_plugin(customization_id)
+        type_plugin: ApiComputeCustomization
+        type_plugin = controller.get_service_type_plugin(customization_id, plugin_class=ApiComputeCustomization)
         type_plugin.delete()
 
         res = {

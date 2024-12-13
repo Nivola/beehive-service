@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
-from beehive.common.apimanager import ApiObject
+from beehive.common.apimanager import ApiManagerError, ApiObject
 
 # from beehive_service.controller.ApiAccount import ApiAccount
 from beehive_service.entity import ServiceApiObject
+from beehive_service.model.service_tag import ServiceTag, ServiceTagOccurrences
 
 
 class ApiServiceTag(ServiceApiObject):
@@ -36,6 +37,16 @@ class ApiServiceTag(ServiceApiObject):
         info = ServiceApiObject.info(self)
         if self.services is not None:
             info.update({"services": self.services, "links": self.links})
+
+        # get account name
+        # self.logger.debug("+++++ ApiServiceTag model %s" % self.model)
+        serviceTag: ServiceTagOccurrences = self.model
+        try:
+            account = self.controller.get_account(serviceTag.account_id)
+            info.update({"ownerAlias": account.name})
+        except ApiManagerError as ame:
+            pass
+
         return info
 
     def detail(self):

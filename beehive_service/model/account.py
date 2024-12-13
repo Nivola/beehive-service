@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from sqlalchemy import Column, String, Integer, ForeignKey, Index
 from sqlalchemy.orm import relationship
@@ -112,6 +112,49 @@ class Account(ApiBusinessObject, Base):
             self.active,
             self.service_status_id,
         )
+
+    def is_active(self) -> bool:
+        from datetime import datetime
+
+        filter_expiry_date = datetime.today()
+        res = (
+            (self.active is True or self.active == 1)
+            and (self.expiry_date is None or self.expiry_date >= filter_expiry_date)
+            and self.status.name
+            in [
+                "ACTIVE",
+            ]
+        )
+        return res
+
+    def is_closed(self) -> bool:
+        from datetime import datetime
+
+        filter_expiry_date = datetime.today()
+        res = (
+            (self.active is True or self.active == 1)
+            and (self.expiry_date is None or self.expiry_date >= filter_expiry_date)
+            and self.status.name
+            in [
+                "CLOSED",
+            ]
+        )
+        return res
+
+    def is_active_or_closed(self) -> bool:
+        from datetime import datetime
+
+        filter_expiry_date = datetime.today()
+        res = (
+            (self.active is True or self.active == 1)
+            and (self.expiry_date is None or self.expiry_date >= filter_expiry_date)
+            and self.status.name
+            in [
+                "ACTIVE",
+                "CLOSED",
+            ]
+        )
+        return res
 
 
 class AccountServiceDefinition(ApiBusinessObject, Base):

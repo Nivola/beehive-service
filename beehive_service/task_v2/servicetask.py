@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.data import operation
 from beehive_service.controller import ApiAccount
@@ -11,7 +11,6 @@ from typing import List, Type, Tuple, Any, Union, Dict, Callable
 
 class ServiceTask(BaseTask):
     abstract = True
-    name = "add_account_capability"
     inner_type = "TASK"
     prefix = "celery-task-shared-"
     prefix_stack = "celery-task-stack-"

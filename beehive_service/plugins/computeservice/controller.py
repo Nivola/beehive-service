@@ -1,39 +1,39 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from __future__ import annotations
+import hashlib
+import ipaddress
+from typing import List
+from logging import getLogger
 from copy import deepcopy
 from datetime import datetime, timedelta
-from random import randint, random
-from six import ensure_binary, ensure_text
+from random import randint
+from base64 import b64encode, b64decode
 from six.moves.urllib.parse import urlencode
-from beehive.common.data import trace, operation
-from beehive_service.controller import ServiceController
-from beehive.common.apimanager import ApiManagerError, ApiManagerWarning
+from six import ensure_binary, ensure_text
+from Crypto.PublicKey import RSA
+from paramiko.rsakey import RSAKey
+from paramiko.py3compat import StringIO
 from beecell.types import is_int, is_string
 from beecell.types.type_id import id_gen
 from beecell.types.type_dict import dict_get
 from beecell.types.type_date import format_date
 from beecell.types.type_string import truncate
 from beecell.simple import obscure_data, import_class
+from beehive.common.data import trace, operation
+from beehive.common.apiclient import BeehiveApiClientError
+from beehive.common.apimanager import ApiManagerError, ApiManagerWarning
 from beehive_service.entity.service_instance import ApiServiceInstance
 from beehive_service.entity.service_type import (
     ApiServiceTypeContainer,
     ApiServiceTypePlugin,
     AsyncApiServiceTypePlugin,
 )
+from beehive_service.controller import ServiceController
 from beehive_service.model import SrvStatusType, Division, Organization
 from beehive_service.service_util import __RULE_GROUP_INGRESS__, __RULE_GROUP_EGRESS__
-from Crypto.PublicKey import RSA
-import hashlib
-import ipaddress
-from paramiko.rsakey import RSAKey
-from paramiko.py3compat import StringIO
-from base64 import b64encode, b64decode
-from beehive.common.apiclient import BeehiveApiClientError
-from typing import List
-from logging import getLogger
 
 logger = getLogger(__name__)
 
@@ -42,39 +42,62 @@ class ApiComputeKeyPairsHelper(object):
     def __init__(self, controller):
         self.controller = controller
 
+    def __ssh_key_check(self, key_name, sshkey):
+        valid_key = False
+        algorithm = sshkey.get("type")
+        size = sshkey.get("bits")
+
+        # Add other security check here
+        security_key_len_standards = {
+            "ssh-rsa": 3072,
+            "ssh-dss": 2048,
+            "ecdsa": 384,
+        }
+        message = f"Ssh keypair {key_name}, using {algorithm.upper()} with a {size}-bit key, "
+        if algorithm == "GARBAGE":
+            valid_key = False
+            message += f"IS GARBAGE."
+        elif algorithm not in security_key_len_standards:
+            valid_key = True
+        else:
+            min_size = security_key_len_standards[algorithm]
+            if size < min_size:
+                message += f"IS DEPRECATED; a key greater than {min_size} bits is required.\n"
+            else:
+                valid_key = True
+        if not valid_key:
+            message += f"""\n\
+To create a new robust SSH key, run 'beehive bu cpaas keypairs add <account_id> <new_key_name>'.\n\
+Then, rerun the command using the -sshkey <new_key_name> argument.
+"""
+            logger.error(message)
+            raise ApiManagerError(message)
+        logger.info(message + "is valid.")
+
+    def __ssh_get_key(self, key_name):
+        uri = "/v1.0/gas/keys/%s" % key_name
+        return self.controller.api_client.user_request("ssh", uri, "get", data="").get("key")
+
     def check_service_instance(self, key_name, account_id=None):
-        if key_name is not None:
-            try:
-                self.controller.check_service_instance(key_name, ApiComputeKeyPairs, account=account_id)
-            except ApiManagerError as ex:
-                if ex.code == 404:
-                    # workaround used initially when ssh key are not all imported as service.
-                    # TODO: remove after ssh key are all imported as service
-                    try:
-                        uri = "/v1.0/gas/keys/%s" % key_name
-                        self.controller.api_client.user_request("ssh", uri, "get", data="").get("key")
-                        # self.logger.debug('Get ssh key: %s' % truncate(key))
-                    except BeehiveApiClientError as ex:
-                        # self.logger.error(ex, exc_info=True)
-                        raise ApiManagerError(ex, code=404)
-                else:
-                    raise
+        try:
+            ssh_key = self.__ssh_get_key(key_name)
+            self.__ssh_key_check(key_name, ssh_key)
+        except BeehiveApiClientError as ex:
+            raise ApiManagerError(ex, code=404)
 
     def insert_char_every_n_chars(self, string, char="\n", every=64):
         return char.join(string[i : i + every] for i in range(0, len(string), every))
 
-    def get_rsa_key(self, key_location=None, key_file_obj=None, passphrase=None, use_pycrypto=True):
+    def get_rsa_key(self, key_location=None, key_file_obj=None, passphrase=None):
         key_fobj = key_file_obj or open(key_location)
         try:
-            key = None
-            if use_pycrypto:
-                key = RSA.importKey(key_fobj, passphrase=passphrase)
-            return key
+            return RSA.import_key(key_fobj, passphrase=passphrase)
         except ValueError:
             raise Exception("Invalid RSA private key file")
 
     def get_private_rsa_fingerprint(self, key_location=None, key_file_obj=None, passphrase=None):
-        """Returns the fingerprint of a private RSA key as a 59-character string (40 characters separated every 2
+        """
+        Returns the fingerprint of a private RSA key as a 59-character string (40 characters separated every 2
         characters by a ':'). The fingerprint is computed using the SHA1 (hex) digest of the DER-encoded (pkcs8)
         RSA private key.
         """
@@ -82,7 +105,6 @@ class ApiComputeKeyPairsHelper(object):
             key_location=key_location,
             key_file_obj=key_file_obj,
             passphrase=passphrase,
-            use_pycrypto=True,
         )
         sha1digest = hashlib.sha1(k.exportKey("DER", pkcs=8)).hexdigest()
         fingerprint = self.insert_char_every_n_chars(sha1digest, ":", 2)
@@ -170,7 +192,7 @@ class ApiComputeService(ApiServiceTypeContainer):
 
         return entities
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -333,21 +355,11 @@ class ApiComputeService(ApiServiceTypeContainer):
         # get new quota
         service_def = self.controller.get_service_def(def_id)
         new_quota = service_def.get_config("quota")
-        # service_def_config = service_def.get_main_config()
-        # new_quota = service_def_config.get_json_property('quota')
-
         # set new quota to service instance
         service_inst_config = inst_service.get_main_config()
         service_def.set_config("quota", new_quota)
-        # service_inst_config.setJsonProperty('quota', new_quota)
-        # service_inst_config.update(json_cfg=service_inst_config.json_cfg)
-
         inst_service.update(service_definition_id=service_def.oid)
-
-        # update quotas in compute zone
-        # self.api_helper.update_compute_service_quotas(inst_service.resource_uuid, new_quota)
         self.update_resource_compute_zone_quotas(new_quota)
-
         self.logger.debug("Change compute service %s definition to %s" % (inst_service.uuid, def_id))
         return True
 
@@ -383,7 +395,7 @@ class ApiComputeService(ApiServiceTypeContainer):
             self.set_resource(uuid)
             self.update_status(SrvStatusType.PENDING)
 
-            # create compute zone availability zones
+            # create compute zone availability zones "sites" from service config
             for site in self.get_config("sites"):
                 site["quota"] = dict_get(data, "compute_zone.quota")
                 self.create_resource_availability_zone(task, uuid, site)
@@ -524,8 +536,6 @@ class ApiComputeInstanceBackup(AsyncApiServiceTypePlugin):
         """
         account = self.compute_service.get_account()
 
-        # schedule = job.get("schedule")
-
         job_item = {
             "owner_id": account.uuid,
             "jobId": job.get("id"),
@@ -540,12 +550,6 @@ class ApiComputeInstanceBackup(AsyncApiServiceTypePlugin):
             "updated": job.get("updated"),
             "enabled": job.get("enabled"),
             "usage": job.get("usage"),
-            # "policy": {
-            #     "fullbackup_interval": schedule.get("fullbackup_interval"),
-            #     "start_time": schedule.get("start_time"),
-            #     "interval": schedule.get("interval"),
-            #     "retention_policy": schedule.get("retention_policy_value"),
-            # },
             "policy": job.get("policy"),
         }
 
@@ -594,7 +598,7 @@ class ApiComputeInstanceBackup(AsyncApiServiceTypePlugin):
         :param job_id: backup job id
         :return:
         """
-        self.verify_permisssions(action="use")
+        self.verify_permisssions(action="view")
 
         if job_id is None:
             jobs = self.list_resource_jobs(hypervisor)
@@ -657,11 +661,6 @@ class ApiComputeInstanceBackup(AsyncApiServiceTypePlugin):
         if service_def.is_active() is False:
             raise ApiManagerWarning("Service definition %s is not in ACTIVE state" % service_def.uuid)
 
-        # get account
-        # if account is None:
-        #     account = self.get_account(account_id)
-        # if account.is_active() is False:
-        #     raise ApiManagerWarning('Account %s is not in ACTIVE state' % account.uuid)
         check, reason = apiAccount.can_instantiate(definition=service_def)
         if not check:
             raise ApiManagerError(reason + f": Account {account.name} ({account.uuid}) definition {service_def.name}")
@@ -856,7 +855,7 @@ class ApiComputeInstanceBackup(AsyncApiServiceTypePlugin):
         :return: backup resource points
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        self.verify_permisssions(action="use")
+        self.verify_permisssions(action="view")
 
         restore_points, restore_point_total = self.get_resource_backup_job_restore_points(
             job_id, data_search, restore_point_id=restore_point_id
@@ -881,8 +880,6 @@ class ApiComputeInstanceBackup(AsyncApiServiceTypePlugin):
 
         # chek job exists
         self.exist_backup_job(job_id)
-        # create restore point
-        # TODO test me taskid = self.add_job_restore_point(self, job_id, name, desc=desc, full=full)
         taskid = self.res_add_job_restore_point(job_id, name, desc, full)
         return taskid
 
@@ -901,7 +898,6 @@ class ApiComputeInstanceBackup(AsyncApiServiceTypePlugin):
         # chek restore point exists
         self.exist_backup_job_restore_point(job_id, restore_point_id)
         # create restore point
-        # TODO test me  erataskid = self.del_job_restore_point(job_id, restore_point_id)
         taskid = self.res_del_job_restore_point(job_id, restore_point_id)
         return taskid
 
@@ -1271,12 +1267,6 @@ class ApiComputeImage(AsyncApiServiceTypePlugin):
         instance_item["kernelId"] = None
         instance_item["name"] = inst_service.name
         instance_item["platform"] = "%s %s" % (config.get("os"), config.get("os_ver"))
-        # instance_item['productCodes'] =
-        # instance_item['ramdiskId'] =
-        # instance_item['rootDeviceName'] =
-        # instance_item['rootDeviceType'] =
-        # instance_item['sriovNetSupport'] =
-        # instance_item['stateReason'] =
         instance_item["tagSet"] = []
         instance_item["virtualizationType"] = "fullvirtual"
         instance_item["nvl-resourceId"] = self.instance.resource_uuid
@@ -1284,7 +1274,7 @@ class ApiComputeImage(AsyncApiServiceTypePlugin):
 
         return instance_item
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -1526,12 +1516,8 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
             SrvStatusType.PENDING: self.state_enum.pending,  # 'pending',
             SrvStatusType.BUILDING: self.state_enum.building,  # 'building',
             SrvStatusType.CREATED: self.state_enum.building,  # 'building',
-            # SrvStatusType.ACTIVE: self.state_enum.running, # 'running',
             SrvStatusType.ERROR: self.state_enum.error,  # 'error',
             SrvStatusType.ERROR_CREATION: self.state_enum.error,  # 'error',
-            # SrvStatusType.STOPPING: self.state_enum.stopping, # 'stopping',
-            # SrvStatusType.STOPPED: self.state_enum.stopped, # 'stopped',
-            # SrvStatusType.SHUTTINGDOWN: self.state_enum.shutting, # 'shutting-down',
             SrvStatusType.DELETING: self.state_enum.terminated,  # 'terminated',
             SrvStatusType.TERMINATED: self.state_enum.terminated,  # 'terminated',
             SrvStatusType.UNKNOWN: self.state_enum.error,  # 'error',
@@ -1737,74 +1723,71 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         restore_point_item.pop("instances", None)
         return restore_point_item
 
-    def pre_create(self, **params):
-        """Check input params before resource creation. Use this to format parameters for service creation
-        Extend this function to manipulate and validate create input params.
+    @trace(op="view")
+    def get_ssh_node(self, fqdnName):
+        """Get password for an instance by fqdnName
 
-        :param params: input params
-        :return: resource input params
-        :raise ApiManagerError:
+        :rtype: dict
+        :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        account_id = self.instance.account_id
+        ssh_node = None
+        try:
+            uri_node = "/v1.0/gas/nodes/%s" % fqdnName
+            users = (
+                self.controller.api_client.admin_request("ssh", uri_node, "get", data="").get("node").get("users", [])
+            )
+            if len(users) > 0:
+                ssh_node = users[0]
+                user_id = ssh_node["id"]
+                uri_password = "/v1.0/gas/users/%s/password" % user_id
+                password = self.controller.api_client.admin_request("ssh", uri_password, "get", data="").get("password")
+                ssh_node.update({"plain_pwd": password})
 
-        # base quotas
-        quotas = {
-            "compute.cores": 0,
-            "compute.instances": 1,
-            "compute.volumes": 1,
-            "compute.ram": 0,
-            "compute.blocks": 0,
-        }
+        except BeehiveApiClientError as ex:
+            self.logger.error(ex, exc_info=True)
+            raise ApiManagerError(ex)
+        return ssh_node
 
-        # get container
-        container_id = self.get_config("container")
-        flavor_resource_uuid = self.get_config("flavor")
-        compute_zone = self.get_config("computeZone")
-        data_instance = self.get_config("instance")
-
-        # get check preference
-        check_main_vol_size = data_instance.get("CheckMainVolSize", True)
-
-        # get instance type
-        type_provider = data_instance.get("Nvl_Hypervisor", None)
-        if type_provider is None:
-            type_provider = self.get_config("type")
-            if type_provider is None:
-                type_provider = "openstack"
-        self.set_config("type", type_provider)
-
-        # get metadata
-        metadata = data_instance.get("Nvl_Metadata", None)
-        if metadata is None:
-            metadata = self.get_config("metadata")
-            if metadata is None:
-                metadata = {}
-
-        # get multi_avz
-        multi_avz = data_instance.get("Nvl_MultiAvz")
-        if multi_avz is None:
-            multi_avz = self.get_config("multi_avz")
-            if multi_avz is None:
-                multi_avz = True
-
-        # get host_group
-        host_group = data_instance.get("Nvl_HostGroup")
-        if host_group is None:
-            host_group = self.get_config("host_group")
-            if host_group is None:
-                host_group = None
-
-        # check the image id
-        image_inst = self.controller.check_service_instance(
-            data_instance.get("ImageId"), ApiComputeImage, account=account_id
+    def __get_admin_credentials_from_ssh_node(self, srv_inst, admin_username):
+        """
+        Get credentials from ssh node
+        """
+        admin_pwd = None
+        res, total = self.controller.get_service_type_plugins(
+            service_uuid_list=[srv_inst.uuid],
+            account_id_list=[srv_inst.account_id],
+            plugintype=ApiComputeInstance.plugintype,
         )
-        image_resource = self.get_image(image_inst.resource_uuid)
-        image_configs = image_resource.get("attributes", {}).get("configs", {})
-        image_volume_size = image_configs.get("min_disk_size")
-        image_avz_hypervisors = {a["name"]: a["hypervisors"] for a in image_resource.get("availability_zones")}
+        dns_name = res[0].aws_info(version="v2.0").get("dnsName")
+        ssh_node = self.get_ssh_node(dns_name)
+        if ssh_node is not None:
+            admin_username = ssh_node.get("name")
+            admin_pwd = ssh_node.get("plain_pwd")
+        return admin_username, admin_pwd
 
-        # set hostname for windows server
-        if image_configs.get("os") == "Windows":
+    def __clone_handle_admin_credentials(self, srv_inst, admin_username, admin_pwd):
+        out_admin_username = admin_username
+        out_admin_pwd = admin_pwd
+        db_admin_username, db_admin_pwd = self.__get_admin_credentials_from_ssh_node(srv_inst, admin_username)
+        if admin_pwd is not None:
+            # check if the credentials from ssh node is equals to user one
+            if db_admin_pwd is not None and db_admin_pwd != admin_pwd:
+                raise ApiManagerError(
+                    f"Authentication failure for CPAAS {srv_inst.uuid} due to incorrect password.", code=403
+                )
+        else:
+            # Take credentials from ssh node
+            out_admin_pwd = db_admin_pwd
+        if out_admin_pwd is None:
+            raise ApiManagerError(
+                f"Authentication failure for CPAAS {srv_inst.uuid} due to missing password.", code=403
+            )
+        if db_admin_username is not None:
+            out_admin_username = db_admin_username
+        return out_admin_username, out_admin_pwd
+
+    def __choose_name(self, account_id, os_name):
+        if os_name == "Windows":
             hostname = self.instance.name
 
             # check instance with the same name already exists in the account
@@ -1812,43 +1795,46 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
                 name=hostname, filter_expired=False, authorize=False
             )
             if tot > 1:
-                raise ApiManagerError("ComputeInstance %s already exists" % hostname, code=409)
+                raise ApiManagerError("Windows ComputeInstance %s already exists" % hostname, code=409)
 
-            # check name is less than 15 characters
-            if len(hostname) > 15:
-                raise ApiManagerError("Name is too long. Windows ComputeInstance name max size is 15 characters")
-
-        # set hostname for non windows server
-        else:
-            hostname = "%s%s" % (
-                self.instance.name,
-                self.controller.get_account_acronym(account_id),
-            )
-
-            # check name is less than 30 characters
-            if len(hostname) > 30:
-                maxsize = 30 - len(self.controller.get_account_acronym(account_id))
+            # check name is long no more than 15 characters
+            hostname_len = len(hostname)
+            if hostname_len > 15:
                 raise ApiManagerError(
-                    "Name is too long. Linux ComputeInstance name max size is %s characters" % maxsize
+                    "Hostname %s is too long. Windows ComputeInstance name maxsize is 15 characters, current size %s"
+                    % (hostname, hostname_len)
                 )
+            return hostname
+        hostname = "%s%s" % (
+            self.instance.name,
+            self.controller.get_account_acronym(account_id),
+        )
+        # check name is long no more than 45 characters
+        hostname_len = len(hostname)
+        if hostname_len > 45:
+            maxsize = 45 - len(self.controller.get_account_acronym(account_id))
+            raise ApiManagerError(
+                "Hostname %s is too long. Linux ComputeInstance name maxsize is %s characters, current size %s"
+                % (hostname, maxsize, hostname_len)
+            )
+        return hostname
 
-        # get flavor resource Info
-        if type_provider == "openstack" and host_group is not None:
+    def __configure_flavor(
+        self, default_volume_type, type_provider, host_group, flavor_resource_uuid, image_inst, quotas
+    ):
+        if type_provider == "openstack" and host_group:
             if host_group not in ["bck", "nobck"]:
                 raise ApiManagerError('only "bck" and "nobck" are openstack supported hostgroup')
             flavor_resource_uuid += ".%s" % host_group
 
         flavor_resource = self.get_flavor(flavor_resource_uuid)
-        # try to get main volume size from flavor
         flavor_configs = flavor_resource.get("attributes", {}).get("configs", {})
         volume_size = flavor_configs.get("disk", 40)
-        default_volume_type = self.controller.get_default_service_def("ComputeVolume")
-        volume_type_resource_uuid = default_volume_type.get_config("flavor")
         storage = [
             {
                 "boot_index": 0,
                 "volume_size": volume_size,
-                "flavor": volume_type_resource_uuid,
+                "flavor": default_volume_type.get_config("flavor"),
                 "uuid": image_inst.resource_uuid,
                 "source_type": "image",
                 "tag": "default",
@@ -1856,18 +1842,18 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         ]
         quotas["compute.cores"] = flavor_configs.get("vcpus", 0)
         quotas["compute.blocks"] = volume_size
-        quotas["compute.ram"] = flavor_configs.get("memory", 0)
-        if quotas["compute.ram"] > 0:
-            quotas["compute.ram"] = quotas["compute.ram"] / 1024
+        quotas["compute.ram"] = flavor_configs.get("memory", 0) / 1024 if flavor_configs.get("memory") else 0
+        return flavor_resource, storage, quotas
 
+    def __configure_block_device_mapping(self, default_volume_type, data_instance, image_volume_size, storage, quotas):
         # overwrite boot disk with BlockDeviceMapping first item param
         block_device_mappings = data_instance.get("BlockDeviceMapping_N", [])
         if len(block_device_mappings) > 0:
             main_block_device_mapping = block_device_mappings.pop(0)
-            ebs_block = main_block_device_mapping.get("Ebs", None)
+            ebs_block = main_block_device_mapping.get("Ebs")
             if ebs_block is not None:
-                vsize = ebs_block.get("VolumeSize", None)
-                volume_type = ebs_block.get("VolumeType", None)
+                vsize = ebs_block.get("VolumeSize")
+                volume_type = ebs_block.get("VolumeType")
                 if vsize is not None:
                     storage[0]["volume_size"] = vsize
                     quotas["compute.blocks"] = vsize
@@ -1881,7 +1867,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
                 quotas["compute.blocks"] = image_volume_size
 
             # overwrite boot disk if clone volume exists
-            clone_volume_id = ebs_block.get("Nvl_VolumeId", None)
+            clone_volume_id = ebs_block.get("Nvl_VolumeId")
             if clone_volume_id is not None:
                 clone_volume = self.controller.check_service_instance(clone_volume_id, ApiComputeVolume)
                 clone_volume_size = int(clone_volume.get_config("volume.Size"))
@@ -1893,7 +1879,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         # check BlockDeviceMapping param
         boot_index = 1
         for block_device_mapping in block_device_mappings:
-            ebs_block = block_device_mapping.get("Ebs", None)
+            ebs_block = block_device_mapping.get("Ebs")
             if ebs_block is not None:
                 volume_data = {
                     "boot_index": boot_index,
@@ -1901,7 +1887,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
                 }
 
                 # get volume to clone
-                clone_volume_id = ebs_block.get("Nvl_VolumeId", None)
+                clone_volume_id = ebs_block.get("Nvl_VolumeId")
                 if clone_volume_id is not None:
                     clone_volume = self.controller.check_service_instance(clone_volume_id, ApiComputeVolume)
                     clone_volume_size = int(clone_volume.get_config("volume.Size"))
@@ -1910,7 +1896,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
                     volume_data["volume_size"] = clone_volume_size
 
                 # get volume type
-                volume_type = ebs_block.get("VolumeType", None)
+                volume_type = ebs_block.get("VolumeType")
                 if volume_type is not None:
                     volume_type = self.controller.check_service_definition(volume_type)
                 else:
@@ -1923,26 +1909,63 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
                 quotas["compute.blocks"] += ebs_block.get("VolumeSize")
                 quotas["compute.volumes"] += 1
                 boot_index += 1
+        return storage, quotas
 
+    def __check_security_groups(self, data_instance, account_id):
+        # get and check the id SecurityGroupId
+        security_group_ress = []
+        instance_oid = self.instance.oid
+        for security_group in data_instance.get("SecurityGroupId_N", []):
+            sg_inst = self.controller.check_service_instance(
+                security_group, ApiComputeSecurityGroup, account=account_id
+            )
+            if sg_inst.resource_uuid is None:
+                raise ApiManagerError("SecurityGroup id %s is invalid" % security_group)
+            security_group_ress.append(sg_inst.resource_uuid)
+            sg_inst_oid = sg_inst.oid
+            # link security group to instance
+            self.instance.add_link(
+                name=f"link-{instance_oid}-{sg_inst_oid}",
+                type="sg",
+                end_service=sg_inst_oid,
+                attributes={},
+            )
+        return security_group_ress
+
+    def __check_ssh_key(self, data_instance, account_id, os_name, is_clone):
+        # get key
+        key_name = data_instance.get("KeyName")
+        if is_clone and key_name is None:
+            key_name = self.get_config("SshKeyName")
+        if key_name is not None:
+            ApiComputeKeyPairsHelper(self.controller).check_service_instance(key_name, account_id)
+        elif os_name != "Windows":
+            raise ApiManagerError("Ssh keyname is required")
+        return key_name
+
+    def __configure_network(
+        self, data_instance, type_provider, hostname, account_id, compute_zone, image_avz_hypervisors
+    ):
         # check subnet
-        subnet_id = data_instance.get("SubnetId", None)
+        subnet_id = data_instance.get("SubnetId")
         if subnet_id is None:
             raise ApiManagerError("Subnet is not defined")
 
         subnet_inst = self.controller.check_service_instance(subnet_id, ApiComputeSubnet, account=account_id)
 
-        # Get availability-zone, subnet from service definition config of
-        # subnet
-        # active_cfg = subnet_inst.get_main_config()
         subnet = subnet_inst.get_config("cidr")
         av_zone = subnet_inst.get_config("site")
 
         # check availability zone status
-        if self.is_availability_zone_active(compute_zone, av_zone) is False:
+        if not self.is_availability_zone_active(compute_zone, av_zone):
             raise ApiManagerError("Availability zone %s is not in available status" % av_zone)
 
         # check image support hypervisor
-        if type_provider not in image_avz_hypervisors.get(av_zone):
+        zone_image = image_avz_hypervisors.get(av_zone)
+        if zone_image is None:
+            raise ApiManagerError("Image %s not available for zone %s" % (data_instance.get("ImageId"), av_zone))
+
+        if type_provider not in zone_image:
             raise ApiManagerError(
                 "Image %s does not support hypervisor %s" % (data_instance.get("ImageId"), type_provider)
             )
@@ -1957,88 +1980,122 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
             "vpc": vpc_resource_uuid,
             "fixed_ip": {
                 "hostname": hostname,
-                # 'dns_search': 'local'
             },
         }
 
-        private_ip = data_instance.get("PrivateIpAddress", None)
+        private_ip = data_instance.get("PrivateIpAddress")
         if private_ip is not None:
             if ipaddress.IPv4Address(private_ip) not in ipaddress.IPv4Network(subnet):
                 raise ApiManagerError("private ip is not in the subnet cidr")
-
             network["fixed_ip"]["ip"] = private_ip
 
-        # get and check the id SecurityGroupId
-        security_group_ress = []
-        for security_group in data_instance.get("SecurityGroupId_N", []):
-            sg_inst = self.controller.check_service_instance(
-                security_group, ApiComputeSecurityGroup, account=account_id
-            )
-            if sg_inst.resource_uuid is None:
-                raise ApiManagerError("SecurityGroup id %s is invalid" % security_group)
-            security_group_ress.append(sg_inst.resource_uuid)
+        return network, av_zone
 
-            # link security group to instance
-            self.instance.add_link(
-                name="link-%s-%s" % (self.instance.oid, sg_inst.oid),
-                type="sg",
-                end_service=sg_inst.oid,
-                attributes={},
-            )
+    def __initialize_quotas(self) -> dict:
+        return {
+            "compute.cores": 0,
+            "compute.instances": 1,
+            "compute.volumes": 1,
+            "compute.ram": 0,
+            "compute.blocks": 0,
+        }
 
+    def pre_create(self, **params) -> dict:
+        """
+        Check input params before resource creation. Use this to format parameters for service creation
+        Extend this function to manipulate and validate create input params.
+
+        :param params: input params
+        :return: resource input params
+        :raise ApiManagerError:
+        """
+        account_id = self.instance.account_id
+        flavor_resource_uuid = self.get_config("flavor")
+        compute_zone = self.get_config("computeZone")
+        data_instance = self.get_config("instance")
+
+        image_inst = self.controller.check_service_instance(
+            data_instance.get("ImageId"), ApiComputeImage, account=account_id
+        )
+        image_resource = self.get_image(image_inst.resource_uuid)
+        image_configs = image_resource.get("attributes", {}).get("configs", {})
+        os_name = image_configs.get("os")
+        hostname = self.__choose_name(account_id, os_name)
+
+        # Check instanceId used for clone with vsphere, it's the source vm id
+        instance_id = self.get_config("InstanceId")
+
+        admin_username = None
         admin_pwd = data_instance.get("AdminPassword")
+        # This variable is used only for the clone task
+        clone_source_uuid = None
+        is_clone = instance_id is not None
+        if is_clone:
+            srv_inst = self.controller.get_service_instance(instance_id)
+            clone_source_uuid = srv_inst.resource_uuid
+            admin_username, admin_pwd = self.__clone_handle_admin_credentials(srv_inst, admin_username, admin_pwd)
 
-        # get key
-        key_name = data_instance.get("KeyName", None)
-        ApiComputeKeyPairsHelper(self.controller).check_service_instance(key_name, account_id)
+        key_name = self.__check_ssh_key(data_instance, account_id, os_name, is_clone)
+        type_provider = data_instance.get("Nvl_Hypervisor") or self.get_config("type") or "vsphere"
+        self.set_config("type", type_provider)
+        metadata = data_instance.get("Nvl_Metadata") or self.get_config("metadata") or {}
+        multi_avz = data_instance.get("Nvl_MultiAvz") or self.get_config("multi_avz") or True
+        host_group = data_instance.get("Nvl_HostGroup") or self.get_config("host_group")
+        image_volume_size = image_configs.get("min_disk_size")
+        image_avz_hypervisors = {a["name"]: a["hypervisors"] for a in image_resource.get("availability_zones")}
+        default_volume_type = self.controller.get_default_service_def("ComputeVolume")
 
-        # check the TagSpecificationId
-        tag_specification_list = data_instance.get("TagSpecification_N", [])
-        tags_list = ""
-        for tag_specification in tag_specification_list:
-            tags = tag_specification.get("Tags", [])
-            for tag in tags:
-                key = tag.get("Key", None)
-                # tags_list
-                if key is not None:
-                    tags_list.append(key)
-
-        # check quotas
+        quotas = self.__initialize_quotas()
+        flavor_resource, storage, quotas = self.__configure_flavor(
+            default_volume_type, type_provider, host_group, flavor_resource_uuid, image_inst, quotas
+        )
+        storage, quotas = self.__configure_block_device_mapping(
+            default_volume_type, data_instance, image_volume_size, storage, quotas
+        )
         self.check_quotas(compute_zone, quotas)
 
-        # management of user_data
-        user_data = ""
+        network, av_zone = self.__configure_network(
+            data_instance, type_provider, hostname, account_id, compute_zone, image_avz_hypervisors
+        )
+        security_groups = self.__check_security_groups(data_instance, account_id)
 
         # check if instance come from a backup restore
         restore_from_backup = data_instance.get("RestoreFromBackup", False)
-        restore_point = data_instance.get("RestorePoint", None)
-        backup_instance_resource_uuid = data_instance.get("BackupInstance", None)
+        restore_point = data_instance.get("RestorePoint")
+        backup_instance_resource_uuid = data_instance.get("BackupInstance")
 
+        tags_list = (
+            tag.get("Key")
+            for tag_spec in data_instance.get("TagSpecification_N", [])
+            for tag in tag_spec.get("Tags", [])
+            if tag.get("Key") is not None
+        )
         name = "%s-%s" % (self.instance.name, id_gen(length=8))
         data = {
+            "admin_username": admin_username,
             "admin_pass": admin_pwd,
             "key_name": key_name,
             "availability_zone": av_zone,
             "multi_avz": multi_avz,
             "compute_zone": compute_zone,
-            "container": container_id,
+            "container": self.get_config("container"),
             "desc": name,
             "flavor": flavor_resource_uuid,
-            # 'image': image_inst.resource_uuid,
             "metadata": metadata,
             "name": name,
             "networks": [network],
-            "security_groups": security_group_ress,
+            "security_groups": security_groups,
             "block_device_mapping": storage,
             "type": type_provider,
             "orchestrator_tag": "default",
-            "user_data": user_data,
+            "user_data": "",
             "tags": ",".join(tags_list),
-            "check_main_vol_size": check_main_vol_size,
+            "check_main_vol_size": data_instance.get("CheckMainVolSize", True),
+            "clone_source_uuid": clone_source_uuid,
         }
         if host_group is not None:
             data["host_group"] = host_group
-        if restore_from_backup is True:
+        if restore_from_backup:
             data.update(
                 {
                     "restore_from_backup": restore_from_backup,
@@ -2046,18 +2103,16 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
                     "backup_instance_resource_uuid": backup_instance_resource_uuid,
                 }
             )
-
         # set volume type to use when create ApiComputeVolume instance
         data["volume_type"] = default_volume_type.uuid
         params["resource_params"] = data
         self.logger.debug("Pre create params: %s" % obscure_data(deepcopy(params)))
-
         return params
 
     #
     # import
     #
-    def pre_import(self, **params):
+    def pre_import(self, **params) -> dict:
         """Check input params before resource import. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -2194,7 +2249,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
 
         return params
 
-    def pre_patch(self, **params):
+    def pre_patch(self, **params) -> dict:
         """Pre patch function. This function is used in update method. Extend this function to manipulate and
         validate patch input params.
 
@@ -2235,6 +2290,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
     def post_delete(self, **params):
         """Post delete function. This function is used in delete method. Extend this function to execute action after
         object was deleted.
+        ATTENTION: the delete in async task so post_delete is called immediately!
 
         :param params: input params
         :return: None
@@ -2246,17 +2302,35 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         except Exception:
             resource = None
 
-        if resource is not None:
-            for item in resource.get("block_device_mapping", []):
+        if resource is None:
+            self.logger.error(
+                "post_delete - resource None - cannot delete volume of service instance %s" % self.instance.oid
+            )
+        else:
+            block_device_mapping = resource.get("block_device_mapping", [])
+            if len(block_device_mapping) == 0:
+                self.logger.error("post_delete - block_device_mapping empty")
+
+            for item in block_device_mapping:
                 resource_vol_uuid = item.get("id", None)
+                self.logger.debug("post_delete - resource_vol_uuid: %s" % resource_vol_uuid)
+
                 volume, tot = self.controller.get_service_type_plugins(
                     resource_uuid=resource_vol_uuid,
                     plugintype=ApiComputeVolume.plugintype,
                 )
                 if tot > 0:
-                    volume = volume[0]
+                    volume: ApiComputeVolume = volume[0]
+                    # soft delete - only logic service delete (not resource)
                     volume.delete_instance()
-                    self.logger.debug("delete volume service instance %s" % volume.uuid)
+                    self.logger.debug(
+                        "post_delete - delete volume service type %s - uuid: %s - instance oid: %s"
+                        % (type(volume), volume.uuid, volume.instance.oid)
+                    )
+                else:
+                    self.logger.error(
+                        "post_delete - ApiComputeVolume not found - resource_vol_uuid: %s" % resource_vol_uuid
+                    )
 
         return None
 
@@ -2284,11 +2358,6 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         :return: action params
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        # check hypervisor
-        # type_provider = self.get_config('type')
-        # if type_provider == 'vsphere':
-        #     raise ApiManagerError('Instance type change is not already supported for provider %s' % type_provider)
-
         # check instance status
         if self.get_runstate() in ["poweredOn", "poweredOff"]:
             try:
@@ -2421,9 +2490,6 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         :return: object instance
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        # check quotas
-        # self.check_quotas(compute_zone, quotas)
-
         params = {"resource_params": {"action": {"name": "add_snapshot", "args": {"snapshot": snapshot}}}}
         res = self.update(**params)
         self.logger.info("Add snapshot %s to instance %s" % (snapshot, self.instance.uuid))
@@ -2453,6 +2519,12 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         """
         if self.exists_snapshot(snapshot) is False:
             raise ApiManagerError("snapshot %s does not exist" % snapshot)
+
+        if self.is_last_snapshot(snapshot) is False:
+            raise ApiManagerError(
+                "snapshot %s is not the last snapshot for this vm, if you want to restore this VM snapshot, remove the others first"
+                % snapshot
+            )
 
         params = {"resource_params": {"action": {"name": "revert_snapshot", "args": {"snapshot": snapshot}}}}
         res = self.update(**params)
@@ -2495,7 +2567,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         :return: backup resource points
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        self.instance.verify_permisssions("use")
+        self.instance.verify_permisssions("view")
 
         restore_points, restore_point_total = self.get_resource_backup_job_restore_points(data_search)
         restore_points = [self.aws_restore_point_info(item) for item in restore_points]
@@ -2511,7 +2583,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         :return: backup restores list
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        self.instance.verify_permisssions("use")
+        self.instance.verify_permisssions("view")
 
         restores = self.get_resource_backup_restores(restore_point)
         if restores is not None:
@@ -2530,7 +2602,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         if accepted_status is None:
             accepted_status = ["available"]
 
-        restore_points = self.get_resource_backup_job_restore_points()
+        restore_points = self.get_resource_backup_job_restore_points({})
         for s in restore_points:
             if s["id"] != restore_point:
                 self.logger.debug("+++++ id: %s - restore_point: %s" % (s["id"], restore_point))
@@ -2540,7 +2612,6 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
             else:
                 self.logger.debug("+++++ status: %s - accepted_status: %s" % (s["status"], accepted_status))
 
-        # rps = [s for s in self.get_resource_backup_job_restore_points()
         rps = [s for s in restore_points if s["id"] == restore_point and s["status"] in accepted_status]
         if len(rps) > 0:
             return rps[0]
@@ -2584,8 +2655,6 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
                     }
                     for v in block_device_mapping
                 ],
-                # 'AdminPassword'
-                # 'KeyName'
                 "RestoreFromBackup": True,
                 "BackupInstance": self.instance.resource_uuid,
                 "RestorePoint": restore_point,
@@ -2651,22 +2720,6 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         self.logger.info("disable monitoring on instance %s" % self.instance.uuid)
         return res
 
-    # def disable_resource_monitoring(self, task):
-    #     """Disable resource monitoring. Invoked by delete_resource()
-    #
-    #     :param task: celery task reference
-    #     :return:
-    #     """
-    #     uuid = self.instance.resource_uuid
-    #     if uuid is not None:
-    #         uri = '/v1.0/nrs/provider/instances/%s/actions' % uuid
-    #         data = {'action': {'disable_monitoring': {}}}
-    #         res = self.controller.api_client.admin_request('resource', uri, 'put', data=data)
-    #         taskid = res.get('taskid', None)
-    #         if taskid is not None:
-    #             self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-    #         self.logger.debug('disable monitoring on instance %s' % self.instance.uuid)
-
     def enable_logging(self, files, pipeline):
         """enable logging [DEPRECATED]
 
@@ -2696,58 +2749,6 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         params = {"resource_params": {"action": {"name": "disable_logging", "args": {}}}}
         res = self.update(**params)
         return res
-
-    # def enable_log_module(self, module, module_params):
-    #     """enable log module
-    #
-    #     :param module: module to disable
-    #     :param module_params: module params per ansible
-    #     :return: object instance
-    #     :raises ApiManagerError: raise :class:`.ApiManagerError`
-    #     """
-    #     self.logger.info('+++++ enable_log_module to instance %s' % self.instance.uuid)
-    #     self.logger.info('+++++ enable_log_module to instance - module: %s' % module)
-    #     self.logger.info('+++++ enable_log_module to instance - module_params: {}'.format(module_params))
-    #     params = {
-    #         'resource_params': {
-    #             'action': {
-    #                 'name': 'enable_log_module',
-    #                 'args': {
-    #                     'module': module,
-    #                     'module_params': module_params
-    #                 }
-    #             }
-    #         }
-    #     }
-    #     res = self.update(**params)
-    #     self.logger.info('+++++ enable_log_module to instance %s' % self.instance.uuid)
-    #     return res
-    #
-    # def disable_log_module(self, module, module_params):
-    #     """disable log module
-    #
-    #     :param module: module to disable
-    #     :param module_params: module params per ansible
-    #     :return: object instance
-    #     :raises ApiManagerError: raise :class:`.ApiManagerError`
-    #     """
-    #     self.logger.info('+++++ disable_log_module to instance %s' % self.instance.uuid)
-    #     self.logger.info('+++++ disable_log_module to instance - module: %s' % module)
-    #     self.logger.info('+++++ disable_log_module to instance - module_params: {}'.format(module_params))
-    #     params = {
-    #         'resource_params': {
-    #             'action': {
-    #                 'name': 'disable_log_module',
-    #                 'args': {
-    #                     'module': module,
-    #                     'module_params': module_params
-    #                 }
-    #             }
-    #         }
-    #     }
-    #     res = self.update(**params)
-    #     self.logger.info('+++++ disable_log_module to instance %s' % self.instance.uuid)
-    #     return res
 
     def manage_user(self, user_params):
         """Manage user. Add, delete, change password
@@ -2901,6 +2902,20 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
             return True
         return False
 
+    def is_last_snapshot(self, snapshot):
+        """check if snapshot is the last one
+
+        :param snapshot: snapshot id
+        :return: True if exists
+        """
+        snapshots = self.get_snapshots()
+        if len(snapshots) > 0:
+            max_snapshot = max(snapshots, key=lambda x: x["createTime"])
+            if max_snapshot["snapshotId"] == snapshot:
+                return True
+            return False
+        return False
+
     @trace(op="view")
     def get_resource_backup_job_restore_points(self, data_search):
         """Get resource backup
@@ -2909,10 +2924,10 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         restore_points = None
-        if self.instance.resource_uuid is not None:
+        if self.instance.resource_uuid is not None and data_search is not None:
             data = {
-                "size": data_search["size"],
-                "page": data_search["page"],
+                "size": data_search.get("size", -1),
+                "page": data_search.get("page", 0),
             }
             uri = "/v1.0/nrs/provider/instances/%s/backup/restore_points" % self.instance.resource_uuid
             res = self.controller.api_client.admin_request("resource", uri, "get", data=data)
@@ -3101,10 +3116,6 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
             volume_type_resource_name = dict_get(volume_resource, "flavor.name")
             volume_type = self.get_volume_type_by_resource(volume_type_resource_name).uuid
 
-            # get compute service instance
-            # insts, total = self.controller.get_service_type_plugins(
-            #     account_id=account_id, plugintype=ApiComputeService.plugintype)
-            # parent_plugin = insts[0]
             parent_plugin = self.get_parent()
 
             # create volume service instance
@@ -3154,11 +3165,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         :return: True
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        # resource_params = params.get('resource_params')
-        # resource_uuid = params.get('resource_uuid')
-
         self.__import_volumes_from_resource()
-
         return self.instance.uuid
 
     def disable_resource_monitoring(self, task):
@@ -3192,12 +3199,6 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         monitoring_enabled = dict_get(resource, "attributes.monitoring_enabled")
         self.logger.debug("delete_resource - monitoring_enabled %s" % monitoring_enabled)
         if monitoring_enabled is True:
-            # don't disinstall agent yet
-            # if self.get_simple_runstate() == "poweredOff":
-            #     raise ApiManagerError(
-            #         "compute instance %s with monitoring enabled and stopped: cannot delete"
-            #         % self.instance.uuid
-            #     )
             self.logger.debug("delete_resource - disable_resource_monitoring")
             self.disable_resource_monitoring(task)
 
@@ -3210,6 +3211,8 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
 class ApiComputeKeyPairs(ApiServiceTypePlugin):
     plugintype = "ComputeKeyPairs"
     objname = "keypair"
+    key_type = None
+    key_bits = None
 
     keyMaterial = None
 
@@ -3231,13 +3234,24 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
         return info
 
     @staticmethod
+    def get_ssh_keys_idx(controller: ServiceController, ssh_key_names=None):
+        if ssh_key_names is None:
+            return []
+        data = {"key_names": ssh_key_names, "size": -1, "page": 0}
+        data = urlencode(data)
+        uri = "/v1.0/gas/keys"
+        keys = controller.api_client.admin_request("ssh", uri, "get", data=data).get("keys", [])
+        return {k["name"]: k for k in keys}
+
+    @staticmethod
     def customize_list(
         controller: ServiceController,
         entities: List[ApiComputeKeyPairs],
         *args,
         **kvargs,
     ) -> List[ApiComputeKeyPairs]:
-        """Post list function. Extend this function to execute some operation after entity was created. Used only for
+        """
+        Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
         :param controller: controller instance
@@ -3248,15 +3262,25 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
         :raise ApiManagerError:
         """
         account_idx = controller.get_account_idx()
-
+        ssh_key_names = []
         for entity in entities:
-            account_id = str(entity.instance.account_id)
-            entity.account = account_idx.get(account_id)
-
+            ssh_key_names.append(entity.instance.name)
+            entity.account = account_idx.get(f"{entity.instance.account_id}")
+        ssh_keys_idx = ApiComputeKeyPairs.get_ssh_keys_idx(controller, ssh_key_names)
+        for entity in entities:
+            ent_inst = entity.instance
+            ent_inst_name = ent_inst.name
+            ssh_key = ssh_keys_idx.get(f"{ent_inst_name}")
+            if ssh_key is None:
+                self.logger.error(f"Compute key pair {ent_inst.uuid} has no ssh nodes with name {ent_inst_name}")
+                continue
+            entity.key_type = ssh_key.get("type")
+            entity.key_bits = ssh_key.get("bits")
         return entities
 
     def post_get(self):
-        """Post get function. This function is used in get_entity method. Extend this function to extend description
+        """
+        Post get function. This function is used in get_entity method. Extend this function to extend description
         info returned after query.
 
         :raise ApiManagerError:
@@ -3264,20 +3288,21 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
         self.account = self.controller.get_account(str(self.instance.account_id))
 
     def aws_info(self):
-        """Get info as required by aws api
+        """
+        Get info as required by aws api
 
         :return:
         """
         instance_item = {}
-        instance_item["keyName"] = self.instance.name
-        instance_item["nvl-keyId"] = self.instance.uuid
+        inst = self.instance
+        inst_name = inst.name
+        instance_item["keyName"] = inst.name
+        instance_item["nvl-keyId"] = inst.uuid
         instance_item["keyFingerprint"] = self.get_config("keyFingerprint")
         instance_item["nvl-ownerAlias"] = self.account.name
         instance_item["nvl-ownerId"] = self.account.uuid
-        # key = self.get_config('ssh_key')
-        # if key is not None:
-        #     instance_item['keyFingerprint'] = key.get('keyFingerprint', '')
-
+        instance_item["bits"] = self.key_bits
+        instance_item["type"] = self.key_type
         return instance_item
 
     def aws_create_info(self):
@@ -3288,10 +3313,7 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
         instance_item = {}
         instance_item["keyName"] = self.instance.name
         instance_item["keyFingerprint"] = self.get_config("keyFingerprint")
-        # instance_item['keyMaterial'] = self.get_config('keyMaterial')
         instance_item["keyMaterial"] = self.keyMaterial
-        # self.set_config('keyMaterial', '') # keyMaterial viene rimosso
-
         return instance_item
 
     def aws_import_info(self):
@@ -3302,7 +3324,6 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
         instance_item = {}
         instance_item["keyName"] = self.instance.name
         instance_item["keyFingerprint"] = self.get_config("keyFingerprint")
-
         return instance_item
 
     def __add_resource(self, **params):
@@ -3310,8 +3331,8 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
         # get parent account
         account = self.controller.get_account(self.instance.account_id)
         try:
-            bits = 2048
-            type = "rsa"
+            bits = 4096
+            key_type = "rsa"
 
             # generating private key
             prv = RSAKey.generate(bits=bits)
@@ -3336,7 +3357,7 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
                     "name": key_name,
                     "desc": key_name,
                     "pub_key": ensure_text(pub_key),
-                    "type": type,
+                    "type": key_type,
                     "bits": bits,
                 }
             }
@@ -3353,14 +3374,6 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
             # save private key
             b64_priv_key = ensure_text(b64decode(ensure_binary(priv_key)))
             self.keyMaterial = b64_priv_key
-            # Check me  possible issue di sicurezza
-            # Check me # if account.managed is False:
-            # Check me #     # useless set keyMaterial in config and delete it in aws_create_info
-            # Check me #     # self.set_config('keyMaterial', b64_priv_key) # anche account privati sono managed!
-            # Check me #     self.keyMaterial = b64_priv_key
-            # Check me # else:
-            # Check me #     # self.set_config('keyMaterial', '') # set anche qui
-            # Check me #     self.keyMaterial = b64_priv_key
 
             return params
         except Exception as ex:
@@ -3369,8 +3382,8 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
 
     def __import_resource(self, **params):
         """ """
-        bits = 2048
-        type = "rsa"
+        bits = 4096
+        key_type = "rsa"
         key_name = self.get_config("KeyName")
         data = {
             "key": {
@@ -3378,15 +3391,10 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
                 "desc": key_name,
                 "priv_key": "",
                 "pub_key": params.get("public_key_material"),
-                "type": type,
+                "type": key_type,
                 "bits": bits,
             }
         }
-
-        # get account
-        # account = self.controller.get_account(self.instance.account_id)
-        # if account.managed is True:
-
         ssh_key_name = key_name
         self.set_config("SshKeyName", ssh_key_name)
         res = self.add_resource(data)
@@ -3399,13 +3407,12 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
 
         # set key fingerprint
         self.set_config("keyFingerprint", printableFingerprint)
-
         return params
 
     #
     # resource client method
     #
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -3437,8 +3444,6 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
         :return: None
         :raise ApiManagerError:
         """
-        # if params is not None:
-        #     self.set_config('ssh_key', params.get('key', {}))
         return None
 
     def pre_delete(self, **params):
@@ -3450,9 +3455,7 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
         :raise ApiManagerError:
         """
         key_name = self.instance.name
-        # key_name = params.pop('key_name', None)
         res = self.remove_resource(key_name)
-
         return params
 
     def pre_update(self, **params):
@@ -3475,7 +3478,6 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
         try:
             ssh_key_name = self.get_config("SshKeyName")
             self.get_resource(ssh_key_name)
-            # self.get_resource(key_name)
             return True
         except BaseException:
             raise ApiManagerError("Ssh key %s does not exist or you are not authorized to use it" % key_name)
@@ -3522,7 +3524,6 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
         try:
             ssh_key_name = self.get_config("SshKeyName")
             uri = "/v1.0/gas/keys/%s" % ssh_key_name
-            # uri = '/v1.0/gas/keys/%s' % key_name
             key = self.controller.api_client.admin_request("ssh", uri, "get", data="").get("key")
             self.logger.debug("Get ssh key: %s" % truncate(key))
         except BeehiveApiClientError as ex:
@@ -3561,7 +3562,6 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
         try:
             ssh_key_name = self.get_config("SshKeyName")
             uri = "/v1.0/gas/keys/%s" % ssh_key_name
-            # uri = '/v1.0/gas/keys/%s' % key_name
             res = self.controller.api_client.admin_request("ssh", uri, "delete")
         except BeehiveApiClientError as ex:
             self.logger.error(ex, exc_info=True)
@@ -3600,9 +3600,7 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
         :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        info = ApiServiceTypePlugin.info(self)
-        info.update({})
-        return info
+        return ApiServiceTypePlugin.info(self)
 
     @staticmethod
     def customize_list(
@@ -3636,12 +3634,8 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
             entity.account_idx = account_idx
             entity.vpc_idx = vpc_idx
             entity.security_group_idx = security_group_idx
-            # if entity.compute_service.resource_uuid not in zones:
-            #     zones.append(entity.compute_service.resource_uuid)
             if entity.instance.resource_uuid is not None:
                 resources.append(entity.instance.resource_uuid)
-            # if entity.instance.account_id not in account_id_list:
-            #     account_id_list.append(entity.instance.account_id)
 
             config = entity.get_config("security_group")
 
@@ -3650,19 +3644,8 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
                 vpc = vpc_idx.get(config.get("VpcId"))
                 vpc_list.append(vpc.resource_uuid)
 
-        # # get all the vpcs (resource) child of the accounts
-        # vpc_list = []
-        # vpcs, total = controller.get_service_type_plugins(account_id_list=account_id_list,
-        #                                                   plugintype=ApiComputeVPC.plugintype)
-        # for vpc in vpcs:
-        #     vpc_list.append(vpc.instance.resource_uuid)
-
         if len(resources) > 3:
             resources = []
-        # else:
-        #     vpc_list = []
-        # resources_list, rule_resource_list = ApiComputeSecurityGroup(controller).\
-        #     list_resources(vpcs=vpc_list, uuids=resources)
         resources_list = ApiComputeSecurityGroup(controller).list_resources(vpcs=vpc_list, uuids=resources)
         resources_idx = {r["uuid"]: r for r in resources_list}
 
@@ -3823,6 +3806,7 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
         if len(ipv6_range_list) > 0:
             others = ["Cidr:%s" % i for i in ipv6_range_list]
 
+        others = []
         # get security group
         group_list = self.get_group_list(ip_permission)
         if len(group_list) > 0:
@@ -3993,11 +3977,11 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
 
             "source": {
                 "type": "Cidr",
-                "value": "158.102.160.0/24"
+                "value": "1.1.1.0/24"
             },
             "destination": {
                 "type": "SecurityGroup",
-                "value": "01a3e2a3-940c-4c6d-b0fe-3235c6199214"
+                "value": "<uuid>"
             },
             "service": {
                 "protocol": "*",
@@ -4109,7 +4093,7 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
         reserved = rule.get("reserved")
         return reserved
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -4136,19 +4120,25 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
 
         name = "%s-%s" % (self.instance.name, id_gen(length=8))
 
+        # orchestrator_select_types_array = None
+        # orchestrator_select_types: str = self.get_config("orchestrator_select_types")
+        # if orchestrator_select_types is not None:
+        #     orchestrator_select_types_array = orchestrator_select_types.split(",")
+
         data = {
             "container": container_id,
             "name": name,
             "desc": self.instance.desc,
             "vpc": vpc.resource_uuid,
             "compute_zone": compute_zone,
+            # "orchestrator_select_types": orchestrator_select_types_array,
         }
         params["resource_params"] = data
         self.logger.debug("Pre create params: %s" % obscure_data(deepcopy(params)))
 
         return params
 
-    def pre_patch(self, **params):
+    def pre_patch(self, **params) -> dict:
         """Pre patch function. This function is used in update method. Extend this function to manipulate and
         validate patch input params.
 
@@ -4191,8 +4181,7 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
             raise ApiManagerError("Rule with the same parameters already exists")
 
         rule_data = self.get_rule_ip_permission({"rule": rule}, self.instance, rule_type)
-
-        res = self.rule_factory(rule_data, reserved=False)
+        self.rule_factory(rule_data, reserved=False)
         return True
 
     def aws_delete_rule(self, security_group, rule, rule_type):
@@ -4224,129 +4213,6 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
             self.rule_delete_factory(rule)
 
         return True
-
-    # def translate_rule_item_for_resource(self, instance, item, sg_uuid=None, bpmn=False):
-    #     """Translate a rule item destination or source:
-    #     if type is 'SecurityGroup' check if the iteme is self referencing
-    #     i.e the value is '<SELF>' or '<resource id of SecurityGroup>'
-    #     set value to instance resource uuid
-    #     otherwise get  the target instance service and set value to his resource uuid
-    #
-    #     [VERIFY]
-    #
-    #     TODO: Trust rules between accounts for automatic authorization of rules creation
-    #
-    #     :param instance:  ServiceInstance the sg for which we are working
-    #     :param item: a destination or source definition of a roule
-    #     :param bpmn:  if true add transalate for  bpmn.
-    #         when working for calling the resource api alwayse set to False
-    #         Only the Bpmn process use the account information.
-    #     :return: dictionary the item converted
-    #     """
-    #     if item.get('type', '') == 'SecurityGroup':
-    #         value = item.get('value')
-    #         if value == "<SELF>" or value == "<resource id of SecurityGroup>":
-    #             # the rule is self referencing sg
-    #             if instance.model.resource_uuid is None:
-    #                 if bpmn:
-    #                     item['value'] = '<SELF>'
-    #                 else:
-    #                     item['value'] = sg_uuid
-    #             else:
-    #                 item['value'] = instance.model.resource_uuid
-    #         else:
-    #             sg_service = self.controller.get_service_instance(value)
-    #             item['value'] = sg_service.model.resource_uuid
-    #             if bpmn and sg_service.uuid != instance.uuid:
-    #                 item['instance_uuid'] = sg_service.uuid
-    #                 item['srvinstance_account_id'] = sg_service.account_id
-    #     return item
-    #
-    # def prepare_add_rule_process_variables(self, instance, template, **kvargs):
-    #     """Prepapre process variables for add_rule method
-    #     [VERIFY]
-    #
-    #     :param instance:
-    #     :param template:
-    #     :param rule:
-    #     :return dictionary:
-    #     """
-    #     rule = kvargs.get('rule', {})
-    #     reserved = kvargs.get('reserved', False)
-    #     service = rule.get('service', {})
-    #     source = self.translate_rule_item_for_resource(instance, rule.get('source', {}), bpmn=True)
-    #     destination = self.translate_rule_item_for_resource(instance, rule.get('destination', {}), bpmn=True)
-    #     data = {
-    #         'rule': {
-    #             'service': service,
-    #             'source': source,
-    #             'destination': destination,
-    #         },
-    #         'reserved': reserved,
-    #     }
-    #
-    #     return self.base_prepare_process_variables(instance, template, **data)
-    #
-    # def prepare_create_process_variables(self, instance, template, **kvargs):
-    #     """[VERIFY]
-    #
-    #     :param instance:
-    #     :param template:
-    #     :param kvargs:
-    #     :return:
-    #     """
-    #     res_type = 'Provider.ComputeZone.SGroup'
-    #     container = None
-    #
-    #     active_cfg = instance.get_main_config()
-    #
-    #     if active_cfg is not None and active_cfg.json_cfg is not None:
-    #         json_cfg = active_cfg.json_cfg
-    #         container = json_cfg.get('container', container)
-    #         # rules = json_cfg.get('rules', [])
-    #
-    #         # root instance is a ComputeService
-    #         compute = instance.getRoot()
-    #
-    #         if compute is not None:
-    #             parent_cfg = compute.get_main_config()
-    #
-    #         if parent_cfg is not None and parent_cfg.json_cfg is not None:
-    #             container = parent_cfg.json_cfg.get('container', container)
-    #
-    #     else:
-    #         raise ApiManagerError(
-    #             'Active ServiceInstanceConfig not found for instance %s' %
-    #             instance.oid)
-    #
-    #     # verify the plugintype
-    #     list_vpc = self.controller.get_service_instances(plugintype='ComputeVPC', parent_id=compute.oid,
-    #                                                      id=instance.model.linkParent[0].start_service_id)
-    #
-    #     if list_vpc is None or len(list_vpc) != 1:
-    #         raise ApiManagerError(
-    #             'ComputeVPC not found for ComputeService %s' %
-    #             compute.oid)
-    #
-    #     vpc = list_vpc[0]
-    #
-    #     kvargs['__prefix'] = '%s-%s' % (res_type, instance.model.id)
-    #     kvargs['container'] = container
-    #     kvargs['name'] = '%s-%s-%s' % (res_type,
-    #                                      instance.model.id,
-    #                                      instance.model.name)
-    #     kvargs['desc'] = '%s-%s-%s' % (res_type,
-    #                                      instance.model.id,
-    #                                      instance.model.desc)
-    #     kvargs['vpc'] = vpc.resource_uuid
-    #
-    #     data = super(
-    #         ApiComputeSecurityGroup,
-    #         self).prepare_create_process_variables(
-    #         instance,
-    #         template ** kvargs)
-    #
-    #     return data
 
     def rule_factory(self, rule, reserved=False):
         """Factory used toe create a rule using a task or a camunda process.
@@ -4424,16 +4290,6 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
 
         return sgs
 
-        # # get rules for each security group
-        # sg_ids = []
-        # for sg in sgs:
-        #     sg_ids.append(sg.get('uuid'))
-        # data_rules = {'security_groups': ','.join(sg_ids), 'size': -1}
-        # rules = self.controller.api_client.admin_request('resource', '/v1.0/nrs/provider/rules', 'get',
-        #                                                  data=urlencode(data_rules)).get('rules', [])
-        # self.controller.logger.debug('Get compute rule resources: %s' % truncate(rules))
-        # return sgs, rules
-
     def create_resource(self, task, *args, **kvargs):
         """Create resource
 
@@ -4503,6 +4359,7 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
                 "source": rule.get("source"),
                 "destination": rule.get("destination"),
                 "service": rule.get("service"),
+                "rule_orchestrator_types": rule.get("orchestrators"),
                 "reserved": reserved,
             }
         }
@@ -4544,18 +4401,6 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
         :return: True
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        # compute_zone = self.get_config('computeZone')
-        # container = self.get_config('container')
-        #
-        # # create new rules
-        # action = kvargs.get('action', None)
-        # rules = kvargs.get('rules', [])
-        # for rule in rules:
-        #     if action == 'add-rules':
-        #         self.create_resource_rule(compute_zone, rule, container, reserved=False)
-        #     elif action == 'del-rules':
-        #         self.delete_rule_resource(rule)
-
         return True
 
     def action_resource(self, task, *args, **kvargs):
@@ -4578,7 +4423,6 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
                 self.create_resource_rule(task, compute_zone, rule, container, reserved=False)
             elif action == "del-rules":
                 self.delete_rule_resource(task, rule)
-
         return True
 
     def patch_resource(self, task, *args, **kvargs):
@@ -4832,17 +4676,9 @@ class ApiComputeSubnet(AsyncApiServiceTypePlugin):
         """
         inst_service = self.instance
         instance_item = {}
-
-        # vpc = inst_service.getParent()
-
         instance_item["assignIpv6AddressOnCreation"] = False
         instance_item["availableIpAddressCount"] = None
         instance_item["defaultForAz"] = True
-        # ipv6CidrBlockAssociationSet = {}
-        # ipv6CidrBlockAssociationSet['associationId'] = ''
-        # ipv6CidrBlockAssociationSet['ipv6CidrBlock'] = ''
-        # ipv6CidrBlockAssociationSet['ipv6CidrBlockState'] = {'state': '', 'statusMessage': ''}
-        # instance_item['ipv6CidrBlockAssociationSet'] = [ipv6CidrBlockAssociationSet]
         instance_item["mapPublicIpOnLaunch"] = False
         instance_item["tagSet"] = []
 
@@ -4862,7 +4698,7 @@ class ApiComputeSubnet(AsyncApiServiceTypePlugin):
 
         return instance_item
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -4883,27 +4719,17 @@ class ApiComputeSubnet(AsyncApiServiceTypePlugin):
         self.set_config("site", zone)
 
         # get vpc
-        vpc = self.controller.get_service_type_plugin(vpc_id, plugin_class=ApiComputeVPC)
+        vpc: ApiComputeVPC = self.controller.get_service_type_plugin(vpc_id, plugin_class=ApiComputeVPC)
         tenancy = vpc.get_tenancy()
-
-        # # base quotas
-        # quotas = {
-        #     'compute.images': 1,
-        # }
-
-        # compute_zone = self.get_config('computeZone')
-
-        # check quotas
-        # self.check_quotas(compute_zone, quotas)
 
         if tenancy == "default":
             params["resource_params"] = {}
+
         elif tenancy == "dedicated":
             params["resource_params"] = {
                 "vpc": {"id": vpc.resource_uuid, "tenancy": tenancy},
                 "cidr": cidr,
                 "dns_search": dns_search,
-                # 'zabbix_proxy':,
                 "dns_nameservers": ["10.103.48.1", "10.103.48.2"],
                 "availability_zone": zone,
                 "orchestrator_tag": "default",
@@ -5199,7 +5025,7 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
         """
         self.account = self.controller.get_account(str(self.instance.account_id))
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -5211,14 +5037,8 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
         container_id = self.get_config("container")
         compute_zone = self.get_config("computeZone")
         data_instance = self.get_config("volume")
-        # volume_type = data_instance.get_config('VolumeType')
         av_zone = data_instance.get("AvailabilityZone")
         size = data_instance.get("Size")
-        # SnapshotId
-        # Iops
-        # MultiAttachEnabled
-        # Encrypted
-        # Nvl_Hypervisor
 
         # base quotas
         quotas = {"compute.volumes": 1, "compute.blocks": int(size)}
@@ -5239,7 +5059,7 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
 
         # check the TagSpecificationId
         tag_specification_list = data_instance.get("TagSpecification_N", [])
-        tags_list = ""
+        tags_list = []
         for tag_specification in tag_specification_list:
             tags = tag_specification.get("Tags", [])
             for tag in tags:
@@ -5273,7 +5093,7 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
 
         return params
 
-    def pre_import(self, **params):
+    def pre_import(self, **params) -> dict:
         """Check input params before resource import. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -5369,7 +5189,6 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
         compute_instance = None
         attach_time = None
         attach_status = "detached"
-        # links, tot = self.manager.get_links(end_service=self.instance.oid, type='volume', with_perm_tag=False)
         instance_resource = self.resource.get("instance", None)
         if instance_resource is not None:
             instance_resource_uuid = instance_resource.get("uuid", None)
@@ -5405,19 +5224,12 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
         instance_item["encrypted"] = False
         instance_item["multiAttachEnabled"] = False
 
-        # instance_item['instanceType'] = self.instance_type_idx.get(str(self.instance.service_definition_id)).name
-        # instance_item['instanceState'] = {'name': self.state_mapping(status, self.resource.get('runstate', None))}
-        # instance_item['stateReason'] = {'code': None, 'message': None}
-        # if status == 'ERROR':
-        #     instance_item['stateReason'] = {'code': 400, 'message': self.instance.last_error}
-
         # custom params
         instance_item["nvl-hypervisor"] = self.get_config("type")
         instance_item["nvl-name"] = self.instance.name
         instance_item["nvl-volumeOwnerAlias"] = self.account.name
         instance_item["nvl-volumeOwnerId"] = self.account.uuid
         instance_item["nvl-resourceId"] = self.instance.resource_uuid
-
         return instance_item
 
     #
@@ -5471,11 +5283,6 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
             }
         }
         res = self.update(**params)
-
-        # create link between instance and volume
-        # link = instance.add_link(name='volume-%s' % id_gen(), type='volume', end_service=self.instance.oid,
-        #                          attributes={})
-
         self.logger.info("Attach instance %s to volume %s" % (instance_id, self.instance.uuid))
         return None
 
@@ -5505,10 +5312,6 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
             }
         }
         res = self.update(**params)
-
-        # remove link between instance and volume
-        # link = instance.del_link(self.instance.oid, 'volume')
-
         self.logger.info("Detach instance %s to volume %s" % (instance_id, self.instance.uuid))
         return None
 
@@ -5753,12 +5556,6 @@ class ApiComputeVPC(AsyncApiServiceTypePlugin):
             }
             instance_item["cidrBlockAssociationSet"].append(cidr_block_association_set)
 
-            # ipv6_cidr_block_association_set = {}
-            # ipv6_cidr_block_association_set['associationId'] = subnet.uuid
-            # ipv6_cidr_block_association_set['ipv6CidrBlock'] = ''
-            # ipv6_cidr_block_association_set['ipv6CidrBlockState'] = {'state': 'associated', 'statusMessage': ''}
-            # instance_item['ipv6CidrBlockAssociationSet'].append(ipv6_cidr_block_association_set)
-
         instance_item["dhcpOptionsId"] = ""
         instance_item["instanceTenancy"] = self.get_tenancy()
         instance_item["isDefault"] = False
@@ -5773,7 +5570,7 @@ class ApiComputeVPC(AsyncApiServiceTypePlugin):
 
         return instance_item
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -5822,7 +5619,6 @@ class ApiComputeVPC(AsyncApiServiceTypePlugin):
 
         params["resource_params"] = data
         self.logger.debug("Pre create params: %s" % obscure_data(deepcopy(params)))
-
         return params
 
     def pre_delete(self, **params):
@@ -6024,42 +5820,12 @@ class ApiComputeCustomization(AsyncApiServiceTypePlugin):
         instance_type_idx = controller.get_service_definition_idx(ApiComputeCustomization.plugintype)
         #
         # # get resources
-        # zones = []
-        # resources = []
         for entity in entities:
             instance_type = instance_type_idx.get(str(entity.instance.service_definition_id))
             account_id = str(entity.instance.account_id)
             entity.account = account_idx.get(account_id)
             entity.instance_type_id = instance_type.uuid
             entity.instance_type_name = instance_type.name
-        #     entity.subnet_idx = subnet_idx
-        #     entity.vpc_idx = vpc_idx
-        #     entity.image_idx = image_idx
-        #     entity.security_group_idx = security_group_idx
-        #     entity.volume_idx = volume_idx
-        #     entity.instance_type_idx = instance_type_idx
-        #     entity.compute_service = compute_service_idx.get(account_id)
-        #     if entity.compute_service.resource_uuid not in zones:
-        #         zones.append(entity.compute_service.resource_uuid)
-        #     if entity.instance.resource_uuid is not None:
-        #         resources.append(entity.instance.resource_uuid)
-        #
-        # if len(resources) == 0:
-        #     resources_idx = {}
-        # else:
-        #     if len(resources) > 3:
-        #         resources = []
-        #     else:
-        #         zones = []
-        #     if len(zones) > 40:
-        #         zones = []
-        #     resources_list = ApiComputeInstance(controller).list_resources(zones=zones, uuids=resources)
-        #     resources_idx = {r['uuid']: r for r in resources_list}
-        #
-        # # assign resources
-        # for entity in entities:
-        #     entity.resource = resources_idx.get(entity.instance.resource_uuid)
-
         return entities
 
     def post_get(self):
@@ -6072,11 +5838,6 @@ class ApiComputeCustomization(AsyncApiServiceTypePlugin):
         self.account = self.controller.get_account(str(self.instance.account_id))
         self.instance_type_id = instance_type.uuid
         self.instance_type_name = instance_type.name
-        # if self.resource_uuid is not None:
-        #     try:
-        #         self.resource = self.get_resource()
-        #     except:
-        #         self.resource = None
 
     def state_mapping(self, state):
         """Get the current state of the instance.
@@ -6138,7 +5899,7 @@ class ApiComputeCustomization(AsyncApiServiceTypePlugin):
 
         return instance_item
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 

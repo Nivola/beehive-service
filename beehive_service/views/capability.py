@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiView,
@@ -192,6 +192,8 @@ class CreateAccountCapabilityParamRequestSchema(Schema):
         many=True,
         description="List of Service definition added by the capability",
     )
+    account_type = fields.String(required=False, allow_none=True)
+    pods = fields.String(required=False, allow_none=True)
 
 
 class CreateAccountCapabilityRequestSchema(Schema):
@@ -225,6 +227,8 @@ class CreateAccountCapability(ServiceApiView):
         params = {
             "services": capability.get("services", []),
             "definitions": capability.get("definitions", []),
+            "account_type": capability.get("account_type", None),
+            "pods": capability.get("pods", None),
         }
         jsonparams = json.dumps(params)
         resp = controller.add_capability(name, desc=desc, version=version, params=jsonparams)
@@ -251,6 +255,8 @@ class UpdateAccountCapabilityParamRequestSchema(Schema):
         many=True,
         description="List of Service definition added by the capability",
     )
+    account_type = fields.String(required=False, allow_none=True)
+    pods = fields.String(required=False, allow_none=True)
 
 
 class UpdateAccountCapabilityRequestSchema(Schema):
@@ -275,7 +281,7 @@ class UpdateAccountCapability(ServiceApiView):
     response_schema = CrudApiObjectResponseSchema
 
     def put(self, controller, data, oid, *args, **kwargs):
-        capability = controller.get_capability(oid)
+        capability: ApiAccountCapability = controller.get_capability(oid)
 
         in_data = data.get("capability")
         params = capability.get_params()
@@ -293,6 +299,9 @@ class UpdateAccountCapability(ServiceApiView):
             params["services"] = in_data["services"]
         if "definitions" in in_data:
             params["definitions"] = in_data["definitions"]
+
+        params["account_type"] = in_data.get("account_type", None)
+        params["pods"] = in_data.get("pods", None)
 
         setdata["params"] = json.dumps(params)
 

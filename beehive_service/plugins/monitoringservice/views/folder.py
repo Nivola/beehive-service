@@ -1,7 +1,7 @@
 # SPDX# SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import re
 from flasgger import fields, Schema
@@ -201,8 +201,13 @@ class DeleteFolder(ServiceApiView):
 
     def delete(self, controller, data, *args, **kwargs):
         folder_id = data.get("FolderId")
+        type_plugin: ApiMonitoringFolder
         type_plugin = controller.get_service_type_plugin(folder_id)
-        type_plugin.delete()
+
+        if isinstance(type_plugin, ApiMonitoringFolder):
+            type_plugin.delete()
+        else:
+            raise ApiManagerError("Instance is not a MonitoringFolder")
 
         res = {
             "DeleteFolderResponse": {
@@ -606,7 +611,7 @@ class EnableDashConfigApiResponseSchema(Schema):
 
 class EnableDashConfigApiRequestSchema(Schema):
     FolderId = fields.String(required=False, description="monitoring folder id", context="query")
-    Config = fields.String(required=False, example="tomcat", description="name of dashboard")
+    Config = fields.String(required=False, example="LinResource", description="name of dashboard")
 
 
 class EnableDashConfigApiBodyRequestSchema(Schema):
@@ -688,6 +693,140 @@ class EnableDashConfig(ServiceApiView):
         return res, 202
 
 
+class DisableDashConfigApi1ResponseSchema(Schema):
+    xmlns = fields.String(required=False, data_key="__xmlns")
+    Return = fields.Boolean(required=True, example=True, allow_none=False, data_key="return")
+    requestId = fields.String(
+        required=True,
+        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
+        description="api request id",
+    )
+    nvl_activeTask = fields.String(
+        required=True,
+        allow_none=True,
+        data_key="nvl-activeTask",
+        description="active task id",
+    )
+
+
+class DisableDashConfigApiResponseSchema(Schema):
+    DisableDashConfigResponse = fields.Nested(
+        DisableDashConfigApi1ResponseSchema, required=True, many=False, allow_none=False
+    )
+
+
+class DisableDashConfigApiRequestSchema(Schema):
+    FolderId = fields.String(required=False, description="monitoring folder id", context="query")
+    Config = fields.String(required=False, example="LinResource", description="name of dashboard")
+
+
+class DisableDashConfigApiBodyRequestSchema(Schema):
+    body = fields.Nested(DisableDashConfigApiRequestSchema, context="body")
+
+
+class DisableDashConfig(ServiceApiView):
+    summary = "Disable monitoring config in a compute instance"
+    description = "Disable monitoring config in a compute instance"
+    tags = ["monitoringservice"]
+    definitions = {
+        "DisableDashConfigApiRequestSchema": DisableDashConfigApiRequestSchema,
+        "DisableDashConfigApiResponseSchema": DisableDashConfigApiResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(DisableDashConfigApiBodyRequestSchema)
+    parameters_schema = DisableDashConfigApiRequestSchema
+    responses = SwaggerApiView.setResponses(
+        {202: {"description": "success", "schema": DisableDashConfigApiResponseSchema}}
+    )
+    response_schema = DisableDashConfigApiResponseSchema
+
+    def put(self, controller: ServiceController, data, *args, **kwargs):
+        # get service definition with engine configuration
+        conf = data.get("Config")
+        oid_folder = data.get("FolderId")
+
+        service_definition = controller.get_default_service_def(ApiMonitoringFolder.plugintype)
+        self.logger.debug("+++++ DisableDashConfig - service_definition: %s" % service_definition)
+
+        dashboard = service_definition.get_config("dashboard")
+        self.logger.debug("+++++ DisableDashConfig - dashboard: %s" % dashboard)
+        def_config = service_definition.get_main_config().params
+        self.logger.debug("+++++ DisableDashConfig - def_config: %s" % def_config)
+
+        dashboard_item_selected = None
+        for dashboard_item in dashboard:
+            title = dashboard_item["title"]
+            if title == conf:
+                dashboard_item_selected = dashboard_item
+
+        if dashboard_item_selected is None:
+            raise ApiManagerError("Conf %s was not found" % conf)
+
+        # get instances list
+        data_search = {}
+        res, total = controller.get_service_type_plugins(
+            service_uuid_list=[oid_folder],
+            service_name_list=[],
+            service_id_list=[],
+            account_id_list=[],
+            plugintype=ApiMonitoringFolder.plugintype,
+            **data_search,
+        )
+        instances_set = None
+        for r in res:
+            r: ApiMonitoringFolder
+            instances_set = r.aws_info()
+
+        # check folder has dashboard
+        b_dashboard_present = False
+        dashboards = instances_set["dashboards"]
+        for dashboard in dashboards:
+            dashboardName: str = dashboard["dashboardName"]
+            if dashboardName.startswith(dashboard_item_selected["title"]):
+                b_dashboard_present = True
+
+        if not b_dashboard_present:
+            raise ApiManagerError("Folder haven't dashboard %s" % dashboard_item_selected["title"])
+
+        type_plugin_folder: ApiMonitoringFolder = controller.get_service_type_plugin(
+            oid_folder, plugin_class=ApiMonitoringFolder
+        )
+        account_id = type_plugin_folder.instance.account_id
+
+        # check account
+        account: ApiAccount
+        parent_plugin: ApiMonitoringService
+        account, parent_plugin = self.check_parent_service(
+            controller, account_id, plugintype=ApiMonitoringService.plugintype
+        )
+        data["computeZone"] = parent_plugin.resource_uuid
+
+        # # get parent division
+        # div: Division = controller.manager.get_entity(Division, account.division_id)
+        # # get parent organization
+        # org: Organization = controller.manager.get_entity(Organization, div.organization_id)
+        # triplet = "%s.%s.%s" % (org.name, div.name, account.name)
+        # self.logger.debug("+++++ DisableDashConfig - triplet: %s" % triplet)
+
+        data = {}
+        data.update({"resource_folder_id": type_plugin_folder.resource_uuid})
+        # data.update({"triplet": triplet})
+        # data.update({"organization": org.name})
+        # data.update({"division": div.name})
+        # data.update({"account": account.name})
+
+        return_value = type_plugin_folder.disable_dash_config(def_config, dashboard_item_selected, data)
+
+        res = {
+            "DisableDashConfigResponse": {
+                "__xmlns": self.xmlns,
+                "requestId": operation.id,
+                "return": return_value,
+                "nvl-activeTask": type_plugin_folder.active_task,
+            }
+        }
+        return res, 202
+
+
 class MonitoringFolderServiceAPI(ApiView):
     @staticmethod
     def register_api(module, dummyrules=None, **kwargs):
@@ -699,7 +838,7 @@ class MonitoringFolderServiceAPI(ApiView):
             ("%s/syncfolderusers" % base, "PUT", SyncUsersFolder, {}),
             ("%s/describefolderconfig" % base, "GET", DescribeFolderConfig, {}),
             ("%s/enabledashconfig" % base, "PUT", EnableDashConfig, {}),
-            # ('%s/instance/disabledashconfig' % base, 'PUT', DisableDashConfig, {}),
+            ("%s/disabledashconfig" % base, "PUT", DisableDashConfig, {}),
         ]
 
         ApiView.register_api(module, rules, **kwargs)

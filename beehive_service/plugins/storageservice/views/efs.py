@@ -1,6 +1,6 @@
 # SPDX# SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import re
 from flasgger import fields, Schema
@@ -290,7 +290,7 @@ class CreateFileSystem(ServiceApiView):
 
         # create service
         data["computeZone"] = parent_plugin.resource_uuid
-        desc = "efs " + name + "owned by " + account.name
+        desc = "efs " + name + " owned by " + account.name
         cfg = {
             "share_data": data,
             "computeZone": parent_plugin.resource_uuid,
@@ -1219,5 +1219,4 @@ class StorageEfsServiceAPI(ApiView):
                 {},
             ),
         ]
-
         ApiView.register_api(module, rules, **kwargs)

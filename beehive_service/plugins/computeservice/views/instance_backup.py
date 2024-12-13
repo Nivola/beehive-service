@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from urllib import response
 from flasgger import fields, Schema
@@ -171,7 +171,7 @@ class DescribeBackupRestorePoints(ServiceApiView):
         restore_point_total = 0
         if job_id is not None:
             account, parent_plugin = self.check_parent_service(
-                controller, account_id, plugintype=ApiComputeService.plugintype
+                controller, account_id, plugintype=ApiComputeService.plugintype, action="view"
             )
             apiComputeInstanceBackup: ApiComputeInstanceBackup = parent_plugin.get_compute_instance_backup()
             restore_points, restore_point_total = apiComputeInstanceBackup.get_job_restore_points(
@@ -718,7 +718,7 @@ class DescribeBackupJobs(ServiceApiView):
         for account_id in account_ids:
             parent_plugin: ApiComputeService
             account, parent_plugin = self.check_parent_service(
-                controller, account_id, plugintype=ApiComputeService.plugintype
+                controller, account_id, plugintype=ApiComputeService.plugintype, action="view"
             )
             inst: ApiComputeInstanceBackup = parent_plugin.get_compute_instance_backup()
             jobs = inst.list_jobs(job_id=job_id, hypervisor=hypervisor)

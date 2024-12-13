@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiView,
@@ -16,6 +16,7 @@ from beehive.common.apimanager import (
 )
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+from beehive_service.entity.service_instance import ApiServiceInstanceLink
 
 
 class ServiceSmallResponseSchema(ApiObjectSmallResponseSchema):
@@ -187,7 +188,7 @@ class UpdateLink(SwaggerApiView):
     response_schema = CrudApiObjectResponseSchema
 
     def put(self, controller, data, oid, *args, **kwargs):
-        link = controller.get_link(oid)
+        link: ApiServiceInstanceLink = controller.get_link(oid)
         data = data.get("link")
         tags = data.pop("tags", None)
         resp = link.update(**data)

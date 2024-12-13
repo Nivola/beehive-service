@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.data import transaction
 from beehive.common.apimanager import (
@@ -23,7 +23,7 @@ from beehive_service.views import (
 from marshmallow.validate import OneOf
 from marshmallow.decorators import validates_schema
 from beecell.simple import format_date
-from beehive_service.controller import ApiAccount
+from beehive_service.controller import ApiAccount, ServiceController
 from beehive.common.task_v2 import prepare_or_run_task
 from datetime import datetime
 from beehive_service.model.service_metric_type import ServiceMetricType, MetricType
@@ -438,7 +438,7 @@ class CreateServiceMetricType(ServiceApiView):
     )
     response_schema = CreateServiceMetricTypeResponseSchema
 
-    def post(self, controller, data, *args, **kwargs):
+    def post(self, controller: ServiceController, data, *args, **kwargs):
         """ """
 
         data = data.get("metric_type")
@@ -626,7 +626,7 @@ class UpdateServiceMetricType(ServiceApiView):
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
-    def put(self, controller, data, oid, *args, **kvargs):
+    def put(self, controller: ServiceController, data, oid, *args, **kvargs):
         resp = controller.update_service_metric_type(oid, data)
         return {"uuid": resp}, 200
 
@@ -638,7 +638,7 @@ class DeleteServiceMetricType(ServiceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = ServiceApiView.setResponses({204: {"description": "no response"}})
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller: ServiceController, data, oid, *args, **kwargs):
         """
         Delete service metric type object
         Call this api to delete service metric type object.

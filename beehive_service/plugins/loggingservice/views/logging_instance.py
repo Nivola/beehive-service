@@ -1,7 +1,7 @@
 # SPDX# SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import re
 from flasgger import fields, Schema
@@ -375,6 +375,11 @@ class DescribeLoggingInstancesRequestSchema(Schema):
         description="pagination token",
         context="query",
     )
+    Detail = fields.Boolean(
+        required=False,
+        allow_none=True,
+        description="details in list",
+    )
 
 
 class DescribeLoggingInstances(ServiceApiView):
@@ -405,6 +410,9 @@ class DescribeLoggingInstances(ServiceApiView):
         data_search["size"] = data.get("MaxItems")
         data_search["page"] = int(data.get("Marker"))
 
+        detail = data.get("Detail", False)
+        data_search["detail"] = detail
+
         account_id_list = data.get("owner_id_N", [])
         instance_id_list = data.get("instance_id_N", [])
         instance_name_list = data.get("InstanceName", None)
@@ -424,7 +432,7 @@ class DescribeLoggingInstances(ServiceApiView):
         instances_set = []
         for r in res:
             r: ApiLoggingInstance
-            instances_set.append(r.aws_info())
+            instances_set.append(r.aws_info(detail))
 
         if total == 0:
             next_token = "0"

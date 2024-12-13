@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.data import transaction
 from beehive.common.apimanager import (
@@ -15,6 +15,7 @@ from beehive.common.apimanager import (
 )
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+from beehive_service.controller import ServiceController
 from beehive_service.views import (
     ServiceApiView,
     ApiServiceObjectResponseSchema,
@@ -217,8 +218,10 @@ class GetServiceTypePerms(ServiceApiView):
     parameters_schema = ApiObjectPermsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ApiObjectPermsResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
-        servicetype = controller.get_service_type(oid)
+    def get(self, controller: ServiceController, data, oid, *args, **kwargs):
+        from beehive_service.entity.service_type import ApiServiceType
+
+        servicetype: ApiServiceType = controller.get_service_type(oid)
         res, total = servicetype.authorization(**data)
         return self.format_paginated_response(res, "perms", total, **data)
 

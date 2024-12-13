@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beecell.simple import id_gen, format_date
@@ -595,7 +595,7 @@ class DeleteVolume(ServiceApiView):
 
     def delete(self, controller: ServiceController, data: dict, *args, **kwargs):
         instance_id = data.pop("VolumeId")
-        type_plugin = controller.get_service_type_plugin(instance_id)
+        type_plugin = controller.get_service_type_plugin(instance_id, plugin_class=ApiComputeVolume)
         type_plugin.delete()
 
         res = {

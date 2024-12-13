@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from copy import deepcopy
 import logging
@@ -91,7 +91,7 @@ class ApiMonitoringService(ApiServiceTypeContainer):
 
         return entities
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -464,7 +464,7 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
 
         return instance_item
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -597,7 +597,11 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
             for user in users:
                 # self.logger.debug('sync_users - user: {}'.format(user))
                 if user["role"] == "master" or user["role"] == "viewer":
+                    # si accede a Grafana con l'utenza LDAP @csi.it o @fornitori.nivola
+                    # ma l'utente viene registrato con l'email
                     email = user["email"]
+                    # ldap = user["ldap"]
+
                     # to avoid duplicates
                     if email is not None and email not in users_to_add:
                         users_to_add.append(email)
@@ -761,6 +765,39 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
 
         return True
 
+    def disable_dash_config(self, def_config, dashboard_item_selected, data):
+        """disable dashboard config in a folder
+
+        :param module_params: module params
+        :param conf: dashboard name params
+        :return:
+        """
+        try:
+            resource_folder_id = data["resource_folder_id"]
+
+            dashboard = []
+            dashboard.append(dashboard_item_selected)
+
+            # copy dashboard to folder (don't execute just after creation, the resource sometimes isn't already active)
+            task = None
+            self.__delete_resource_dashboard(
+                task,
+                resource_folder_id,
+                dashboard,
+            )
+
+        except ApiManagerError as api_error:
+            self.logger.error("disable dash config", exc_info=2)
+            raise ApiManagerError(
+                "Error disabling dash config for folder %s - error: %s" % (self.instance.uuid, api_error.value)
+            )
+
+        except Exception:
+            self.logger.error("disable dash config", exc_info=2)
+            raise ApiManagerError("Error disabling dash config for folder %s" % self.instance.uuid)
+
+        return True
+
     def create_resource(self, task, *args, **kvargs):
         """Create resource
 
@@ -845,15 +882,16 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
             )
 
             # create alert notification
-            alert_name = self.__get_alert_name(triplet)
-            self.__create_resource_alert(
-                task,
-                container,
-                alert_name,
-                resource_folder_id,
-                account_email,
-                norescreate,
-            )
+            # Attention: in Grafana version 11 alert notrification doesn't exist!
+            # alert_name = self.__get_alert_name(triplet)
+            # self.__create_resource_alert(
+            #     task,
+            #     container,
+            #     alert_name,
+            #     resource_folder_id,
+            #     account_email,
+            #     norescreate,
+            # )
 
             if norescreate is False:
                 # set permission folder - team
@@ -1040,6 +1078,68 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
                 uuid = res.get("uuid", None)
                 self.logger.debug("__create_resource_dashboard - taskid %s" % taskid)
                 self.logger.debug("__create_resource_dashboard - resource %s" % uuid)
+
+            except ApiManagerError as ex:
+                self.logger.error(ex, exc_info=True)
+                self.update_status(SrvStatusType.ERROR, error=ex.value)
+                raise
+            except Exception as ex:
+                self.logger.error(ex, exc_info=True)
+                self.update_status(SrvStatusType.ERROR, error=ex.message)
+                raise ApiManagerError(ex.message)
+
+            # wait job
+            if taskid is not None:
+                self.wait_for_task(taskid, delta=2, maxtime=600, task=task)
+            else:
+                raise ApiManagerError("dashboard_data job does not started")
+
+        return True
+
+    def __delete_resource_dashboard(
+        self,
+        task,
+        resource_folder_id,
+        dashboard,
+    ):
+        """Delete dashboard
+
+        :param task: celery task reference
+        :param resource_folder_id: resource folder id
+        :param organization: organization
+        :param division: division
+        :param account: account
+        :param dashboard: list of
+        :param triplet: account triplet
+        :rtype: bool
+        """
+        self.logger.debug("__delete_resource_dashboard - begin")
+
+        for dashboard_item in dashboard:
+            title = dashboard_item["title"]
+            dashboard_data = {
+                "action": {
+                    "delete_dashboard": {
+                        "dashboard_to_search": title,
+                    }
+                }
+            }
+            self.logger.debug("__delete_resource_dashboard - dashboard_data: %s" % dashboard_data)
+
+            try:
+                url_action = "/v1.0/nrs/provider/monitoring_folders/%s/actions" % resource_folder_id
+                self.logger.debug("__delete_resource_dashboard - url_action: %s" % url_action)
+                res = self.controller.api_client.admin_request(
+                    "resource",
+                    url_action,
+                    "put",
+                    data=dashboard_data,
+                    other_headers=None,
+                )
+                taskid = res.get("taskid", None)
+                uuid = res.get("uuid", None)
+                self.logger.debug("__delete_resource_dashboard - taskid %s" % taskid)
+                self.logger.debug("__delete_resource_dashboard - resource %s" % uuid)
 
             except ApiManagerError as ex:
                 self.logger.error(ex, exc_info=True)
@@ -1276,7 +1376,7 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
         self.logger.debug("delete_resource - kvargs {}".format(kvargs))
 
         self.__delete_team(task)
-        self.__delete_alert(task)
+        # self.__delete_alert(task)
 
         # delete current resource entities - folder
         res_folder = ApiServiceTypePlugin.delete_resource(self, task, *args, **kvargs)
@@ -1486,7 +1586,7 @@ class ApiMonitoringInstance(AsyncApiServiceTypePlugin):
 
         return instance_item
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -1509,11 +1609,16 @@ class ApiMonitoringInstance(AsyncApiServiceTypePlugin):
         norescreate = config.get("norescreate")
 
         # get compute instance service instance
-        compute_service_instance: ApiServiceInstance = self.controller.get_service_instance(compute_instance_id)
+        plugin: ApiComputeInstance = self.controller.get_service_type_plugin(compute_instance_id)
+        if plugin.get_simple_runstate() == "poweredOff":
+            raise ApiManagerError("Can't create monitoring instance. Compute instance not running")
+
+        compute_instance_resource_uuid = plugin.instance.resource_uuid
+        compute_instance_oid = plugin.instance.oid
 
         params["resource_params"] = {
-            "compute_instance_resource_uuid": compute_service_instance.resource_uuid,
-            "compute_instance_id": compute_service_instance.oid,
+            "compute_instance_resource_uuid": compute_instance_resource_uuid,
+            "compute_instance_id": compute_instance_oid,
             "norescreate": norescreate,
         }
 
@@ -1546,6 +1651,15 @@ class ApiMonitoringInstance(AsyncApiServiceTypePlugin):
         compute_instance_id = args[0].pop("compute_instance_id", None)
         compute_instance_resource_uuid = args[0].pop("compute_instance_resource_uuid", None)
 
+        # create link between instance and compute instance
+        compute_service_instance: ApiServiceInstance = self.controller.get_service_instance(compute_instance_id)
+        self.add_link(
+            name="monitoring-%s" % id_gen(),
+            type="monitoring",
+            end_service=compute_service_instance.oid,
+            attributes={},
+        )
+
         if norescreate is not None and norescreate == True:
             self.logger.debug("+++++ No action on compute instance %s" % (compute_instance_resource_uuid))
         else:
@@ -1559,15 +1673,6 @@ class ApiMonitoringInstance(AsyncApiServiceTypePlugin):
             self.logger.debug(
                 "+++++ Update compute instance %s action resources: %s" % (compute_instance_resource_uuid, res)
             )
-
-        # create link between instance and compute instance
-        compute_service_instance: ApiServiceInstance = self.controller.get_service_instance(compute_instance_id)
-        self.add_link(
-            name="monitoring-%s" % id_gen(),
-            type="monitoring",
-            end_service=compute_service_instance.oid,
-            attributes={},
-        )
 
         return self.instance.resource_uuid
 
@@ -1596,9 +1701,11 @@ class ApiMonitoringInstance(AsyncApiServiceTypePlugin):
         compute_instance_id = config.get("ComputeInstanceId")
 
         # get compute instance service instance
-        compute_service_instance: ApiServiceInstance = self.controller.get_service_instance(compute_instance_id)
-        compute_instance_resource_uuid = compute_service_instance.resource_uuid
+        plugin: ApiComputeInstance = self.controller.get_service_type_plugin(compute_instance_id)
+        if plugin.get_simple_runstate() == "poweredOff":
+            raise ApiManagerError("Can't delete monitoring instance. Connected compute instance not running")
 
+        compute_instance_resource_uuid = plugin.instance.resource_uuid
         data = {"action": {"disable_monitoring": {}}}
         uri = "/v1.0/nrs/provider/instances/%s/actions" % compute_instance_resource_uuid
         res = self.controller.api_client.admin_request("resource", uri, "put", data=data)

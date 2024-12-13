@@ -39,7 +39,7 @@ BEGIN
 
     SET v_res = '';
     SET v_threshold = 0.33;
-    SET v_recipeinets = 'gianni.doria@consulenti.csi.it';
+    SET v_recipeinets = 'abcd@def.gh';
     WITH
     a AS (
         SELECT

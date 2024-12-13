@@ -1,15 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
-import json
+import ujson as json
 from urllib.parse import urlencode
-from six import text_type, binary_type
 from typing import List, Union, Tuple, TYPE_CHECKING
+from six import text_type, binary_type
+from Crypto.Hash import SHA256
 from beecell.db.util import TransactionError
+from beecell.types.type_string import is_not_blank
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.data import transaction, trace
 from beehive.common.task_v2 import prepare_or_run_task
+from beehive_service.controller.api_account_capability import ApiAccountCapability
 from beehive_service.controller.authority_api_object import AuthorityApiObject
 from beehive_service.controller.api_service_tag import ApiServiceTag
 from beehive_service.entity import ServiceApiObject
@@ -17,16 +20,119 @@ from beehive_service.model import ServiceDefinition
 from beehive_service.model.account_capability import AccountCapabilityAssoc
 from beehive_service.model.base import SrvStatusType
 from beehive_service.entity.service_definition import ApiServiceDefinition
+from beehive_service.entity.service_instance import ApiServiceInstance, ApiServiceInstanceLink
+from datetime import datetime, timedelta
 
 if TYPE_CHECKING:
     from beehive_service.model.account import Account
 
 
 class ApiAccount(AuthorityApiObject):
+    """_summary_
+
+    Args:
+        AuthorityApiObject (_type_): _description_
+
+    Raises:
+        ApiManagerError: _description_
+        ApiManagerError: _description_
+        ApiManagerError: _description_
+        ApiManagerError: _description_
+        ApiManagerError: _description_
+        ApiManagerError: _description_
+        ApiManagerError: _description_
+        ApiManagerError: _description_
+        ApiManagerError: _description_
+    operator roletemplate
+    | path                                                                  | method | stato     |
+    |-----------------------------------------------------------------------|--------|-----------|
+    | /v1.0/nws/computeservices/instance/rebootinstances                    | PUT    | Deprecato |
+    | /v1.0/nws/computeservices/instance/revertinstancesnapshots            | PUT    | Deprecato |
+    | /v1.0/nws/computeservices/instance/startinstances                     | PUT    | Deprecato |
+    | /v1.0/nws/computeservices/instance/stopinstances                      | PUT    | Deprecato |
+    | /v1.0/nws/computeservices/instance/terminateinstances                 | DELETE | Deprecato |
+    | /v1.0/nws/computeservices/volume/attachvolume                         | PUT    | Deprecato |
+    | /v1.0/nws/computeservices/volume/deletevolume                         | DELETE | Deprecato |
+    | /v1.0/nws/computeservices/volume/describevolumes                      | GET    | Deprecato |
+    | /v1.0/nws/computeservices/volume/describevolumetypes                  | GET    | Deprecato |
+    | /v1.0/nws/computeservices/volume/detachvolume                         | PUT    | Deprecato |
+    | /v1.0/nws/databaseservices/instance/describedbinstances               | GET    | Deprecato |
+    | /v1.0/nws/databaseservices/instance/describedbinstancetypes           | GET    | Deprecato |
+    | /v1.0/nws/databaseservices/instance/enginetypes                       | GET    | Deprecato |
+
+    | path                                                                  | method | stato     |
+    |-----------------------------------------------------------------------|--------|-----------|
+    | /v2.0/nws/databaseservices/instance/describedbinstances               | GET    | ok        |
+    | /v2.0/nws/databaseservices/instance/deletedbinstanceuser              | DELETE | ok        |
+    | /v2.0/nws/databaseservices/instance/createdbinstanceuser              | POST   | ok        |
+    | /v2.0/nws/computeservices/volume/detachvolume                         | PUT    | ok        |
+    | /v2.0/nws/computeservices/volume/describevolumes                      | GET    | ok        |
+    | /v2.0/nws/computeservices/volume/attachvolume                         | PUT    | ok        |
+    | /v2.0/nws/computeservices/instance/terminateinstances                 | DELETE | ok        |
+    | /v2.0/nws/computeservices/instance/stopinstances                      | PUT    | ok        |
+    | /v2.0/nws/computeservices/instance/startinstances                     | PUT    | ok        |
+    | /v2.0/nws/computeservices/instance/revertinstancesnapshots            | PUT    | ok        |
+    | /v2.0/nws/computeservices/instance/rebootinstances                    | PUT    | ok        |
+    | /v2.0/nws/computeservices/instance/modifyinstanceattribute            | PUT    | ok        |
+    | /v2.0/nws/computeservices/instance/modifyinstanceattribute            | PUT    | ok        |
+    | /v2.0/nws/computeservices/instance/getconsole                         | GET    | ok        |
+    | /v2.0/nws/computeservices/instance/describeinstancesnapshots          | GET    | ok        |
+    | /v2.0/nws/computeservices/instance/describeinstances                  | GET    | ok        |
+    | /v2.0/nws/computeservices/instance/deleteinstancesnapshots            | PUT    | ok        |
+    | /v2.0/nws/computeservices/instance/createinstancesnapshots            | PUT    | ok        |
+    | /v1.0/nws/storageservices/efs/mount-targets/<oid>/grants              | DELETE | ok        |
+    | /v1.0/nws/storageservices/efs/mount-targets/<oid>/grants              | POST   | ok        |
+    | /v1.0/nws/storageservices/efs/mount-targets                           | GET    | ok        |
+    | /v1.0/nws/storageservices/efs/file-systems                            | GET    | ok        |
+    | /v1.0/nws/networkservices/vpc/revokesecuritygroupingress              | DELETE | ok        |
+    | /v1.0/nws/networkservices/vpc/revokesecuritygroupegress               | DELETE | ok        |
+    | /v1.0/nws/networkservices/vpc/patchsecuritygroup                      | PATCH  | ok        |
+    | /v1.0/nws/networkservices/vpc/describevpcs                            | GET    | ok        |
+    | /v1.0/nws/networkservices/vpc/describesubnets                         | GET    | ok        |
+    | /v1.0/nws/networkservices/vpc/describesecuritygroups                  | GET    | ok        |
+    | /v1.0/nws/networkservices/vpc/deletesecuritygroup                     | DELETE | ok        |
+    | /v1.0/nws/networkservices/vpc/createvpc                               | POST   | ok        |
+    | /v1.0/nws/networkservices/vpc/createsubnet                            | POST   | ok        |
+    | /v1.0/nws/networkservices/vpc/createsecuritygroup                     | POST   | ok        |
+    | /v1.0/nws/networkservices/vpc/authorizesecuritygroupingress           | POST   | ok        |
+    | /v1.0/nws/networkservices/vpc/authorizesecuritygroupegress            | POST   | ok        |
+    | /v1.0/nws/networkservices/ssh_gateway/configuration/list              | GET    | ok        |
+    | /v1.0/nws/networkservices/ssh_gateway/configuration/activate          | PUT    | ok        |
+    | /v1.0/nws/loggingservices                                             | POST   | ok        |
+    | /v1.0/nws/computeservices/vpc/describevpcs                            | GET    | ok        |
+    | /v1.0/nws/computeservices/vpc/createvpc                               | POST   | ok        |
+    | /v1.0/nws/computeservices/securitygroup/revokesecuritygroupingress    | DELETE | ok        |
+    | /v1.0/nws/computeservices/securitygroup/revokesecuritygroupegress     | DELETE | ok        |
+    | /v1.0/nws/computeservices/securitygroup/patchsecuritygroup            | PATCH  | ok        |
+    | /v1.0/nws/computeservices/securitygroup/describesecuritygroups        | GET    | ok        |
+    | /v1.0/nws/computeservices/securitygroup/deletesecuritygroup           | DELETE | ok        |
+    | /v1.0/nws/computeservices/securitygroup/createsecuritygroup           | POST   | ok        |
+    | /v1.0/nws/computeservices/securitygroup/authorizesecuritygroupingress | POST   | ok        |
+    | /v1.0/nws/computeservices/securitygroup/authorizesecuritygroupegress  | POST   | ok        |
+    | /v1.0/nws/computeservices/keypair/importkeypair                       | POST   | ok        |
+    | /v1.0/nws/computeservices/keypair/describekeypairs                    | GET    | ok        |
+    | /v1.0/nws/computeservices/keypair/deletekeypair                       | DELETE | ok        |
+    | /v1.0/nws/computeservices/keypair/createkeypair                       | POST   | ok        |
+    | /v1.0/nws/capabilities/<oid>                                          | GET    | ok        |
+    | /v1.0/nws/capabilities                                                | GET    | ok        |
+    | /v1.0/nws/accounts/<oid>/users                                        | GET    | ok        |
+
+
+
+    Returns:
+        _type_: _description_
+    """
+
     objdef = "Organization.Division.Account"
     objuri = "account"
     objname = "account"
     objdesc = "Account"
+
+    STATUS_ACTIVE = 1
+    STATUS_DELETED = 6
+    STATUS_CLOSED = 22
+
+    EXPIRE_DAYS = 180
 
     default_service_types = {
         "ComputeService": None,
@@ -160,10 +266,486 @@ class ApiAccount(AuthorityApiObject):
             "desc": "Account operator. Can manage services in the account",
             "desc_sp": "Operatore di Account",
             "name": "AccountOperatorRole-%s",
-            "perms": [],
+            "perms": [
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/databaseservices/instance/describedbinstances", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/databaseservices/instance/deletedbinstanceuser", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "DELETE",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/databaseservices/instance/createdbinstanceuser", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/volume/detachvolume", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PUT",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/volume/describevolumes", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/volume/attachvolume", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PUT",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/instance/terminateinstances", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "DELETE",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/instance/stopinstances", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PUT",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/instance/startinstances", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PUT",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/instance/revertinstancesnapshots", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PUT",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/instance/rebootinstances", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PUT",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/instance/modifyinstanceattribute", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PUT",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/instance/modifyinstanceattribute", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PUT",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/instance/getconsole", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/instance/describeinstancesnapshots", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/instance/describeinstances", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/instance/deleteinstancesnapshots", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PUT",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v2.0/nws/computeservices/instance/createinstancesnapshots", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PUT",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/storageservices/efs/mount-targets/<oid>/grants", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "DELETE",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/storageservices/efs/mount-targets/<oid>/grants", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/storageservices/efs/mount-targets", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/storageservices/efs/file-systems", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/vpc/revokesecuritygroupingress", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "DELETE",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/vpc/revokesecuritygroupegress", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "DELETE",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/vpc/patchsecuritygroup", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PATCH",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/vpc/describevpcs", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/vpc/describesubnets", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/vpc/describesecuritygroups", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/vpc/deletesecuritygroup", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "DELETE",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(bytes("/v1.0/nws/networkservices/vpc/createvpc", encoding="utf-8")).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/vpc/createsubnet", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/vpc/createsecuritygroup", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/vpc/authorizesecuritygroupingress", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/vpc/authorizesecuritygroupegress", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/ssh_gateway/configuration/list", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/networkservices/ssh_gateway/configuration/activate", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PUT",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(bytes("/v1.0/nws/loggingservices", encoding="utf-8")).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/vpc/describevpcs", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(bytes("/v1.0/nws/computeservices/vpc/createvpc", encoding="utf-8")).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/securitygroup/revokesecuritygroupingress", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "DELETE",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/securitygroup/revokesecuritygroupegress", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "DELETE",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/securitygroup/patchsecuritygroup", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "PATCH",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/securitygroup/describesecuritygroups", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/securitygroup/deletesecuritygroup", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "DELETE",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/securitygroup/createsecuritygroup", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/securitygroup/authorizesecuritygroupingress", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/securitygroup/authorizesecuritygroupegress", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/keypair/importkeypair", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/keypair/describekeypairs", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/keypair/deletekeypair", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "DELETE",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(
+                        bytes("/v1.0/nws/computeservices/keypair/createkeypair", encoding="utf-8")
+                    ).hexdigest(),
+                    "action": "POST",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(bytes("/v1.0/nws/capabilities/<oid>", encoding="utf-8")).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(bytes("/v1.0/nws/capabilities", encoding="utf-8")).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "ApiMethod",
+                    "objid": SHA256.new(bytes("/v1.0/nws/accounts/<oid>/users", encoding="utf-8")).hexdigest(),
+                    "action": "GET",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "Organization.Division.Account",
+                    "objid": "<objid>",
+                    "action": "*",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "Organization.Division.Account.ServiceInstance",
+                    "objid": "<objid>" + "//*",
+                    "action": "*",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "Organization.Division.Account.ServiceInstance.ServiceLinkInst",
+                    "objid": "<objid>" + "//*//*",
+                    "action": "*",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "Organization.Division.Account.ServiceInstance.ServiceInstanceConfig",
+                    "objid": "<objid>" + "//*//*",
+                    "action": "*",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "Organization.Division.Account.ServiceLink",
+                    "objid": "<objid>" + "//*",
+                    "action": "*",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "Organization.Division.Account.ServiceTag",
+                    "objid": "<objid>" + "//*",
+                    "action": "*",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "Organization.Division.Account.ServiceLink",
+                    "objid": "*//*//*//*",
+                    "action": "view",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "Organization.Division.Account.ServiceTag",
+                    "objid": "*//*//*//*",
+                    "action": "view",
+                },
+                {
+                    "subsystem": "service",
+                    "type": "Organization.Division.Account.CATEGORY.AccountServiceDefinition",
+                    "objid": "<objid>" + "//*//*",
+                    "action": "*",
+                },
+            ],
         },
     }
     add_capability_task = "beehive_service.task_v2.account_capability.add_account_capability"
+    update_capability_task = "beehive_service.task_v2.account_capability.update_account_capability"
     delete_task = "beehive_service.task_v2.servicetypeplugin.account_delete_task"
 
     def __init__(self, *args, **kvargs):
@@ -178,7 +760,11 @@ class ApiAccount(AuthorityApiObject):
         self.email_support: str = None
         self.email_support_link: str = None
         self.services = {}
+
         self.managed: bool = False
+        self.account_type: str = None
+        self.management_model: str = None
+        self.pods: str = None
         self.params = {}
 
         if self.model is not None:
@@ -195,12 +781,11 @@ class ApiAccount(AuthorityApiObject):
                 self.params = json.loads(self.model.params)
             elif isinstance(self.model.params, dict):
                 self.params = self.model.params
-            self.managed = self.params.get("managed", False)
 
-        from beehive_service.entity.service_instance import (
-            ApiServiceInstance,
-            ApiServiceInstanceLink,
-        )
+            self.managed = self.params.get("managed", False)
+            self.account_type = self.params.get("account_type", "")
+            self.management_model = self.params.get("management_model", "")
+            self.pods = self.params.get("pods", "")
 
         # child classes
         self.child_classes = [
@@ -269,6 +854,9 @@ class ApiAccount(AuthorityApiObject):
                 "managed": self.managed,
                 "services": self.services,
                 "acronym": self.model.acronym,
+                "account_type": self.account_type,
+                "management_model": self.management_model,
+                "pods": self.pods,
             }
         )
 
@@ -346,6 +934,32 @@ class ApiAccount(AuthorityApiObject):
         # self.logger.debug(json_resp)
         return json_resp
 
+    @trace(op="update")
+    def update(self, *args, **kvargs):
+        # account_type
+        self.logger.debug("+++++ update: kvargs %s" % kvargs)
+        account_type = kvargs.pop("account_type", None)
+        management_model = kvargs.pop("management_model", None)
+        pods = kvargs.pop("pods", None)
+
+        if account_type is not None:
+            if is_not_blank(self.account_type) and account_type != self.account_type:
+                raise ApiManagerError("account_type already set: %s" % self.account_type)
+            else:
+                self.params.update({"account_type": account_type})
+
+        if management_model is not None:
+            self.params.update({"management_model": management_model})
+
+        if pods is not None:
+            if is_not_blank(self.pods) and pods != self.pods:
+                raise ApiManagerError("pods already set: %s" % self.pods)
+            else:
+                self.params.update({"pods": pods})
+        self.logger.debug("+++++ update: params %s" % self.params)
+
+        return super().update(params=self.params, *args, **kvargs)
+
     def pre_delete(self, *args, **kvargs):
         """Pre delete function. This function is used in delete method. Extend
         this function to manipulate and validate delete input params.
@@ -378,18 +992,33 @@ class ApiAccount(AuthorityApiObject):
         if self.pre_delete is not None:
             kvargs = self.pre_delete(**kvargs)
 
-        # get tags
-        tags, tot_tags = self.controller.get_tags_occurrences(objid=self.objid + "%", size=0)
+        close_account = kvargs.get("close_account", False)
+        if close_account and not self.is_active():
+            raise ApiManagerError("Account %s is not active" % (self.uuid))
 
-        # check internet gateway exists
-        if self.has_service("NetworkGateway") is True:
-            raise ApiManagerError(
-                "account %s has an active internet gateway. Remove before it delete account" % self.uuid
-            )
+        # check service exists in order
+        service_types_order_delete = [
+            "ComputeInstance",
+            "DatabaseInstance",
+            "StorageEFS",
+            "ComputeKeyPairs",
+            "ComputeSecurityGroup",
+            "ComputeSubnet",
+            "ComputeVPC",
+            "NetworkGateway",
+            "NetworkLoadBalancer",
+            "NetworkSshGateway",
+        ]
+        for service_type in service_types_order_delete:
+            if self.has_service(service_type) is True:
+                raise ApiManagerError(
+                    "account %s has an active %s. Remove it before delete account" % (self.uuid, service_type)
+                )
 
         # set asynch
         asynch = False
         params = {"alias": "Account.delete", "account": self.oid, "steps": []}
+        params["close_account"] = close_account
 
         # services
         if kvargs.get("delete_services", False) is True:
@@ -401,6 +1030,7 @@ class ApiAccount(AuthorityApiObject):
             raise ApiManagerError(msg)
 
         # tags
+        tags, tot_tags = self.controller.get_tags_occurrences(objid=self.objid + "%", size=0)
         if kvargs.get("delete_tags", False) is True:
             asynch = True
             params["steps"].append("beehive_service.task_v2.servicetypeplugin.AccountDeleteTask.delete_tags_step")
@@ -416,17 +1046,37 @@ class ApiAccount(AuthorityApiObject):
             params["steps"].append("beehive_service.task_v2.servicetypeplugin.AccountDeleteTask.delete_account_step")
             params.update(self.get_user())
             task, status = prepare_or_run_task(self, self.delete_task, params, sync=False)
-            self.logger.info("task created %s" % task)
+            self.logger.info("task created %s", task)
             resp = {"taskid": task["taskid"]}, status
         else:
             try:
                 self.delete_object(self.model)
-                self.update_status(6)
-                self.logger.debug("Soft delete %s: %s" % (self.objdef, self.oid))
+
+                if close_account:
+                    if self.update_object is not None:
+                        status = ApiAccount.STATUS_CLOSED
+                        expiry_date = datetime.today() + timedelta(days=ApiAccount.EXPIRE_DAYS)
+                        self.update_object(oid=self.oid, service_status_id=status, expiry_date=expiry_date)
+
+                    for k, v in self.role_templates.items():
+                        role_name = v.get("name") % self.oid
+                        self.logger.debug("+++++ delete account - role_name %s - %s" % (k, role_name))
+
+                        res_role_expire = self.controller.api_client.admin_request(
+                            "auth", "/v1.0/nas/roles/%s/expire/%s" % (role_name, ApiAccount.EXPIRE_DAYS), "delete"
+                        )
+                        self.logger.debug("+++++ delete account - res_role_expire %s" % (res_role_expire))
+
+                else:
+                    self.model.disable()
+                    self.update(self.model)
+                    self.update_status(ApiAccount.STATUS_DELETED)
+
+                    self.logger.debug("Soft delete %s: %s" % (self.objdef, self.oid))
                 resp = None, 204
             except TransactionError as ex:
                 self.logger.error(ex, exc_info=True)
-                raise ApiManagerError(ex, code=ex.code)
+                raise ApiManagerError(ex, code=400) from ex
 
         return resp
 
@@ -452,7 +1102,7 @@ class ApiAccount(AuthorityApiObject):
             return True
         except Exception:
             self.logger.error("", exc_info=True)
-            self.logger.error("Customize account %s - ERROR" % self.oid)
+            self.logger.error("Customize account %s - ERROR", self.oid)
 
         return False
 
@@ -460,10 +1110,23 @@ class ApiAccount(AuthorityApiObject):
     # services
     #
     def get_services(self):
+        """get services has a list ods service type plugins in the account
+
+        Returns:
+            _type_: a list ods service type plugins
+        """
         services, tot = self.controller.get_service_type_plugins(account_id=self.oid, size=-1, with_perm_tag=False)
         return services
 
     def has_service(self, plugintype):
+        """true if account has at least on service of type plugintype
+
+        Args:
+            plugintype (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         services, tot = self.controller.get_service_type_plugins(
             account_id=self.oid, plugintype=plugintype, with_perm_tag=False
         )
@@ -540,13 +1203,25 @@ class ApiAccount(AuthorityApiObject):
                 return True, "Found Account Service Definition"
         return False, "Definition Not Found"
 
-    def get_definitions(self, **kwargs) -> Tuple[List[ApiServiceDefinition], int]:
+    def get_definitions(
+        self,
+        plugintype: str = None,
+        only_container: bool = False,
+        category: str = None,
+        active: bool = True,
+        service_definition_id: Union[str, int, None] = None,
+        name: str = None,
+        page: int = 0,
+        size: int = 50,
+        order: str = "DESC",
+        field: int = "id",
+        **kwargs,
+    ) -> Tuple[List[ApiServiceDefinition], int]:
         """Get service definitions available for the account
 
         :param str plugintype: plugin type,
         :param bool only_container: only container definitions,
         :param str category: only category definitions,
-        :param bool active: definition status
         :param str service_definition_id: serivce definition id
         :param str name: name like [optional]
         :param int page: users list page to show [default=0]
@@ -558,14 +1233,23 @@ class ApiAccount(AuthorityApiObject):
         # verify permissions
         self.verify_permisssions("view")
 
-        service_definition_id = kwargs.get("service_definition_id", None)
-        if service_definition_id is not None:
-            entity = self.manager.get_entity(ServiceDefinition, service_definition_id)
-            kwargs["service_definition_id"] = entity.id
-        else:
-            kwargs.pop("service_definition_id", None)
+        if service_definition_id is not None:  # and not isinstance(service_definition_id, int ):
+            service_definition_id = self.manager.get_definition_id(service_definition_id)
 
-        accsdlist, tot = self.controller.get_account_service_defintions(account_id=self.model.id, **kwargs)
+        accsdlist, tot = self.controller.get_account_service_defintions(
+            account_id=self.model.id,
+            plugintype=plugintype,
+            only_container=only_container,
+            category=category,
+            active=active,
+            service_definition_id=service_definition_id,
+            name=name,
+            page=page,
+            size=size,
+            order=order,
+            field=field,
+            **kwargs,
+        )
 
         return [x.service_definition for x in accsdlist], tot
 
@@ -648,37 +1332,84 @@ class ApiAccount(AuthorityApiObject):
             capability = self.controller.get_capability(capabilityoid)
             self.model.capabilities.append(AccountCapabilityAssoc(self.model.id, capability.model.id, status))
 
-    def add_capabilities(self, capabilities: List[str] = None):
-        """Add capabilities to account
-        Collect the capabilities definition (list of services) and merge them within the actual services definition
-        then launch a task for the hireacical service activation and verification
+    def add_capability(self, capability: str = None):
+        """Add capability to account
+        Collect the capability definitions (list of services) and merge them within the actual service definitions
+        then launch a task for the hierarchical service activation and verification
 
-        :param capabilities: a list of capability id
+        :param capability: capability id or name
         :return: {'taskid':string}, http status
         """
+        if not self.is_active():
+            raise ApiManagerError(f"Account {self.oid} is not active")
+
         if self.has_building_capability():
             raise ApiManagerError("account %s has a BUILDING capability. Wait until it has finished" % self.uuid)
 
-        if capabilities is None:
-            capabilities = []
+        found, _ = self.has_capability(capability)
+        if found:
+            raise ApiManagerError(
+                f"capability {capability} already assigned to account {self.oid}, "
+                f"cannot add. Use 'update' command to update the capability"
+            )
+
+        self.check_valid_capability(capability)
 
         params = {
-            "alias": "AccountCapabilities.create",
+            "alias": "AccountCapabilities.add",
             "objid": self.objid,
             "account": self.uuid,
             "steps": [],
         }
-        for capability in capabilities:
-            step = {
-                "step": "beehive_service.task_v2.account_capability.AddAccountCapabilityTask.step_add_capability",
-                "args": [capability],
-            }
-            params["steps"].append(step)
+        step = {
+            "step": "beehive_service.task_v2.account_capability.AddAccountCapabilityTask.step_add_capability",
+            "args": [capability],
+        }
+        params["steps"].append(step)
 
         params.update(self.get_user())
         task, status = prepare_or_run_task(self, self.add_capability_task, params, sync=False)
+        self.logger.info("task created: %s" % task)
 
-        self.logger.info("task created %s" % task)
+        return {"taskid": task["taskid"]}, status
+
+    def update_capability(self, capability: str = None):
+        """Update account capability
+        Collect the capability definitions (list of services) and merge them within the actual service definitions
+        then launch a task for the hierarchical service activation and verification
+
+        :param capability: capability id or name
+        :return: {'taskid':string}, http status
+        """
+        if not self.is_active():
+            raise ApiManagerError(f"Account {self.oid} is not active")
+
+        if self.has_building_capability():
+            raise ApiManagerError("account %s has a BUILDING capability. Wait until it has finished" % self.uuid)
+
+        found, _ = self.has_capability(capability)
+        if not found:
+            raise ApiManagerError(
+                f"capability {capability} not applied to account {self.oid}, "
+                f"cannot update. Use 'add' command to assign capability to account"
+            )
+
+        params = {
+            "alias": "AccountCapabilities.update",
+            "objid": self.objid,
+            "account": self.uuid,
+            "steps": [],
+        }
+
+        step = {
+            "step": "beehive_service.task_v2.account_capability.UpdateAccountCapabilityTask.step_update_capability",
+            "args": [capability],
+        }
+        params["steps"].append(step)
+
+        params.update(self.get_user())
+        task, status = prepare_or_run_task(self, self.update_capability_task, params, sync=False)
+        self.logger.info("task created: %s" % task)
 
         return {"taskid": task["taskid"]}, status
 
@@ -874,3 +1605,46 @@ class ApiAccount(AuthorityApiObject):
         res.update(res_credit)
 
         return res
+
+    def check_valid_capability(self, capability_id):
+        """Check capability is valid for account: type, pods"""
+        capability: ApiAccountCapability = self.controller.get_capability(capability_id)
+        params = capability.get_params()
+        capability_account_type: str = params.get("account_type", None)
+        capability_pods: str = params.get("pods", None)
+
+        # account_type
+        if is_not_blank(self.account_type):
+            if is_not_blank(capability_account_type):
+                # check valid account_type
+                if capability_account_type != self.account_type:
+                    msg = "account_type %s of capability %s not match with account type %s" % (
+                        capability_account_type,
+                        capability_id,
+                        self.account_type,
+                    )
+                    self.logger.error(msg)
+                    raise Exception(msg)
+
+        elif is_not_blank(capability_account_type):
+            # set account_type
+            self.account_type = capability_account_type
+            self.update(account_type=self.account_type)
+
+        # pods
+        if is_not_blank(self.pods):
+            if is_not_blank(capability_pods):
+                # check valid pods
+                if capability_pods != self.pods:
+                    msg = "pods %s of capability %s not match with account pods %s" % (
+                        capability_pods,
+                        capability_id,
+                        self.pods,
+                    )
+                    self.logger.error(msg)
+                    raise Exception(msg)
+
+        elif is_not_blank(capability_pods):
+            # set pods
+            self.pods = capability_pods
+            self.update(pods=self.pods)

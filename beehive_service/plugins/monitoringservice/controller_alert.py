@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from copy import deepcopy
 import logging
@@ -189,7 +189,7 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
 
         return instance_item
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -239,7 +239,9 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
 
         # triplet arriva dalla view
         triplet = self.get_config("triplet")
+        triplet_desc = self.get_config("triplet_desc")
         self.logger.debug("pre_create - triplet: %s" % triplet)
+        self.logger.debug("pre_create - triplet_desc: %s" % triplet_desc)
 
         organization = self.get_config("organization")
         division = self.get_config("division")
@@ -260,6 +262,7 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
             "str_users": str_users,
             "account_email": account_email,
             "triplet": triplet,
+            "triplet_desc": triplet_desc,
             "organization": organization,
             "division": division,
             "account": account,
@@ -375,6 +378,7 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
         alert_name = zabbix_threshold.get("name")
 
         triplet = args[0].pop("triplet")
+        triplet_desc = args[0].pop("triplet_desc")
         organization = args[0].pop("organization")
         division = args[0].pop("division")
         account = args[0].pop("account")
@@ -395,6 +399,7 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
                     "name": alert_name,
                     "desc": alert_name,
                     "triplet": triplet,
+                    "triplet_desc": triplet_desc,
                     "str_users": str_users,
                 },
             }

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import logging
 from time import sleep
@@ -26,8 +26,7 @@ class CAPABILITY_TASK_SETTINGS(object):
     RETRY_MAX = 99
 
 
-class AddAccountCapabilityTask(ServiceTask):
-    name = "add_account_capability"
+class AccountCapabilityTask(ServiceTask):
     inner_type = "TASK"
     prefix = "celery-task-shared-"
     prefix_stack = "celery-task-stack-"
@@ -40,11 +39,6 @@ class AddAccountCapabilityTask(ServiceTask):
         super().__init__(*args, **kwargs)
         self.max_retries = CAPABILITY_TASK_SETTINGS.RETRY_MAX
         self.default_retry_delay = CAPABILITY_TASK_SETTINGS.RETRY_CONTDOWN
-        # self.steps = [
-        #     AddAccountCapabilityTask.step_wait_if_building,
-        #     AddAccountCapabilityTask.step_add_capability,
-        #     AddAccountCapabilityTask.step_set_capability_status,
-        # ]
 
     def get_account_and_capability(self, account_id, capability_id) -> Tuple[ApiAccount, ApiAccountCapability]:
         """get account an capability for this task
@@ -361,14 +355,14 @@ class AddAccountCapabilityTask(ServiceTask):
             raise TaskError("service %s creation error: %s" % (service.get("name"), str(ex)))
         return True
 
-    def add_definitions(self, accont: ApiAccount, definitions: List[str]):
+    def add_definitions(self, account: ApiAccount, definitions: List[str]):
         for definition in definitions:
             try:
                 apidefinition = self.controller.check_service_definition(definition)
                 self.controller.add_account_service_definition(
-                    accont.model.id,
+                    account.model.id,
                     apidefinition.model.id,
-                    account=accont,
+                    account=account,
                     servicedefinition=apidefinition,
                 )
             except Exception as ex:
@@ -387,56 +381,99 @@ class AddAccountCapabilityTask(ServiceTask):
             else:
                 raise
 
-    @staticmethod
-    @task_step()
-    def step_add_capability(task, step_id: str, params: dict, capability_id: str, *args, **kvargs):
-        """Step add  capability to account
-        first aff all add service definitions if any to account  this operation does not involves
-        any resource.
+    def add_or_update_capability(self, params: dict, capability_id: str, *args, **kvargs):
+        """Step add capability to account
+        First of all add service definitions if any to account; this operation does not involve any resource.
         Then services described by the capability are created.
-        al the operations are idempotents so thaat capabilities that partialy overlaps can be added
-        to the same account without errors.
-        If the account already has the service or the serivce defintion nothing is created.
+        All the operations are idempotent so that capabilities that partially overlaps can be added to the same
+        account without errors.
+        If the account already has the service or the service definition, nothing is created.
 
-
-        :param task: parent celery task
-        :param str step_id: step id
-        :param str capability: capability
+        :param str capability_id: capability
         :param dict params: step params
         :return: True, params
         """
         account_id = params.get("account")
-        task._current_capability = capability_id
+        self._current_capability = capability_id
         account: ApiAccount
         capability: ApiAccountCapability
-        account, capability = task.get_account_and_capability(account_id, capability_id)
+        account, capability = self.get_account_and_capability(account_id, capability_id)
 
         account.set_capability_status(capability.oid, SrvStatusType.BUILDING)
 
         # add account service definitions
         definitions = capability.definitions
-        task.add_definitions(account, definitions)
+        self.add_definitions(account, definitions)
         # add services
         services: List[dict] = capability.services
 
-        task.progress(msg="capability services: %s" % services)
-        ordered_services: List[List[dict]] = task.__get_creation_order(services)
+        self.progress(msg="capability services: %s" % services)
+        ordered_services: List[List[dict]] = self.__get_creation_order(services)
         # ordered_services.reverse()
         for service_list in ordered_services:
-            task.logger.warning(service_list)
+            self.logger.warning(service_list)
         res = None
         for service_list in ordered_services:
             for service in service_list:
-                task.progress(msg="Scheduling check for %s" % service["name"])
-                # task.get_session(reopen=True)
-                res = task.add_service(account, service)
+                self.progress(msg="Scheduling check for %s" % service["name"])
+                # self.get_session(reopen=True)
+                res = self.add_service(account, service)
 
         # set account status
-        account, capability = task.get_account_and_capability(account_id, capability_id)
+        account, capability = self.get_account_and_capability(account_id, capability_id)
         account.set_capability_status(capability.oid, SrvStatusType.ACTIVE)
-        task.progress(msg="Ready to Set capability status for account  %s" % account.name)
+        self.progress(msg="Ready to Set capability status for account  %s" % account.name)
 
         return True, params
 
 
+class AddAccountCapabilityTask(AccountCapabilityTask):
+    """AddAccountCapability task"""
+
+    name = "add_account_capability"
+    entity_class = ApiAccount
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @staticmethod
+    @task_step()
+    def step_add_capability(task, step_id: str, params: dict, capability_id: str, *args, **kvargs):
+        """Step update account capability
+
+        :param task: parent celery task
+        :param str step_id: step id
+        :param str capability_id: capability
+        :param dict params: step params
+        :return: True, params
+        """
+        task.add_or_update_capability(params, capability_id)
+        return True, params
+
+
+class UpdateAccountCapabilityTask(AccountCapabilityTask):
+    """UpdateAccountCapability task"""
+
+    name = "update_account_capability"
+    entity_class = ApiAccount
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @staticmethod
+    @task_step()
+    def step_update_capability(task, step_id: str, params: dict, capability_id: str, *args, **kvargs):
+        """Step update account capability
+
+        :param task: parent celery task
+        :param str step_id: step id
+        :param str capability_id: capability
+        :param dict params: step params
+        :return: True, params
+        """
+        task.add_or_update_capability(params, capability_id)
+        return True, params
+
+
 task_manager.tasks.register(AddAccountCapabilityTask())
+task_manager.tasks.register(UpdateAccountCapabilityTask())

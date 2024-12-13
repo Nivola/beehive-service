@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
+from __future__ import annotations
 
 from re import match
+import ujson as json
 from six.moves.urllib.parse import urlencode
 from beehive.common.apimanager import ApiController, ApiManagerError, ApiManagerWarning
-from beecell.types.type_string import validate_string, truncate, compat, str2bool
+from beecell.types.type_string import validate_service_name, truncate, compat, str2bool
 from beecell.types.type_date import format_date, parse_date
 from beecell.types.type_id import id_gen, is_uuid
 from beecell.simple import import_class
@@ -89,7 +91,6 @@ from beehive_service.entity.service_instance import (
 )
 from beehive.common.assert_util import AssertUtil
 from beehive.common.data import transaction
-import json
 from beehive_service.service_util import ServiceUtil
 from beehive.common.task_v2 import prepare_or_run_task
 from beehive.common.task_v2.manager import task_manager
@@ -101,8 +102,11 @@ try:
     from dateutil.parser import relativedelta
 except ImportError as ex:
     from dateutil import relativedelta
-from typing import List, Type, Tuple, Any, Union, Dict, TypeVar, Callable, Optional
+from typing import List, Type, Tuple, Any, Union, Dict, TypeVar, Callable, Optional, TYPE_CHECKING
 from beecell.simple import jsonDumps
+
+if TYPE_CHECKING:  # <-try this,
+    from beehive_service.entity.service_type import AsyncApiServiceTypePlugin
 
 
 class ServiceLinkType(object):
@@ -220,14 +224,24 @@ class ServiceController(ApiController):
                     res[resource_uuid] = obj
         return res
 
-    def get_organization_idx(self) -> Dict[str, ApiOrganization]:
+    def get_organization_idx(self, *args, **kvargs) -> Dict[str, ApiOrganization]:
         """Get organizations indexed by id and uuid"""
-        ret: Dict[str, ApiOrganization] = self.get_entities_idx(ApiOrganization, self.manager.get_organizations)
+        ret: Dict[str, ApiOrganization] = self.get_entities_idx(
+            ApiOrganization,
+            self.manager.get_organizations,
+            *args,
+            **kvargs,
+        )
         return ret
 
-    def get_division_idx(self) -> Dict[str, ApiDivision]:
+    def get_division_idx(self, *args, **kvargs) -> Dict[str, ApiDivision]:
         """Get divisions indexed by id and uuid"""
-        ret: Dict[str, ApiDivision] = self.get_entities_idx(ApiDivision, self.manager.get_divisions)
+        ret: Dict[str, ApiDivision] = self.get_entities_idx(
+            ApiDivision,
+            self.manager.get_divisions,
+            *args,
+            **kvargs,
+        )
         return ret
 
     def get_account_idx(self, *args, **kvargs) -> Dict[str, ApiAccount]:
@@ -273,6 +287,30 @@ class ServiceController(ApiController):
             **kvargs,
         )
         return ret
+
+    def get_account_id(self, oid: Union[int, str]) -> int:
+        """get account primary key numeric id from id, or uuid
+
+        Args:
+            oid (Union[int,str]): account id or uuid
+
+        Returns:
+            int: primary key numeric id
+        """
+        dao: ServiceDbManager = self.manager
+        return dao.get_account_id(oid)
+
+    def get_definition_id(self, oid: Union[int, str]) -> int:
+        """get definition primary key numeric id from id,uuid, or name
+
+        Args:
+            oid (Union[int,str]): definition id,uuid, or name
+
+        Returns:
+            int: primary key numeric id
+        """
+        dao: ServiceDbManager = self.manager
+        return dao.get_definition_id(oid)
 
     @transaction
     def emptytransaction(self):
@@ -463,7 +501,20 @@ class ServiceController(ApiController):
         return adef
 
     @trace(entity="ApiAccountServiceDefinition", op="view")
-    def get_account_service_defintions(self, *args, **kvargs) -> Tuple[List[ApiAccountServiceDefinition], int]:
+    def get_account_service_defintions(
+        self,
+        account_id: int = None,
+        service_definition_id: int = None,
+        plugintype: str = None,
+        category: str = None,
+        only_container: bool = False,
+        name: str = None,
+        page: int = 0,
+        size: int = 50,
+        order: str = "DESC",
+        field: int = "id",
+        **kvargs,
+    ) -> Tuple[List[ApiAccountServiceDefinition], int]:
         """Get ServiceJobSchedule.
 
         :param int account_id: account id
@@ -482,10 +533,21 @@ class ServiceController(ApiController):
         """
 
         def get_asd(*args, **kvargs):
+            kvargs["account_id"] = account_id
+            kvargs["service_definition_id"] = service_definition_id
+            kvargs["plugintype"] = plugintype
+            kvargs["category"] = category
+            kvargs["only_container"] = only_container
+            kvargs["name"] = name
+            kvargs["page"] = page
+            kvargs["size"] = size
+            kvargs["order"] = order
+            kvargs["field"] = field
+
             entities, total = self.manager.get_paginated_account_service_definitions(*args, **kvargs)
             return entities, total
 
-        res, total = self.get_paginated_entities(ApiAccountServiceDefinition, get_asd, *args, **kvargs)
+        res, total = self.get_paginated_entities(ApiAccountServiceDefinition, get_asd, **kvargs)
         return res, total
 
     @trace(entity="ApiAccountServiceDefinition", op="view")
@@ -590,6 +652,15 @@ class ServiceController(ApiController):
                 account = self.get_account(account_id)
             if account is None:
                 raise ApiManagerError(f"Account {account_id} does not exists")
+
+            # print("+++++ account.is_active: %s" % account.is_active())
+            from beehive_service.model.account import Account
+
+            model_account: Account = account.model
+            active = model_account.is_active()
+            # print("+++++ account active: %s" % active)
+            if not active:
+                raise ApiManagerError(f"Account {account_id} is not active")
 
             if servicedefinition is None:
                 servicedefinition = self.get_service_def(service_definition_id)
@@ -1302,7 +1373,7 @@ class ServiceController(ApiController):
                 self.check_authorization(
                     ApiServiceInstance.objtype,
                     ApiServiceInstance.objdef,
-                    ApiServiceInstance.objdef,
+                    # ApiServiceInstance.objdef,
                     instance.objid,
                     "update",
                 )
@@ -1841,7 +1912,9 @@ class ServiceController(ApiController):
     ################################
     ###    ServiceType Plugin    ###
     ################################
-    def check_service_type_plugin_parent_service(self, account_id, plugintype) -> Tuple[ApiAccount, Any]:
+    def check_service_type_plugin_parent_service(
+        self, account_id: Union[int, str], plugintype: str, action: str = "update"
+    ) -> Tuple[ApiAccount, Any]:
         """Check if parent service type exists, status is active and you have update permission
 
         :param account_id: account uuid or name
@@ -1863,7 +1936,7 @@ class ServiceController(ApiController):
             raise ApiManagerWarning("Account %s %s is not in a correct status" % (account_id, plugintype))
 
         # checks authorization user on container service instance
-        if plugin.instance.verify_permisssions("update") is False:
+        if plugin.instance.verify_permisssions(action) is False:
             raise ApiManagerWarning("User does not have the required permissions to make this action")
 
         return account, plugin
@@ -2056,10 +2129,11 @@ class ServiceController(ApiController):
         account: ApiAccount = None,
         status=None,
         resource_uuid=None,
-        name_max_length=40,
+        name_max_length=60,
+        instance_version="1.0",
         *args,
         **kvargs,
-    ):
+    ) -> AsyncApiServiceTypePlugin:
         """Factory used to create new service instance using the related service type plugin
 
         :param service_definition_id: service definition identifier
@@ -2071,6 +2145,7 @@ class ServiceController(ApiController):
         :param account: Account if available beehive_service.controller.ApiAccount [optional]
         :param status: service instance status [optional]
         :param resource_uuid: uuid of associated resource [optional]
+        :param name_max_length: service instance name max length [optional]
         :param kvargs.sync: if True run sync task, if False run async task
         :return: {'taskid': .., 'uuid': ..}
         :raises ApiManagerWarning: if instance cannot to be created.
@@ -2115,7 +2190,7 @@ class ServiceController(ApiController):
                 account=account,
                 bpmn_process_id=None,
                 active=True,
-                version="1.0",
+                version=instance_version,
             )
 
             # create service instance config
@@ -2149,8 +2224,8 @@ class ServiceController(ApiController):
         # get plugin type
         inst = self.get_service_instance(inst.oid)
         plugin = inst.get_service_type_plugin()
-
         # create post params
+        instanceId = inst.config.get("instance", {}).get("InstanceId")
         params = {
             "alias": "%s.create" % plugin.plugintype,
             "id": inst.oid,
@@ -2160,6 +2235,7 @@ class ServiceController(ApiController):
             "desc": desc,
             "attribute": None,
             "tags": None,
+            "instanceId": instanceId,
         }
         params.update(kvargs)
 
@@ -2862,6 +2938,26 @@ class ServiceController(ApiController):
 
         return res_type_set, total
 
+    def get_product_code(self, filter_name):
+        """Get product code
+
+        :param filter_name: filter name definition
+        :return: array
+        :raises ApiManagerError: if query empty return error.
+        """
+        resp = {"codes": []}
+        fields = [
+            "code",
+        ]
+        qresp = self.manager.get_product_code_query(filter_name)
+        for r in qresp:
+            metrics = dict(zip(fields, list(r)))
+            # metrics.update({"extraction_date": format_date(metrics.get("extraction_date"))})
+            code = metrics.get("code")
+            resp.get("codes").append(code)
+
+        return resp
+
     ############################
     ###   ServiceInstance    ###
     ############################
@@ -2884,7 +2980,7 @@ class ServiceController(ApiController):
             return resp
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex.desc, code=400)
+            raise ApiManagerError(str(ex), code=400)
 
     def createInstanceHierachy(
         self,
@@ -3198,8 +3294,8 @@ class ServiceController(ApiController):
     @trace(entity="ApiServiceInstance", op="insert")
     def add_service_instance(
         self,
-        name="",
-        desc=None,
+        name: str = "",
+        desc: str = None,
         service_def_id=None,
         status=SrvStatusType.DRAFT,
         account=None,
@@ -3209,8 +3305,8 @@ class ServiceController(ApiController):
     ):
         """Add service instance
 
-        :param name:
-        :param desc:
+        :param name: service instance name
+        :param desc: service instante description
         :param service_def_id:
         :param status:
         :param account:
@@ -3228,8 +3324,10 @@ class ServiceController(ApiController):
         )
 
         # check name characters are allowed
-        if validate_string(name, validation_string=r"[^a-zA-Z0-9\-].") is False:
-            raise ApiManagerError("Name must contains only alphanumeric characters, numbers and -")
+        if not validate_service_name(name):
+            raise ApiManagerError(
+                "Name must contain only alphanumeric characters, numbers and - . First character has to be a letter. Last character can't be a - "
+            )
 
         # check instance with the same name already exists in the account
         insts, tot = self.get_paginated_service_instances(
@@ -3339,7 +3437,7 @@ class ServiceController(ApiController):
 
             if srv_inst.model.linkChildren is not None and srv_inst.model.linkChildren.count() > 0:
                 if not recursive_delete:
-                    self.logger.warn(
+                    self.logger.warning(
                         "The instance %s has children. Force deletion with parameter "
                         '"recursive" to true.' % srv_inst.oid
                     )
@@ -4170,6 +4268,9 @@ class ServiceController(ApiController):
         managed=True,
         price_list_id=None,
         acronym=None,
+        account_type=None,
+        management_model=None,
+        pods=None,
         *args,
         **kvargs,
     ):
@@ -4208,10 +4309,31 @@ class ServiceController(ApiController):
                 code=409,
             )
 
+        # check acronym is unique
+        # if managed is True:
+        #     count_acronym = self.manager.count_account_by_acronym(acronym)
+        #     self.logger.debug("count_acronym: %s" % count_acronym)
+        #     if count_acronym > 0:
+        #         raise QueryError(
+        #             "Acronym %s already exists in other account" % (acronym),
+        #             code=409,
+        #         )
+
         try:
             params = {}
             objid = id_gen(parent_id=division_objid)
             params["managed"] = managed
+
+            if account_type is not None:
+                params.update({"account_type": account_type})
+
+            if management_model is not None:
+                params.update({"management_model": management_model})
+
+            if pods is not None:
+                params.update({"pods": pods})
+            self.logger.debug("+++++ add_account: params %s" % params)
+
             account = self.manager.add_account(
                 objid,
                 name,
@@ -4326,7 +4448,11 @@ class ServiceController(ApiController):
         :param data: dict with other param (ex: price_list_id)
         :return account
         """
-        account = self.get_account(oid)
+        account: ApiAccount = self.get_account(oid)
+
+        # name cannot be changed
+        name = data.pop("name", None)
+
         price_list_id = data.pop("price_list_id", None)
         account = account.update(**data)
         if price_list_id is not None:
@@ -4947,7 +5073,7 @@ class ServiceController(ApiController):
     ####  tags               ###
     ############################
     @trace(entity="ApiServiceTag", op="view")
-    def get_tag(self, oid, authorize=True):
+    def get_tag(self, oid, account_id=None, authorize=True):
         """Get single tag.
 
         :param oid: entity model id or name or uuid
@@ -4955,7 +5081,10 @@ class ServiceController(ApiController):
         :return: ApiServiceTag
         :raise ApiManagerError:
         """
-        return ApiController.get_entity(self, ApiServiceTag, ServiceTag, oid)
+        if account_id is not None:
+            return ApiController.get_entity(self, ApiServiceTag, ServiceTag, oid, account_id=account_id)
+        else:
+            return ApiController.get_entity(self, ApiServiceTag, ServiceTag, oid)
 
     @trace(entity="ApiServiceTag", op="view")
     def get_service_tags_with_instance(self, *args, **kvargs):
@@ -5020,6 +5149,7 @@ class ServiceController(ApiController):
                 # else:
                 kvargs["service"] = self.get_service_instance(service).oid
                 tags, total = self.manager.get_service_tags(*args, **kvargs)
+
             elif service_list is not None and len(service_list) > 0:
                 kvargs["service_list"] = tuple(service_list)
                 tags, total = self.manager.get_service_tags(*args, **kvargs)
@@ -5070,7 +5200,7 @@ class ServiceController(ApiController):
         return res, total
 
     @trace(entity="ApiServiceTag", op="insert")
-    def add_tag(self, value=None, account=None):
+    def add_tag(self, value: str = None, account=None):
         """Add new tag.
 
         :param value: tag value
@@ -5082,7 +5212,7 @@ class ServiceController(ApiController):
         account = self.get_account(account)
 
         # check tag already exists
-        tags, tot = self.get_tags(value=value)
+        tags, tot = self.get_tags(value=value, account=account.oid)
         if tot > 0:
             raise ApiManagerError("tag %s already exist" % value)
 
@@ -5091,8 +5221,19 @@ class ServiceController(ApiController):
             self.check_authorization(ApiServiceTag.objtype, ApiServiceTag.objdef, account.objid, "insert")
 
         try:
+            self.logger.debug("add_tag - value: %s" % value)
+            PREFIX_PRODUCT_CODE = "CP-"
+            if value.upper().startswith(PREFIX_PRODUCT_CODE):
+                filter_name = value[len(PREFIX_PRODUCT_CODE) :]
+                self.logger.debug("add_tag - filter_name: %s" % filter_name)
+                qresp = self.manager.get_product_code_query(filter_name, case_sensitive=True)
+                if len(qresp) == 0:
+                    raise ApiManagerError("product code not found: %s" % filter_name)
+                else:
+                    value = "%s%s" % (PREFIX_PRODUCT_CODE, filter_name)
+
             objid = "%s//%s" % (account.objid, id_gen())
-            tag = self.manager.add_tag(value, objid)
+            tag = self.manager.add_tag(value, objid, account.oid)
 
             # add object and permission
             ApiServiceTag(self, oid=tag.id).register_object(objid.split("//"), desc=value)

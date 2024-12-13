@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import enum
 
@@ -54,10 +54,12 @@ class ServiceMetricType(BaseApiBusinessObject, Base):
 
         if desc is None:
             self.desc = name
+
         if group_name is None:
             self.group_name = name
         else:
             self.group_name = group_name
+
         self.metric_type = metric_type
         self.measure_unit = measure_unit
         self.status = status
@@ -68,10 +70,11 @@ class ServiceMetricType(BaseApiBusinessObject, Base):
         else:
             unit = self.measure_unit
 
-        return "<ServiceMetricType: id:%s, name:%s, desc:%s, metric_type:%s, unit:%s>" % (
+        return "<ServiceMetricType: id:%s, name:%s, desc:%s, metric_type:%s, unit:%s, group_name:%s>" % (
             self.id,
             self.name,
             self.desc,
             self.metric_type,
             unit,
+            self.group_name,
         )

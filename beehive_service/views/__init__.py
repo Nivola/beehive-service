@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.apimanager import (
     SwaggerApiView,
@@ -14,7 +14,7 @@ from beehive.common.data import transaction, operation
 from beecell.simple import truncate
 from beehive.common.assert_util import AssertUtil
 from beehive_service.entity.service_instance import ApiServiceInstance
-from beehive_service.controller import ServiceController
+from beehive_service.controller import ServiceController, ApiAccount
 from marshmallow.decorators import validates_schema
 from marshmallow.exceptions import ValidationError
 from six import text_type, binary_type
@@ -50,8 +50,21 @@ class ServiceApiView(SwaggerApiView):
         if exist is True:
             raise ApiManagerWarning("%s %s already exists" % (plugintype, name))
 
-    def check_parent_service(self, controller: ServiceController, account_id: int, plugintype: str = None):
-        return controller.check_service_type_plugin_parent_service(account_id, plugintype)
+    def check_parent_service(
+        self, controller: ServiceController, account_id: int, plugintype: str = None, action: str = "update"
+    ) -> Tuple[ApiAccount, Any]:
+        """Get parent service
+
+        Args:
+            controller (ServiceController): The service controller to use
+            account_id (int): Account id it may be an uuid
+            plugintype (str, optional): The plugintype of the parent service. Defaults to None.
+            action (str, optional): The action to check for permission. Defaults to "update".
+
+        Returns:
+            Tuple[ApiAccount, Any]: _description_
+        """
+        return controller.check_service_type_plugin_parent_service(account_id, plugintype, action=action)
 
     def get_process_key(self, instance_model, method_key: str):
         if instance_model.service_definition.service_type.serviceProcesses is None:
@@ -96,17 +109,17 @@ class ServiceApiView(SwaggerApiView):
         self.logger.debug("Get accounts and zones by filter: %s %s" % (account_id_list, zone_list))
         return account_id_list, zone_list
 
-    def get_organization_idx(self, controller: ServiceController):
-        """Get organizations indexed by id TODO: use another get without limits"""
-        return controller.get_organization_idx()
+    def get_organization_idx(self, controller: ServiceController, *args, **kvargs):
+        """Get organizations indexed by id"""
+        return controller.get_organization_idx(*args, **kvargs)
 
-    def get_division_idx(self, controller: ServiceController):
-        """Get divisions indexed by id TODO: use another get without limits"""
-        return controller.get_division_idx()
+    def get_division_idx(self, controller: ServiceController, *args, **kvargs):
+        """Get divisions indexed by id"""
+        return controller.get_division_idx(*args, **kvargs)
 
-    def get_account_idx(self, controller: ServiceController):
-        """Get accounts indexed by id TODO: use another get without limits"""
-        return controller.get_account_idx()
+    def get_account_idx(self, controller: ServiceController, *args, **kvargs):
+        """Get accounts indexed by id"""
+        return controller.get_account_idx(*args, **kvargs)
 
     def get_service_definition_idx(self, controller: ServiceController, plugintype: str):
         """Get service instance indexed by id and uuid"""

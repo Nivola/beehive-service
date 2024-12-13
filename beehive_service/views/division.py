@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from typing import Dict
 from beehive.common.apimanager import (
@@ -28,6 +28,7 @@ from beehive_service.views.account import (
     ListAccountsResponseSchema,
     ContainerInstancesItemResponseSchema,
 )
+from .check import validate_div_name
 
 
 class ListDivisionsRequestSchema(
@@ -74,9 +75,10 @@ class ListDivisions(ServiceApiView):
 
     def get(self, controller: ServiceController, data, *args, **kwargs):
         divisions, total = controller.get_divisions(**data)
+        organization_ids = [d.organization_id for d in divisions]
 
         # get divs
-        orgs = self.get_organization_idx(controller)
+        orgs = self.get_organization_idx(controller, organization_id_list=organization_ids)
         res = []
         for r in divisions:
             info = r.info()
@@ -139,7 +141,7 @@ class GetDivision(ServiceApiView):
     responses = ServiceApiView.setResponses({200: {"description": "success", "schema": GetDivisionResponseSchema}})
     response_schema = GetDivisionResponseSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ServiceController, data, oid, *args, **kwargs):
         division = controller.get_division(oid)
         res = division.detail()
         resp = {"division": res}
@@ -171,7 +173,7 @@ class GetDivisionAccounts(ServiceApiView):
 
 
 class CreateDivisionParamRequestSchema(Schema):
-    name = fields.String(required=True)
+    name = fields.String(required=True, validate=validate_div_name)
     desc = fields.String(required=False, allow_none=True)
     organization_id = fields.String(required=True)
     contact = fields.String(required=False, allow_none=True)
@@ -298,6 +300,7 @@ class DeleteDivision(ServiceApiView):
 
 
 class GetDivisionRolesItemResponseSchema(Schema):
+    role = fields.String(required=True, example="DivAdminRole-123456")
     name = fields.String(required=True, example="master")
     desc = fields.String(required=True, example="")
 
@@ -332,6 +335,8 @@ class GetDivisionUsersItemDateResponseSchema(ApiObjectResponseDateSchema):
 class GetDivisionUsersItemResponseSchema(ApiObjectResponseSchema):
     role = fields.String(required=True, example="master")
     email = fields.String(required=False, allow_none=True)
+    taxcode = fields.String(required=False, allow_none=True)
+    ldap = fields.String(required=False, allow_none=True)
     date = fields.Nested(GetDivisionUsersItemDateResponseSchema, required=True)
 
 

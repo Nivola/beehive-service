@@ -8,14 +8,14 @@ For more information refer to the [nivola](https://github.com/Nivola/nivola) pro
 ## Overview
 
 *beehive service* expose an API by which a final user may interact with the Nivola  Cloud Management Platform cmp.
-When the method requires the interaction with same provider it wraps the invocations of *beehive resource* methods and 
+When the method requires the interaction with same provider it wraps the invocations of *beehive resource* methods and
 sometimes it may orchestrate different calls.
 When the method requires some authentication and authorization it wraps the invocations of *beehive auth* methods.
 
 ### Data model
-In order to organize consumers and accounts for costs incurred, the legal entities using the platform are identified by 
+In order to organize consumers and accounts for costs incurred, the legal entities using the platform are identified by
 the **Organization** entity.
-Each **Organization** is in turn divided into **Division** (there is always one by default), while one or more 
+Each **Organization** is in turn divided into **Division** (there is always one by default), while one or more
 **Accounts** can be associated with a **Division**.
 
 When created an **Account** is empty and has no services activated within it is just authorization concept.
@@ -29,7 +29,7 @@ at least one **ComputeVpc** etc.
 By enabling an **AccountCapability**, many **ServiceInstance** may be created in an **Account** in a single operation.
 One **Account** may have many **AccountCapability** enabled and associated with it.
 
-The **ServiceInstance** is entity that describe the business services such as the *ComputeInstance*, *DatabaseInstance*, 
+The **ServiceInstance** is entity that describe the business services such as the *ComputeInstance*, *DatabaseInstance*,
 etc that can be created inside an **Account**.
 
 Each **ServiceInstance** has one **ServiceDefinition**.
@@ -77,12 +77,12 @@ We use Semantic Versioning for versioning. (https://semver.org)
 See the list of contributors who participated in this project in the file AUTHORS.md contained in each specific project.
 
 ## Copyright
-CSI Piemonte - 2018-2022
+CSI Piemonte - 2018-2024
 
 Regione Piemonte - 2020-2022
 
 ## License
-See the *LICENSE.txt file contained in each specific project for details.
+See EUPL v1_2 EN-LICENSE.txt or EUPL v1_2 IT-LICENSE.txt file for details
 
 ## Community site (Optional)
 At https://www.nivolapiemonte.it/ could find all the informations about the project.

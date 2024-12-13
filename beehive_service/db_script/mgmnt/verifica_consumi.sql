@@ -1,7 +1,7 @@
 /*
 SPDX-License-Identifier: EUPL-1.2
 
-(C) Copyright 2018-2023 CSI-Piemonte
+(C) Copyright 2018-2024 CSI-Piemonte
 
 */
 set @dt='2022-09-30';
@@ -257,7 +257,7 @@ FROM
 	inner join service_type st  on sd.fk_service_type_id  = st.id
 	inner join account a  on si.fk_account_id  = a.id
 where
- a.uuid = '60bbc8e1-e015-46d3-8df4-4fb7200bd3d3'
+ a.uuid = '<uuid>'
  and period = '2022-05-30'
  and smt.name  like 'vm_gb%'
  and consumed  > 0
@@ -273,7 +273,7 @@ where
 
 
 
-9e3f869c-9712-4eb9-8877-ae8768ef8dda
+<uuid>
 
 
 

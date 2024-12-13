@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 # from beehive_service.controller.api_service_price_list import ApiServicePriceList
 from beehive_service.entity import ServiceApiObject

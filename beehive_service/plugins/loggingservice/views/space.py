@@ -1,7 +1,7 @@
 # SPDX# SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import re
 from flasgger import fields, Schema
@@ -211,8 +211,14 @@ class DeleteSpace(ServiceApiView):
 
     def delete(self, controller, data, *args, **kwargs):
         space_id = data.get("SpaceId")
+        type_plugin: ApiLoggingSpace
         type_plugin = controller.get_service_type_plugin(space_id)
-        type_plugin.delete()
+
+        if isinstance(type_plugin, ApiLoggingSpace):
+            type_plugin.delete()
+        else:
+            raise ApiManagerError("Instance is not a LoggingSpace")
+
         self.logger.debug("+++++ DeleteSpace delete - type_plugin: %s" % type(type_plugin))
 
         res = {

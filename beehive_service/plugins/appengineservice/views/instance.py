@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive_service.model.account import Account
 from beehive_service.controller.api_account import ApiAccount
@@ -494,7 +494,7 @@ class DeleteAppInstances(ServiceApiView):
         {200: {"description": "success", "schema": DeleteAppInstancesResponseSchema}}
     )
 
-    def delete(self, controller, data, *args, **kwargs):
+    def delete(self, controller: ServiceController, data, *args, **kwargs):
         """
         Terminate an instance
         Terminate an instance
@@ -502,7 +502,7 @@ class DeleteAppInstances(ServiceApiView):
         instance_ids = data.pop("InstanceId_N")
 
         for instance_id in instance_ids:
-            type_plugin = controller.get_service_type_plugin(instance_id)
+            type_plugin = controller.get_service_type_plugin(instance_id, plugin_class=ApiAppEngineInstance)
             type_plugin.delete()
 
         res = {

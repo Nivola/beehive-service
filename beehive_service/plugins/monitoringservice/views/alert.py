@@ -1,7 +1,7 @@
 # SPDX# SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import re
 from flasgger import fields, Schema
@@ -16,6 +16,7 @@ from beehive_service.plugins.computeservice.controller import ApiComputeService
 from beehive_service.views import ServiceApiView
 from beecell.swagger import SwaggerHelper
 from beehive.common.apimanager import (
+    ApiManagerError,
     SwaggerApiView,
     ApiView,
 )
@@ -47,6 +48,12 @@ class CreateAlertApiParamRequestSchema(Schema):
         required=False,
         allow_none=True,
         description="don't create physical resource of the alert",
+    )
+    triplet_desc = fields.String(
+        required=False,
+        example="Csi.Flussi-documentali-e-Dematerializz.procedo-preprod",
+        description="account custom triplet_desc",
+        allow_none=True,
     )
 
 
@@ -100,6 +107,7 @@ class CreateAlert(ServiceApiView):
         name = inner_data.get("Name", None)
         availability_zone = inner_data.get("AvailabilityZone", None)
         desc = inner_data.get("AdditionalInfo", None)
+        triplet_desc = inner_data.get("triplet_desc", None)
 
         # check account
         account: ApiAccount
@@ -113,14 +121,24 @@ class CreateAlert(ServiceApiView):
         div: Division = controller.manager.get_entity(Division, account.division_id)
         # get parent organization
         org: Organization = controller.manager.get_entity(Organization, div.organization_id)
+
         triplet = "%s.%s.%s" % (org.name, div.name, account.name)
-        self.logger.debug("CreateAlert - triplet: %s" % triplet)
+        self.logger.debug("CreateAlert - default triplet: %s" % triplet)
+
+        # problem creating User groups on Zabbix - Group name len 64 chars max ("Gruppo " + triplet_desc)
+        if triplet_desc is None:
+            triplet_desc = triplet
+            if len(triplet_desc) > 57:
+                raise ApiManagerError("default account triplet_desc %s too long" % triplet_desc)
+        elif len(triplet_desc) > 57:
+            raise ApiManagerError("triplet_desc %s too long" % triplet_desc)
 
         if name is None:
             name = "Alert-%s" % availability_zone
             desc = triplet
 
         data.update({"triplet": triplet})
+        data.update({"triplet_desc": triplet_desc})
         data.update({"organization": org.name})
         data.update({"division": div.name})
         data.update({"account": account.name})

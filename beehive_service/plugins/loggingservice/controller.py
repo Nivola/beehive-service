@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from copy import deepcopy
 from urllib.parse import urlencode
 
 from marshmallow.fields import String
 from sqlalchemy.sql.functions import array_agg
-from beecell.simple import format_date, obscure_data, dict_get
+from beecell.simple import format_date, get_attrib, obscure_data, dict_get
 from beecell.types.type_string import truncate
+from beehive_service.controller import ServiceController
 from beehive_service.controller.api_account import ApiAccount
 from beehive_service.entity.service_instance import ApiServiceInstance
 from beehive_service.entity.service_type import (
@@ -100,7 +101,7 @@ class ApiLoggingService(ApiServiceTypeContainer):
 
         return entities
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -410,7 +411,7 @@ class ApiLoggingSpace(AsyncApiServiceTypePlugin):
 
         return instance_item
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -550,10 +551,13 @@ class ApiLoggingSpace(AsyncApiServiceTypePlugin):
             for user in users:
                 # self.logger.debug('sync_users - user: {}'.format(user))
                 if user["role"] == "master" or user["role"] == "viewer":
-                    email = user["email"]
+                    ldap = user["ldap"]
+                    if ldap is None or ldap == "":
+                        ldap = user["email"]
+
                     # to avoid duplicates
-                    if email is not None and email not in users_to_add:
-                        users_to_add.append(email)
+                    if ldap is not None and ldap not in users_to_add:
+                        users_to_add.append(ldap)
 
             str_users: str = ""
             for email in users_to_add:
@@ -1108,6 +1112,7 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         ApiServiceTypePlugin.__init__(self, *args, **kvargs)
         self.child_classes = []
         self.account = None
+        self.account_triplet = None
 
     def info(self):
         """Get object info
@@ -1139,7 +1144,7 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         #     self.logger.debug('post_get - resource_desc: %s' % resource_desc)
 
     @staticmethod
-    def customize_list(controller, entities, *args, **kvargs):
+    def customize_list(controller: ServiceController, entities, *args, **kvargs):
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
@@ -1150,10 +1155,31 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         :return: None
         :raise ApiManagerError:
         """
+        # controller.logger.debug("customize_list - args: {}".format(args))
+        # controller.logger.debug("customize_list - kvargs: {}".format(kvargs))
+
         account_idx = controller.get_account_idx()
+        detail = kvargs.get("detail")
+        if detail:
+            division_idx = controller.get_division_idx()
+            organization_idx = controller.get_organization_idx()
+
         for entity in entities:
             account_id = str(entity.instance.account_id)
             entity.account = account_idx.get(account_id)
+
+            if detail:
+                division = division_idx[str(entity.account.division_id)]
+                division_name = division.name
+
+                organization = organization_idx[str(division.organization_id)]
+                organization_name = organization.name
+
+                entity.account_triplet = "%s.%s.%s" % (organization_name, division_name, entity.account.name)
+            else:
+                entity.account_triplet = "%s" % entity.account.name
+
+            # controller.logger.debug('customize_list - entity.account_triplet: %s' % entity.account_triplet)
 
         return entities
 
@@ -1169,7 +1195,7 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         }
         return mapping.get(state, "unknown")
 
-    def aws_info(self):
+    def aws_info(self, detail=False):
         """Get info as required by aws api
 
         :return:
@@ -1177,14 +1203,29 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         if self.resource is None:
             self.resource = {}
 
+        instance_item = {}
+
         inner_data = self.instance.config.get("instance")
         compute_instance = None
         if inner_data is not None and "ComputeInstanceId" in inner_data:
             compute_instance = inner_data.get("ComputeInstanceId")
+            if detail:
+                try:
+                    apiServiceInstance: ApiServiceInstance = self.controller.get_service_instance(compute_instance)
+                    if apiServiceInstance is not None:
+                        subnet_id = apiServiceInstance.get_config("instance.SubnetId")
+                        self.logger.info("aws_info - subnet_id: %s" % subnet_id)
+
+                        apiServiceInstanceSubnet: ApiServiceInstance = self.controller.get_service_instance(subnet_id)
+                        if apiServiceInstanceSubnet is not None:
+                            site = apiServiceInstanceSubnet.get_config("site")
+                            self.logger.info("aws_info - site: %s" % site)
+                            instance_item["site"] = site
+                except ApiManagerError as ame:
+                    self.logger.error("aws_info - ame: %s" % ame)
 
         modules = self.instance.config.get("modules")
 
-        instance_item = {}
         instance_item["id"] = self.instance.uuid
         instance_item["name"] = self.instance.name
         instance_item["creationDate"] = format_date(self.instance.model.creation_date)
@@ -1193,7 +1234,8 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         instance_item["ownerId"] = str(self.instance.account_id)
 
         # if self.account is not None:
-        instance_item["ownerAlias"] = self.account.name
+        # instance_item["ownerAlias"] = self.account.name
+        instance_item["ownerAlias"] = self.account_triplet
 
         # instance_item['template'] = self.instance_type.uuid
         # instance_item['template_name'] = self.instance_type.name
@@ -1209,7 +1251,7 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
 
         return instance_item
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -1232,11 +1274,16 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         norescreate = config.get("norescreate")
 
         # get compute instance service instance
-        compute_service_instance: ApiServiceInstance = self.controller.get_service_instance(compute_instance_id)
+        plugin: ApiComputeInstance = self.controller.get_service_type_plugin(compute_instance_id)
+        if plugin.get_simple_runstate() == "poweredOff":
+            raise ApiManagerError("Can't create logging instance. Compute instance not running")
+
+        compute_instance_resource_uuid = plugin.instance.resource_uuid
+        compute_instance_oid = plugin.instance.oid
 
         params["resource_params"] = {
-            "compute_instance_resource_uuid": compute_service_instance.resource_uuid,
-            "compute_instance_id": compute_service_instance.oid,
+            "compute_instance_resource_uuid": compute_instance_resource_uuid,
+            "compute_instance_id": compute_instance_oid,
             "norescreate": norescreate,
         }
 
@@ -1327,6 +1374,15 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         compute_instance_id = args[0].pop("compute_instance_id", None)
         compute_instance_resource_uuid = args[0].pop("compute_instance_resource_uuid", None)
 
+        # create link between instance and compute instance
+        compute_service_instance: ApiServiceInstance = self.controller.get_service_instance(compute_instance_id)
+        self.add_link(
+            name="logging-%s" % id_gen(),
+            type="logging",
+            end_service=compute_service_instance.oid,
+            attributes={},
+        )
+
         if norescreate is not None and norescreate == True:
             self.logger.debug("+++++ No action on compute instance %s" % (compute_instance_resource_uuid))
         else:
@@ -1339,15 +1395,6 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
             if taskid is not None:
                 self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
             self.logger.debug("Update compute instance %s action resources: %s" % (compute_instance_resource_uuid, res))
-
-        # create link between instance and compute instance
-        compute_service_instance: ApiServiceInstance = self.controller.get_service_instance(compute_instance_id)
-        self.add_link(
-            name="logging-%s" % id_gen(),
-            type="logging",
-            end_service=compute_service_instance.oid,
-            attributes={},
-        )
 
         return self.instance.resource_uuid
 
@@ -1376,8 +1423,11 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         compute_instance_id = config.get("ComputeInstanceId")
 
         # get compute instance service instance
-        compute_service_instance: ApiServiceInstance = self.controller.get_service_instance(compute_instance_id)
-        compute_instance_resource_uuid = compute_service_instance.resource_uuid
+        plugin: ApiComputeInstance = self.controller.get_service_type_plugin(compute_instance_id)
+        if plugin.get_simple_runstate() == "poweredOff":
+            raise ApiManagerError("Can't delete logging instance. Connected compute instance not running")
+
+        compute_instance_resource_uuid = plugin.instance.resource_uuid
 
         data = {"action": {"disable_logging": {}}}
         uri = "/v1.0/nrs/provider/instances/%s/actions" % compute_instance_resource_uuid

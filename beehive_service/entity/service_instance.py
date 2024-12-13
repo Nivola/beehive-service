@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
+from __future__ import annotations
 
 from time import sleep
 
@@ -14,11 +15,16 @@ from beecell.simple import import_class
 from beehive.common.apimanager import ApiObject, ApiManagerWarning, ApiManagerError
 from beehive.common.data import transaction, trace, operation
 from beehive_service.entity import ServiceApiObject, ApiServiceLink
-from beehive_service.model import ServiceInstance, service_instance
+from beehive_service.model import ServiceInstance
 from beehive_service.model.base import SrvStatusType
 from beehive_service.service_util import ServiceUtil
 from six import text_type, binary_type
 from beecell.simple import jsonDumps
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # <-try this,
+    from .service_type import AsyncApiServiceTypePlugin
+    from beehive_service.controller.api_account import ApiAccount
 
 
 class ApiServiceInstance(ServiceApiObject):
@@ -276,7 +282,7 @@ class ApiServiceInstance(ServiceApiObject):
     def get_service_type_name(self):
         return self.model.service_definition.service_type.plugintype.name_type
 
-    def get_service_type_plugin(self):
+    def get_service_type_plugin(self) -> AsyncApiServiceTypePlugin:
         """Get ServiceType Plugin
 
         :return: Plugin instance  object info.
@@ -346,7 +352,7 @@ class ApiServiceInstance(ServiceApiObject):
 
         # check actual definition id is different from new id
         if self.service_definition_id == service_def.oid:
-            raise ApiManagerWarning("Service %s definition does not change" % self.uuid)
+            raise ApiManagerWarning("Service definition %s does not change" % self.uuid)
 
         service_def_config = service_def.get_active_config()
 
@@ -357,7 +363,7 @@ class ApiServiceInstance(ServiceApiObject):
 
         self.update_object(oid=self.oid, service_definition_id=service_def.oid)
 
-        self.logger.debug("Change compute service %s definition to %s" % (self.uuid, definition))
+        self.logger.debug("Change service definition %s to %s" % (self.uuid, definition))
         return service_def_config
 
     def get_child_instances(self, plugintype=None):
@@ -722,7 +728,7 @@ class ApiServiceInstance(ServiceApiObject):
             tags, tot = self.controller.get_tags(service=self.oid)
         except QueryError as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex.desc, code=400)
+            raise ApiManagerError(str(ex), code=400)
 
         self.logger.debug("get service instance %s tags: %s" % (self.uuid, tags))
         return tags
@@ -741,11 +747,11 @@ class ApiServiceInstance(ServiceApiObject):
 
         try:
             # get tag
-            tag = self.controller.get_tag(value)
+            tag = self.controller.get_tag(value, self.account_id)
         except ApiManagerError:
             # tag not found create it
             self.controller.add_tag(value=value, account=self.account_id)
-            tag = self.controller.get_tag(value)
+            tag = self.controller.get_tag(value, self.account_id)
 
         try:
             res = self.manager.add_service_tag(self.model, tag.model)
@@ -753,7 +759,7 @@ class ApiServiceInstance(ServiceApiObject):
             return res
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex.desc, code=400)
+            raise ApiManagerError(str(ex), code=400)
 
     @trace(op="update")
     def remove_tag(self, value):
@@ -767,16 +773,17 @@ class ApiServiceInstance(ServiceApiObject):
         # check authorization
         self.verify_permisssions("update")
 
-        # get tag
-        tag = self.controller.get_tag(value)
-
         try:
+            # get tag
+            tag = self.controller.get_tag(value, self.account_id)
+            self.logger.info("Remove tag %s" % (tag))
+
             res = self.manager.remove_service_tag(self.model, tag.model)
             self.logger.info("Remove tag %s from service %s: %s" % (value, self.name, res))
             return res
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex.desc, code=400)
+            raise ApiManagerError(str(ex), code=400)
 
     def wait_for_status(self, statuslist, delta=2, maxtime=180):
         """
@@ -1050,8 +1057,26 @@ class ApiServiceInstanceLink(ServiceApiObject):
         # check authorization
         self.verify_permisssions("update")
 
-        # get tag
-        tag = self.controller.get_tag(value)
+        try:
+            # get tag
+            start_service = self.get_start_service()
+            if start_service is not None:
+                account_id = start_service.account_id
+            else:
+                end_service = self.get_end_service()
+                if end_service is not None:
+                    account_id = end_service.account_id
+                else:
+                    objid_account = self.objid[0:34]
+                    res, total = self.controller.get_accounts(objid=objid_account)
+                    account: ApiAccount = res[0]
+                    account_id = account.oid
+
+            tag = self.controller.get_tag(value, account_id)
+        except ApiManagerError:
+            # tag not found create it
+            self.controller.add_tag(value=value, account=account_id)
+            tag = self.controller.get_tag(value, account_id)
 
         try:
             res = self.manager.add_link_tag(self.model, tag.model)
@@ -1059,7 +1084,7 @@ class ApiServiceInstanceLink(ServiceApiObject):
             return res
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex.desc, code=400)
+            raise ApiManagerError(str(ex), code=400)
 
     @trace(op="tag-deassign.update")
     def remove_tag(self, value):
@@ -1074,16 +1099,30 @@ class ApiServiceInstanceLink(ServiceApiObject):
         # check authorization
         self.verify_permisssions("update")
 
-        # get tag
-        tag = self.controller.get_tag(value)
-
         try:
+            # get tag
+            start_service = self.get_start_service()
+            if start_service is not None:
+                account_id = start_service.account_id
+            else:
+                end_service = self.get_end_service()
+                if end_service is not None:
+                    account_id = end_service.account_id
+                else:
+                    objid_account = self.objid[0:34]
+                    res, total = self.controller.get_accounts(objid=objid_account)
+                    account: ApiAccount = res[0]
+                    account_id = account.oid
+
+            tag = self.controller.get_tag(value, account_id)
+            self.logger.info("Remove tag %s" % (tag))
+
             res = self.manager.remove_link_tag(self.model, tag.model)
             self.logger.info("Remove tag %s from link %s: %s" % (value, self.name, res))
             return res
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex.desc, code=400)
+            raise ApiManagerError(str(ex), code=400)
 
 
 class ApiServiceLinkInst(ApiServiceLink):

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from typing import Dict
 from flasgger import fields, Schema
@@ -384,24 +384,8 @@ class DescribeInstancesV20ApiResponseSchema(Schema):
     )
 
 
-# class BlockDeviceMappingV20ApiRequestSchema(Schema):
-#     attach_time = fields.List(fields.DateTime(), required=False, description='attachment timestamp')
-#     delete_on_termination = fields.List(fields.Boolean(), required=False,
-#                                         description='boolean to know if the volume is deleted on instance '
-#                                                     'termination.')
-#     device_name = fields.List(fields.String(), required=False, description='device name')
-#     status = fields.List(fields.String(), required=False, description='attachment status')
-#     volume_id = fields.List(fields.String(), required=False, description='id volume ebs')
-#
-
-
 class IamInstanceProfileApiRequestSchema(Schema):
     arn = fields.List(fields.String(), required=False, description="")
-
-
-# class InstanceSecurityGroupApiRequestSchema(Schema):
-#     group_id = fields.List(fields.String(), required=False, description='security group id')
-#     group_name = fields.List(fields.String(), required=False, description='security group name')
 
 
 class NetworkInterfaceAddresses2ApiRequestSchema(Schema):
@@ -508,17 +492,6 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         collection_format="multi",
         data_key="name-pattern",
     )
-    # availability_zone_N = fields.List(fields.String(example=''), required=False, allow_none=True,
-    #                                   context='query', collection_format='multi', data_key='availability-zone.N',
-    #                                   description='avalaibility zone of the instance')
-    # dns_name_N = fields.List(fields.String(example=''), required=False, allow_none=True, context='query',
-    #                          collection_format='multi', data_key='dns_name.N',
-    #                          description='public DNS name of the instance')
-    # hypervisor_N = fields.List(fields.String(example='', validate=OneOf(['openstack', 'vmware'])), required=False,
-    #                            allow_none=True, context='query', collection_format='multi', data_key='hypervisor.N',
-    #                            description='hypervisor type')
-    # image_id_N = fields.List(fields.String(example=''), required=False, allow_none=True, context='query',
-    #                          collection_format='multi', data_key='image-id.N', description='image id')
     InstanceId_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -573,8 +546,6 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         data_key="requester-id.N",
         description="ID of the entity that launched the instance",
     )
-    # subnet_id_N = fields.List(fields.String(example=''), required=False, allow_none=True, context='query',
-    #                           collection_format='multi', data_key='subnet-id.N', description=' ID of the subnet')
     tag_key_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -584,23 +555,6 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         data_key="tag-key.N",
         description="value of a tag assigned to the resource",
     )
-    # vpc_id_N = fields.List(fields.String(example=''), required=False, allow_none=False, context='query',
-    #                        collection_format='multi', data_key='vpc-id.N',
-    #                        description='ID of the VPC that the instance is running in')
-    # affinity = fields.List(fields.String(), required=False, example='',
-    #                        description='affinity setting for the instance on the dedicated host')
-    # architecture = fields.List(fields.String(), required=False, example='i386 | x86_64', description='')
-    # client_token_N = fields.List(fields.String(example=''), required=False, allow_none=True, context='query',
-    #                              collection_format='multi', data_key='client_token.N', description='volume ID')
-    # key_name_N = fields.List(fields.String(example=''), required=False, allow_none=True, context='query',
-    #                          collection_format='multi', data_key='launch-index.N',
-    #                          description='name of the key pair used when the instance was launched')
-    # launch_index_N = fields.List(fields.String(example=''), required=False, allow_none=True, context='query',
-    #                              collection_format='multi', data_key='launch-time.N',
-    #                              description='index for the instance in the launch group')
-    # ip_address_N = fields.List(fields.String(example=''), required=False, allow_none=True, context='query',
-    #                            collection_format='multi', data_key='ip-address.N',
-    #                            description='ipv4 of the instance ')
     group_id_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -619,16 +573,6 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         data_key="instance.group-name.N",
         description="Name of the security group. Only one is supported for the moment",
     )
-    # host_id_N = fields.List(fields.String(example=''), required=False, allow_none=True, context='query',
-    #                         collection_format='multi', data_key='host-id.N',
-    #                         description='ID of the host on which the instance is running')
-    # monitoring_state_N = fields.List(fields.String(example='', validate=OneOf(['disabled', 'enabled'])),
-    #                                  required=False, allow_none=True, context='query', collection_format='multi',
-    #                                  data_key='monitoring-state.N',
-    #                                  description='indicates whether monitoring is enabled')
-    # placement_group_name_N = fields.List(fields.String(example=''), required=False, allow_none=True, context='query',
-    #                                      collection_format='multi', data_key='placement-group-name.N',
-    #                                      description='name of the placement group for the instance')
 
 
 class DescribeInstancesV20(ServiceApiView):
@@ -660,9 +604,6 @@ class DescribeInstancesV20(ServiceApiView):
         # check Account
         account_id_list = data.get("owner_id_N", [])
         account_id_list.extend(data.get("requester_id_N", []))
-        # if data.get('owner_id', None) is not None:
-        #     account_id_list.extend([data.get('owner_id', None)])
-        # account_id_list, zone_list = self.get_account_list(controller, data, ApiComputeService)
 
         # get instance identifier
         instance_id_list = data.get("instance_id_N", [])
@@ -715,9 +656,6 @@ class DescribeInstancesV20(ServiceApiView):
         status_mapping = {
             "pending": SrvStatusType.PENDING,
             "running": SrvStatusType.ACTIVE,
-            # 'stopping': SrvStatusType.STOPPING,
-            # 'stopped': SrvStatusType.STOPPED,
-            # 'shutting-down': SrvStatusType.SHUTTINGDOWN,
             "terminated": SrvStatusType.TERMINATED,
             "error": SrvStatusType.ERROR,
         }
@@ -903,8 +841,6 @@ class RunInstancesV20ApiParamRequestSchema(Schema):
         data_key="owner-id",
         description="account id or uuid associated to compute zone",
     )
-    # PlacementAvailabilityZone managed by AWS Wrapper
-    # PlacementAvailabilityZone = fields.String(required=False, default='')
     InstanceType = fields.String(
         required=True,
         example="small2",
@@ -920,15 +856,11 @@ class RunInstancesV20ApiParamRequestSchema(Schema):
         description="list of instance security group ids",
     )
     KeyName = fields.String(required=False, example="1ffd", description="The name of the key pair")
-    # KeyValue = fields.String(required=False, example='1ffd', description='The public ssh key to inject')
     PrivateIpAddress = fields.String(
         required=False,
         example="###.###.###.###",
         description="The primary IPv4 address. You must specify a value from the IPv4 " "address range of the subnet. ",
     )
-    # UserData = fields.String(required=False, example='',
-    #                          description='The user data to make available to the instance. You must provide '
-    #                                      'base64-encoded text.')
     BlockDeviceMapping_N = fields.Nested(
         BlockDeviceMappingV20ApiRequestSchema,
         required=False,
@@ -936,9 +868,6 @@ class RunInstancesV20ApiParamRequestSchema(Schema):
         data_key="BlockDeviceMapping.N",
         allow_none=True,
     )
-    # TagSpecification_N = fields.Nested(TagSpecificationMappingV20ApiRequestSchema, required=False, many=True,
-    #                                    allow_none=False, data_key='TagSpecification.N',
-    #                                    description='The tags to apply to the resources during launch')
     Nvl_Hypervisor = fields.String(
         example="openstack",
         missing="openstack",
@@ -1032,9 +961,6 @@ class RunInstancesV20(ServiceApiView):
         if block_device_mappings is None or len(block_device_mappings) == 0:
             raise ApiManagerError("BlockDeviceMapping_N cannot be None, should be provided with EBS information")
 
-        # check instance with the same name already exists
-        # self.service_exist(controller, name, ApiComputeInstance.plugintype)
-
         # check account
         account, parent_plugin = self.check_parent_service(
             controller, account_id, plugintype=ApiComputeService.plugintype
@@ -1049,6 +975,11 @@ class RunInstancesV20(ServiceApiView):
         self.logger.warn(service_defs)
         if total < 1:
             raise ApiManagerError("InstanceType is wrong")
+
+        # Must be specified only when cloning a vsphere VM
+        instanceId = inner_data.get("InstanceId")
+        if instanceId is not None:
+            data["InstanceId"] = instanceId
 
         # create service instance
         inst = controller.add_service_type_plugin(
@@ -1316,8 +1247,192 @@ class ForwardLogInstancesV20(ForwardLogInstances):
     pass
 
 
-# class UnforwardLogInstancesV20(UnforwardLogInstances):
-#    pass
+class CloneInstancesV20ApiParamRequestSchema(Schema):
+    Name = fields.String(
+        required=False,
+        allow_none=True,
+        missing="default istance name",
+        description="instance name",
+    )
+    AdditionalInfo = fields.String(required=False, allow_none=True, description="instance description")
+    SubnetId = fields.String(required=False, example="12", description="instance id or uuid of the subnet")
+    # AccountId managed by AWS Wrapper
+    owner_id = fields.String(
+        required=True,
+        example="1",
+        data_key="owner-id",
+        description="account id or uuid associated to compute zone",
+    )
+    InstanceType = fields.String(
+        required=True,
+        example="small2",
+        description="service definition of the instance",
+    )
+    AdminPassword = fields.String(required=False, example="myPwd1$", description="admin password to set")
+    ImageId = fields.String(required=True, example="12", description="instance id or uuid of the image")
+    SecurityGroupId_N = fields.List(
+        fields.String(example="12"),
+        required=False,
+        allow_none=False,
+        data_key="SecurityGroupId.N",
+        description="list of instance security group ids",
+    )
+    KeyName = fields.String(
+        required=False, allow_none=True, example="my-keypair", description="The name of the key pair"
+    )
+    PrivateIpAddress = fields.String(
+        required=False,
+        example="###.###.###.###",
+        description="The primary IPv4 address. You must specify a value from the IPv4 " "address range of the subnet. ",
+    )
+    BlockDeviceMapping_N = fields.Nested(
+        BlockDeviceMappingV20ApiRequestSchema,
+        required=False,
+        many=True,
+        data_key="BlockDeviceMapping.N",
+        allow_none=True,
+    )
+    Nvl_Hypervisor = fields.String(
+        example="vsphere",
+        missing="vsphere",
+        required=False,
+        validate=OneOf(["openstack", "vsphere"]),
+        description="hypervisor type",
+    )
+    Nvl_Metadata = fields.Dict(
+        example='{"cluster":"","dvp":""}',
+        allow_none=True,
+        required=False,
+        description="custom configuration keys",
+    )
+    Nvl_MultiAvz = fields.Boolean(
+        example=True,
+        missing=True,
+        required=False,
+        description="Define if instance must be deployed to work in all the availability "
+        "zone or only in the selected one",
+    )
+    Nvl_HostGroup = fields.String(
+        example="oracle",
+        missing=None,
+        required=False,
+        description="hypervisor host group",
+    )
+    CheckMainVolSize = fields.Boolean(
+        example=True,
+        missing=True,
+        required=False,
+        description="whether to explicitly check that the requested main volume size is at least as big as the minimum",
+    )
+    AdminPassword = fields.String(
+        required=False, allow_none=True, example="myPwd1$", description="admin password of source vm to be cloned"
+    )
+    InstanceId = fields.String(
+        required=False,
+        example="01d63d92-1b7a-42eb-8248-a1518d2d354c",
+        description="VM uuid, this field should be specified only when cloning a vsphere VM",
+    )
+
+
+class CloneInstancesV20ApiRequestSchema(Schema):
+    instance = fields.Nested(CloneInstancesV20ApiParamRequestSchema, context="body")
+
+
+class CloneInstancesV20ApiBodyRequestSchema(Schema):
+    body = fields.Nested(CloneInstancesV20ApiRequestSchema, context="body")
+
+
+class CloneInstancesV20Api3ResponseSchema(Schema):
+    code = fields.Integer(required=False, default=0)
+    name = fields.String(required=True, example="PENDING")
+
+
+class CloneInstancesV20Api2ResponseSchema(Schema):
+    instanceId = fields.String(required=True)
+    currentState = fields.Nested(CloneInstancesV20Api3ResponseSchema, required=True)
+
+
+class CloneInstancesV20Api1ResponseSchema(Schema):
+    requestId = fields.String(required=True, allow_none=True)
+    instancesSet = fields.Nested(CloneInstancesV20Api2ResponseSchema, many=True, required=True)
+
+
+class CloneInstancesV20ApiResponseSchema(Schema):
+    CloneInstanceResponse = fields.Nested(CloneInstancesV20Api1ResponseSchema, required=True)
+
+
+class CloneInstancesV20(ServiceApiView):
+    summary = "Clone compute instance"
+    description = "Clone compute instance"
+    tags = ["computeservice"]
+    definitions = {
+        "CloneInstancesV20ApiRequestSchema": CloneInstancesV20ApiRequestSchema,
+        "CloneInstancesV20ApiResponseSchema": CloneInstancesV20ApiResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(CloneInstancesV20ApiBodyRequestSchema)
+    parameters_schema = CloneInstancesV20ApiRequestSchema
+    responses = SwaggerApiView.setResponses(
+        {202: {"description": "success", "schema": CloneInstancesV20ApiResponseSchema}}
+    )
+    response_schema = CloneInstancesV20ApiResponseSchema
+
+    def post(self, controller: ServiceController, data: dict, *args, **kwargs):
+        inner_data = data.get("instance")
+
+        service_definition_id = inner_data.get("InstanceType")
+        account_id = inner_data.get("owner_id")
+        name = inner_data.get("Name")
+        if name is None:
+            raise ApiManagerError("The Name of the VM cannot be None")
+
+        desc = inner_data.get("AdditionalInfo")
+        if desc is None:
+            desc = ""
+
+        block_device_mappings = inner_data.get("BlockDeviceMapping_N")
+        if block_device_mappings is None or len(block_device_mappings) == 0:
+            raise ApiManagerError("BlockDeviceMapping_N cannot be None, should be provided with EBS information")
+
+        # check account
+        account, parent_plugin = self.check_parent_service(
+            controller, account_id, plugintype=ApiComputeService.plugintype
+        )
+        data["computeZone"] = parent_plugin.resource_uuid
+
+        # check service definition
+        service_defs, total = controller.get_paginated_service_defs(
+            service_definition_uuid_list=[service_definition_id],
+            plugintype=ApiComputeInstance.plugintype,
+        )
+        self.logger.warn(service_defs)
+        if total < 1:
+            raise ApiManagerError("InstanceType is wrong")
+
+        # MUST be specified only when cloning a vsphere VM
+        instance_id = inner_data.get("InstanceId")
+        if instance_id is not None:
+            data["InstanceId"] = instance_id
+
+        # create service instance
+        inst = controller.add_service_type_plugin(
+            service_definition_id,
+            account_id,
+            name=name,
+            desc=desc,
+            parent_plugin=parent_plugin,
+            instance_config=data,
+            account=account,
+        )
+
+        instances_set = [
+            {
+                "instanceId": inst.instance.uuid,
+                "currentState": {"name": inst.instance.status},
+            }
+        ]
+        res = self.format_create_response("CloneInstanceResponse", instances_set)
+
+        return res, 202
 
 
 class ComputeInstanceV2API(ApiView):
@@ -1328,6 +1443,7 @@ class ComputeInstanceV2API(ApiView):
             # instance
             ("%s/describeinstances" % base, "GET", DescribeInstancesV20, {}),
             ("%s/runinstances" % base, "POST", RunInstancesV20, {}),
+            ("%s/cloneinstances" % base, "POST", CloneInstancesV20, {}),
             (
                 "%s/modifyinstanceattribute" % base,
                 "PUT",

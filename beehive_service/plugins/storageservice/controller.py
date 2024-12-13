@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from copy import deepcopy
 from typing import List, Dict
+from beehive.common.data import trace
 from beecell.simple import format_date, obscure_data, dict_get
 from beehive_service.entity.service_type import (
     ApiServiceTypePlugin,
@@ -96,7 +97,7 @@ class ApiStorageService(ApiServiceTypeContainer):
 
         return entities
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -245,7 +246,7 @@ class ApiStorageEFS(AsyncApiServiceTypePlugin):
     plugintype = "StorageEFS"
 
     task_path = "beehive_service.plugins.storageservice.tasks_v2."
-    create_task = None
+    create_task = "beehive_service.plugins.storageservice.tasks_v2.efs_add_inst_task"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -253,11 +254,100 @@ class ApiStorageEFS(AsyncApiServiceTypePlugin):
         self.subnet_idx: Dict[str, ApiServiceInstance]
         self.child_classes = []
         self.available_capabilities = {
-            "openstack": ["resize", "grant"],
-            "ontap": [],
+            "openstack": {"1.0": ["resize", "grant"]},
+            "ontap": {"1.0": [], "2.0": ["resize", "grant"]},
         }
 
-    def pre_create(self, **params):
+    def _check_get_resource_client_list(self, account_id, clients: List, site_name: str):
+        """
+        Checks if the specified vms are in the same site as the specified one, and
+        returns the corresponding resource provider ids
+
+        :param account_id: the account id
+        :param clients: the list of clients (service vm names or ids or uuids)
+        :param site_name: the site name (e.g. SiteTorino01)
+
+        :returns: the resource provider ids of the clients (List[Int])
+        :raises: Exception if any is in a different site
+        """
+        from beehive_service.plugins.computeservice.controller import ApiComputeInstance
+        from beecell.types.type_id import is_name
+
+        if len(clients) == 0:
+            raise Exception("You must specify at least one client")
+
+        # NB: must check names and id/uuids separately or the
+        # get_service_type_plugins function doesn't work
+
+        client_names = []
+        client_ids = []
+        for client in clients:
+            if is_name(client):
+                client_names.append(client)
+            else:
+                client_ids.append(client)
+
+        client_resources = set()
+        tmp_list = []
+        if len(client_names) > 0:
+            res, total = self.controller.get_service_type_plugins(
+                service_name_list=client_names,
+                account_id_list=[account_id],
+                plugintype=ApiComputeInstance.plugintype,
+            )
+            if total > 0:
+                tmp_list.extend(res)
+
+        if len(client_ids) > 0:
+            res, total = self.controller.get_service_type_plugins(
+                service_uuid_list=client_ids,
+                account_id_list=[account_id],
+                plugintype=ApiComputeInstance.plugintype,
+            )
+            if total > 0:
+                tmp_list.extend(res)
+
+        for vm in tmp_list:
+            vm_resource = vm.resource
+            vm_resource_id = vm_resource.get("id")
+            vm_zone_name = vm_resource.get("availability_zone").get("name")
+            if vm_zone_name == site_name:
+                client_resources.add(vm_resource_id)
+            else:
+                raise Exception(f"Specified client {vm.instance.name} is not part of the specified site {site_name}")
+
+        if len(client_resources) == 0:
+            raise Exception("No valid clients found")
+
+        return list(client_resources)
+
+    def _check_get_svm_conf(self, account_svm_conf: dict, account_id, site_name: str):
+        """
+        checks account svm configuration for the specified site, and returns
+        cluster, svm and peered site, if any
+
+
+        :param account_svm_conf: the account svm configuration (Dict)
+        :param account_id: the account id
+        :param site_name: the site name e.g. SiteTorino01
+
+        :returns: Tuple of (cluster,svm,peered_site_name)
+        :raises: Exception if any check fails
+        """
+        if account_svm_conf is None:
+            raise Exception(f"Account {account_id} has missing svm configuration.")
+        site_svm_conf = account_svm_conf.get(site_name)
+        if site_svm_conf is None:
+            raise Exception(f"Account {account_id} is not configured to use site {site_name}")
+        site_svm_cluster = site_svm_conf.get("cluster")
+        site_svm_name = site_svm_conf.get("svm_name")
+        if site_svm_cluster is None or site_svm_name is None:
+            raise Exception(
+                f"Account {account_id} has incorrect svm configuration for zone {site_name}: {site_svm_conf}"
+            )
+        return (site_svm_cluster, site_svm_name, site_svm_conf.get("peer_relationship", {}).get("site"))
+
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -265,30 +355,132 @@ class ApiStorageEFS(AsyncApiServiceTypePlugin):
         :return: resource input params
         :raise ApiManagerError:
         """
-        share_size = self.get_config("share_data.%s" % StorageParamsNames.Nvl_FileSystem_Size)
-
-        # base quotas
-        quotas = {"share.instances": 1, "share.blocks": share_size}
-
+        # version = self.version
+        version = self.get_config("version")
         compute_zone = self.get_config("computeZone")
+        container_id = self.get_config("container")
+
+        # get orchestrator type and orchestrator tag
+        orchestrator_type = self.get_orchestrator_type()
+        orchestrator_tag = self.get_config("orchestrator_tag")
+
+        share_params = self.get_config("share_data")
+        share_size = share_params.get(StorageParamsNames.Nvl_FileSystem_Size)
+
+        # check service definition exists and account can see it
+        service_definition_id = share_params.get(StorageParamsNames.Nvl_FileSystem_Type)
+        self.controller.get_service_def(service_definition_id)
+
+        if version is None or orchestrator_type == "openstack":
+            # vecchio codice
+            quotas = {"share.instances": 1, "share.blocks": share_size}
+            compute_zone = self.get_config("computeZone")
+            # check quotas
+            self.check_quotas(compute_zone, quotas)
+            return params
+
+        # service_definition = self.controller.get_service_def(service_definition_id)
+        # share_proto_prefix = service_definition.get_config("share_proto_prefix")
+        # share_label = self.get_config("label") # TODO serve? non usato
+
+        data = {
+            "name": params.get("name"),
+            "desc": f"ComputeFileShareV2 of ComputeZone {compute_zone}",
+            "container": container_id,
+            "compute_zone": compute_zone,
+            "orchestrator_type": orchestrator_type,
+            "orchestrator_tag": orchestrator_tag,
+            "awx_orchestrator_tag": version,
+        }
+        # base dict for orchestrator specific params
+        share_orch_params = {
+            "size": share_size,
+            "share_proto": share_params.get(StorageParamsNames.Nvl_shareProto).lower(),
+        }
+
+        if version is None or orchestrator_type != "ontap":
+            # vecchia gestione / altra gestione / unsupported
+            # quotas = {"share.instances": 1, "share.blocks": share_size}
+            raise Exception("Unsupported api version %s for orchestrator %s" % (version, orchestrator_type))
+        else:
+            # nuova gestione
+            compliance_mode = share_params.get("ComplianceMode")
+
+            dest_site = share_params.get("SiteName")
+            account_id = share_params.get("owner_id")
+            # account_id = self.get_config("account_id")
+            clients = share_params.pop("client_N")
+            share_orch_params[
+                "snapshot_policy"
+            ] = "staas_snap_8h_7d_14w"  # TODO deve essere in view? magari passato come service definition?
+
+            # check svm params
+            _, parent_plugin = self.controller.check_service_type_plugin_parent_service(
+                account_id, plugintype=ApiStorageService.plugintype
+            )
+            account_svm_conf = parent_plugin.get_config("svms")
+            destination_cluster, destination_svm, peer_site = self._check_get_svm_conf(
+                account_svm_conf, account_id, dest_site
+            )
+
+            share_orch_params["cluster"] = destination_cluster
+            share_orch_params["svm"] = destination_svm
+            data["site"] = dest_site
+
+            if compliance_mode:
+                # select peered svm and its cluster
+                if peer_site is None:
+                    raise Exception(f"Invalid peer site configuration. Peer site missing")
+                snaplock_cluster, snaplock_svm, _ = self._check_get_svm_conf(account_svm_conf, account_id, peer_site)
+
+                data["compliance"] = True
+                data["compliance_site"] = peer_site
+                compliance_share_params = {"snaplock_cluster": snaplock_cluster, "snaplock_svm": snaplock_svm}
+                data["compliance_share_params"] = compliance_share_params
+
+                quotas = {
+                    "share.instances": 1,
+                    "share.blocks": share_size * 2,
+                }  # size of volume + size of snaplock volume
+            else:
+                quotas = {"share.instances": 1, "share.blocks": share_size}  # size of volume
+                data["compliance"] = False
+            # NB: most expensive operation. it's the last thing we check
+            # check clients are valid and obtain resource provider client ids
+            share_orch_params["clients"] = self._check_get_resource_client_list(account_id, clients, dest_site)
+
+            data["share_params"] = share_orch_params
 
         # check quotas
         self.check_quotas(compute_zone, quotas)
 
+        params["resource_params"] = data
         return params
 
-    def post_create(self, **params):
-        """Post creation of EFS service instance
+    @trace(op="insert")
+    def create_resource(self, task, *args, **kvargs):
+        data = {"share": args[0]}
+        try:
+            uri = "/v2.0/nrs/provider/shares"
+            res = self.controller.api_client.admin_request("resource", uri, "post", data=data)
+            uuid = res.get("uuid", None)
+            taskid = res.get("taskid", None)
+        except ApiManagerError as ex:
+            raise
+        except Exception as ex:
+            self.logger.error(ex, exc_info=1)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
-        Logics:
-        Nothing to do while creating the EFS.
-        Everything will be done when we will create the mount target.
-        After service instance is been created we only need to set his status as active
+        # set resource uuid
+        if uuid is not None and taskid is not None:
+            self.set_resource(uuid)
+            self.update_status(SrvStatusType.PENDING)
+            self.wait_for_task(taskid, delta=2, maxtime=3600, task=task)
+            self.update_status(SrvStatusType.CREATED)
+            # self.logger.debug("Update xxx resource: %s" % uuid)
 
-        :param params:
-        :return:
-        """
-        self.instance.update_status(SrvStatusType.ACTIVE)
+        return uuid
 
     def pre_delete(self, **params):
         """Pre delete function. This function is used in delete method. Extend this function to manipulate and
@@ -333,7 +525,7 @@ class ApiStorageEFS(AsyncApiServiceTypePlugin):
 
             grants = []
 
-            if "grant" in self.get_available_capabilities():
+            if "grant" in self.get_available_capabilities(self.instance.version):
                 sites = mount_target.get("details", {}).get("grants", {})
                 for site in sites:
                     grant = sites[site]
@@ -390,11 +582,14 @@ class ApiStorageEFS(AsyncApiServiceTypePlugin):
     def get_orchestrator_type(self):
         return self.get_config("orchestrator_type")
 
-    def get_available_capabilities(self):
-        return self.available_capabilities.get(self.get_config("orchestrator_type"), [])
+    def get_available_capabilities(self, version="1.0"):
+        orch_capabilities = self.available_capabilities.get(self.get_config("orchestrator_type"))
+        if orch_capabilities is None:
+            return []
+        return orch_capabilities.get(version)
 
     def has_capability(self, capability):
-        if capability not in self.get_available_capabilities():
+        if capability not in self.get_available_capabilities(self.instance.version):
             raise ApiManagerError("file system %s capability %s is not available" % (self.uuid, capability))
 
     def info(self):
@@ -593,7 +788,7 @@ class ApiStorageEFS(AsyncApiServiceTypePlugin):
         instance_item["SizeInBytes"] = file_system_size
 
         # capabilities
-        instance_item["nvl-Capabilities"] = self.get_available_capabilities()
+        instance_item["nvl-Capabilities"] = self.get_available_capabilities(self.instance.version)
 
         return instance_item
 
@@ -606,9 +801,6 @@ class ApiStorageEFS(AsyncApiServiceTypePlugin):
         share_proto = self.get_config("mount_target_data.share_proto")
         network = self.get_config("mount_target_data.network")
         avzone = None
-
-        self.logger.warn(f" self.subnet_idx contains {len(self.subnet_idx)} items")
-        self.logger.warn(subnet_id)
 
         if subnet_id is not None:
             avzone = self.subnet_idx.get(subnet_id).get_config("site")

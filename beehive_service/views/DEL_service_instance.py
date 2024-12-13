@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiView,
@@ -80,7 +80,7 @@ class ListServiceInstancesRequestSchema(
     flag_container = fields.Boolean(context="query", description="if True show only container instances")
 
 
-class ListServiceInstancesResponseSchema(PaginatedResponseSchema):
+class DelListServiceInstancesResponseSchema(PaginatedResponseSchema):
     serviceinsts = fields.Nested(
         GetServiceInstanceParamsResponseSchema,
         many=True,
@@ -92,12 +92,12 @@ class ListServiceInstancesResponseSchema(PaginatedResponseSchema):
 class ListServiceInstances(ServiceApiView):
     tags = ["service"]
     definitions = {
-        "ListServiceInstancesResponseSchema": ListServiceInstancesResponseSchema,
+        "DelListServiceInstancesResponseSchema": DelListServiceInstancesResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListServiceInstancesRequestSchema)
     parameters_schema = ListServiceInstancesRequestSchema
     responses = SwaggerApiView.setResponses(
-        {200: {"description": "success", "schema": ListServiceInstancesResponseSchema}}
+        {200: {"description": "success", "schema": DelListServiceInstancesResponseSchema}}
     )
 
     def get(self, controller, data, *args, **kvargs):

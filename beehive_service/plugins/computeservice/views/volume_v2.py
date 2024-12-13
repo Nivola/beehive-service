@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beecell.simple import id_gen, format_date
@@ -52,23 +52,30 @@ class InstanceTypeFeatureResponseSchema(Schema):
     disk = fields.String(required=False, allow_none=True, example="", description="")
 
 
+class InstanceTypeConfigResponseSchema(Schema):
+    flavor = fields.String(required=False, allow_none=True, example="", description="")
+    container = fields.String(required=False, allow_none=True, example="", description="")
+
+
 class InstanceTypeResponseSchema(Schema):
     id = fields.Integer(required=True, example="", description="")
     uuid = fields.String(required=True, example="", description="")
     name = fields.String(required=True, example="", description="")
-    resource_id = fields.String(required=False, allow_none=True, example="", description="")
+    # resource_id = fields.String(required=False, allow_none=True, example="", description="")
     description = fields.String(required=True, allow_none=True, example="", description="")
     features = fields.Nested(InstanceTypeFeatureResponseSchema, required=True, many=False, allow_none=False)
+    config = fields.Nested(InstanceTypeConfigResponseSchema, required=False, many=False, allow_none=False)
 
 
 class DescribeVolumeTypesV20Api1ResponseSchema(Schema):
+    xmlns = fields.String(required=False, data_key="$xmlns")
     requestId = fields.String(required=True)
     volumeTypesSet = fields.Nested(InstanceTypeResponseSchema, required=True, many=True, allow_none=True)
     volumeTypesTotal = fields.Integer(required=True)
 
 
 class DescribeVolumeTypesV20ApiResponseSchema(Schema):
-    DescribeVolumeTypesV20Response = fields.Nested(
+    DescribeVolumeTypesResponse = fields.Nested(
         DescribeVolumeTypesV20Api1ResponseSchema,
         required=True,
         many=False,
@@ -102,7 +109,7 @@ class DescribeVolumeTypesV20ApiRequestSchema(Schema):
         required=False,
         allow_none=True,
         context="query",
-        escription="volume type uuid",
+        description="volume type uuid",
         missing=None,
     )
 

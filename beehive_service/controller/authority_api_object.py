@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import copy
 
@@ -105,7 +105,7 @@ class AuthorityApiObject(ServiceApiObject):
     def get_role_templates(self):
         res = []
         for k, v in self.role_templates.items():
-            res.append({"name": k, "desc": v.get("desc")})
+            res.append({"name": k, "desc": v.get("desc"), "role": v.get("name") % self.oid})
         return res
 
     def __set_perms_objid(self, perms, objid):

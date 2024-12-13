@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from copy import deepcopy
 from ipaddress import IPv4Network
@@ -13,6 +13,7 @@ from beehive_service.entity.service_type import (
     AsyncApiServiceTypePlugin,
 )
 from beehive_service.plugins.computeservice.controller import (
+    ApiComputeImage,
     ApiComputeSubnet,
     ApiComputeSecurityGroup,
     ApiComputeVPC,
@@ -179,7 +180,6 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
 
     def get_db_type(self) -> str:
         flavor_resource_name = dict_get(self.resource, "flavor.name")
-        flavor_name = None
         if flavor_resource_name is not None:
             flavor_name = flavor_resource_name
         else:
@@ -216,6 +216,7 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         engine = attributes.get("engine")
         version = attributes.get("version")
         outputs = attributes.get("outputs")
+        hypervisor = attributes.get("hypervisor")
 
         # select correct resource stack version
         # new resource stack v2
@@ -248,6 +249,8 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
 
         dbname = ""
         if engine == "mysql":
+            dbname = "%s:%s" % (address, port)
+        elif engine == "mariadb":
             dbname = "%s:%s" % (address, port)
         elif engine == "postgresql":
             dbname = dict_get(attributes, "postgres:database")
@@ -283,6 +286,7 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         elif api_version == "v2.0":
             instance_item["DBInstanceIdentifier"] = instance.name
             instance_item["DbiResourceId"] = instance.uuid
+            instance_item["nvl-resourceId"] = instance.resource_uuid
             instance_item["StorageType"] = attributes.get("volume_flavor")
             instance_item["LicenseModel"] = attributes.get("license", "general-public-license")
             instance_item["MasterUsername"] = attributes.get("admin_user", config.get("MasterUsername"))
@@ -359,13 +363,14 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         account = self.account
         instance_item["nvl-ownerAlias"] = account.name
         instance_item["nvl-ownerId"] = account.uuid
+        instance_item["nvl-hypervisor"] = hypervisor
 
         monitoring_enabled = dict_get(resource, "attributes.monitoring_enabled", default=False)
         instance_item["monitoring_enabled"] = monitoring_enabled
 
         return instance_item
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -390,9 +395,20 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         engine_params = self.get_config("engine")
         if engine_params is None:
             engine_params = {}
+        self.logger.debug("+++++ engine_params: %s", engine_params)
+        image_engine = engine_params.get("image")
+        self.logger.debug("+++++ image_engine: %s", image_engine)
+
+        # get resource image
+        image_resource = self.get_image(image_engine)
+        image_configs = image_resource.get("attributes", {}).get("configs", {})
+        # image_volume_size = image_configs.get("min_disk_size")
+        image_ram_size_gb = image_configs.get("min_ram_size", 0)
+        self.logger.debug("+++++ image_ram_size_gb: %s", image_ram_size_gb)
 
         # get Flavor resource Info
         flavor_resource = self.get_flavor(flavor_resource_uuid)
+
         # try to get main volume size from flavor
         flavor_configs = flavor_resource.get("attributes", None).get("configs", None)
         quotas["database.cores"] = flavor_configs.get("vcpus", 0)
@@ -400,6 +416,14 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         if quotas["database.ram"] > 0:
             quotas["database.ram"] = quotas["database.ram"] / 1024
         root_disk_size = flavor_configs.get("disk", 40)
+
+        flavor_memory = flavor_configs.get("memory", 0)
+        self.logger.debug("+++++ flavor_memory: %s", flavor_memory)
+        image_ram_size_mb = image_ram_size_gb * 1024
+        if flavor_memory < image_ram_size_mb:
+            raise ApiManagerError(
+                "Minimum memory required is %s GB - flavor memory: %s MB" % (image_ram_size_gb, flavor_memory)
+            )
 
         # get availability zone from request parameters
         av_zone = data_instance.get("AvailabilityZone", None)
@@ -576,8 +600,32 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
 
         if engine == "postgresql":
             postgresql_db_options = data_instance.get("Nvl_Postgresql_Options", {})
-            geo_extension = postgresql_db_options.get("Postgresql_GeoExtension")
-            data.update({"postgresql_params": {"geo_extension": geo_extension}})
+            geo_extension = postgresql_db_options.get("Postgresql_GeoExtension", True)
+            encoding = postgresql_db_options.get("pg_encoding", "UTF-8")
+            lc_collate = postgresql_db_options.get("pg_lc_collate", "en_US.UTF-8")
+            lc_ctype = postgresql_db_options.get("pg_lc_ctype", "en_US.UTF-8")
+            db_name = postgresql_db_options.get("pg_db_name", None)
+            role_name = postgresql_db_options.get("pg_role_name", None)
+            password = postgresql_db_options.get("pg_password", None)
+            schema_name = postgresql_db_options.get("pg_schema_name", None)
+            extensions = ",".join(postgresql_db_options.get("pg_extensions", []))
+
+            data.update(
+                {
+                    "postgresql_params": {
+                        "geo_extension": geo_extension,
+                        "encoding": encoding,
+                        "lc_collate": lc_collate,
+                        "lc_ctype": lc_ctype,
+                        "db_name": db_name,
+                        "role_name": role_name,
+                        "password": password,
+                        "schema_name": schema_name,
+                        "extensions": extensions,
+                    }
+                }
+            )
+
         elif engine == "oracle":
             #
             # Get Optional Oracle paramenters
@@ -628,7 +676,7 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
     #
     # import
     #
-    def pre_import(self, **params):
+    def pre_import(self, **params) -> dict:
         """Check input params before resource import. Use this to format parameters for service creationg1596
         Extend this function to manipulate and validate create input params.
 
@@ -674,12 +722,12 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         for subnet in subnet_sis:
             vpc_id = subnet.get_config("subnet.VpcId")
             subnet_availability_zone_name = subnet.get_config("subnet.AvailabilityZone")
-            self.logger.warn(vpc_resource_id["uuid"])
-            self.logger.warn(vpc_id)
-            self.logger.warn(vpc_si.uuid)
-            self.logger.warn(subnet.uuid)
-            self.logger.warn(subnet_availability_zone_name)
-            self.logger.warn(availability_zone_name)
+            self.logger.warning(vpc_resource_id["uuid"])
+            self.logger.warning(vpc_id)
+            self.logger.warning(vpc_si.uuid)
+            self.logger.warning(subnet.uuid)
+            self.logger.warning(subnet_availability_zone_name)
+            self.logger.warning(availability_zone_name)
             if vpc_id == vpc_si.uuid and subnet_availability_zone_name == availability_zone_name:
                 subnet_si = subnet
                 break
@@ -708,7 +756,7 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         engine_def_name = "db-engine-%s-%s" % (engine, engine_version)
         engine_defs, tot = self.controller.get_paginated_service_defs(name=engine_def_name)
         if len(engine_defs) < 1 or len(engine_defs) > 1:
-            raise ApiManagerError("Engine %s with version %s saw not found" % (engine, engine_version))
+            raise ApiManagerError("Engine %s with version %s was not found" % (engine, engine_version))
 
         # add engine config
         self.instance.set_config("engine", engine_defs[0].get_main_config().params)
@@ -835,7 +883,8 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
                 raise ApiManagerError("Instance_type does not change. Select a new one")
 
             flavor = self.instance.config_object.json_cfg.get("flavor")
-
+            def_uuid = self.instance.controller.get_service_def(instance_type).uuid
+            self.instance.config_object.set_json_property("dbinstance.DBInstanceClass", def_uuid)
             params = {"resource_params": {"action": {"name": "set_flavor", "args": {"flavor": flavor}}}}
             self.logger.info("Set instance %s type" % self.instance.uuid)
         else:
@@ -1234,6 +1283,8 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         engine = attributes.get("engine", None)
         if engine == "mysql":
             allowed_privileges = ["SELECT", "INSERT", "DELETE", "UPDATE", "ALL"]
+        elif engine == "mariadb":
+            allowed_privileges = ["SELECT", "INSERT", "DELETE", "UPDATE", "ALL"]
         elif engine == "postgresql":
             db = db.split(".")
             if len(db) == 1:
@@ -1606,6 +1657,9 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         """
         options = args[0].pop("options", {})
         data = {"sql_stack": args[0]}
+        import json
+
+        self.logger.debug("+++++++++++++ %s ", json.dumps(data, indent=4))
         try:
             uri = "/v2.0/nrs/provider/sql_stacks"
             res = self.controller.api_client.admin_request("resource", uri, "post", data=data)
@@ -1725,5 +1779,5 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
     def check_supported(self, action=""):
         engine = self.get_config("dbinstance.Engine")
         version = self.get_config("dbinstance.EngineVersion")
-        if engine in ["sqlserver"] or engine == "postgresql" and action == "install_extensions":
-            raise ApiManagerError("Action not supported by engine %s with version %s" % (engine, version))
+        if engine == "postgresql" and action == "install_extensions":
+            raise ApiManagerError("Action %s not supported on %s %s" % (action, engine, version))

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 
 import inspect
@@ -79,6 +79,7 @@ from sqlalchemy.orm.query import Query
 
 from re import match
 from beecell.db import ModelError
+from beecell.types.type_id import test_oid
 from sqlalchemy.sql.expression import and_, or_, column, distinct, case, delete
 from beecell.simple import truncate, format_date
 from sqlalchemy.sql.functions import func
@@ -610,7 +611,7 @@ class ServiceDbManager(AbstractDbManager):
             connection.close()
             del engine
         except exc.DBAPIError as ex:
-            raise exc.DBAPIError(ex)
+            raise exc.DBAPIError(ex, None, None)
 
     @staticmethod
     def generate_task_interval(task, name_prefix, delta_interval):
@@ -702,6 +703,7 @@ class ServiceDbManager(AbstractDbManager):
             self.logger.error(msg)
             raise ModelError(msg, code=404)
 
+        # self.logger.debug2("Query filter kvargs: %s" % kvargs)
         query = query.filter_by(**kvargs)
 
         return query
@@ -729,6 +731,7 @@ class ServiceDbManager(AbstractDbManager):
         active = None
         query = None
 
+        self.logger.debug2("Query filter kvargs: %s" % kvargs)
         if "active" in kvargs and kvargs.get("active") is not None:
             active = kvargs.pop("active")
 
@@ -754,9 +757,14 @@ class ServiceDbManager(AbstractDbManager):
 
         if issubclass(entityclass, BaseEntity) == True:
             if active is not None:
+                self.logger.debug2("Query filter active: %s" % active)
                 query = query.filter(entityclass.active == active)
+
             # expired
             if filter_expired is not None:
+                self.logger.debug2(
+                    "Query filter filter_expired: %s - filter_expiry_date: %s" % (filter_expired, filter_expiry_date)
+                )
                 if filter_expired is True:
                     query = query.filter(entityclass.expiry_date <= filter_expiry_date)
                 else:
@@ -772,10 +780,47 @@ class ServiceDbManager(AbstractDbManager):
             entity = query.with_for_update().one_or_none()
             self.logger.debug2("Get %s FOR UPDATE : %s" % (entityclass.__name__, truncate(query)))
         else:
+            from sqlalchemy.dialects import mysql
+
+            self.logger.debug2("+++++ SQL - stmp: %s" % query.statement.compile(dialect=mysql.dialect()))
+            # sqlalchemy.exc.MultipleResultsFound: Multiple rows were found when one or none was required
             entity = query.one_or_none()
         self.logger.debug2("Get %s %s" % (entityclass.__name__, oid))
 
         return entity
+
+    @query
+    def _get_table_id(self, table: str, oid: Union[str, int], checkname=False) -> int:
+        is_a = test_oid(oid)
+        if is_a == "id":
+            return int(oid)
+        elif is_a == "uuid":
+            stmnt = f"select id from {table} where uuid = :oid"
+            session = self.get_session()
+            result = session.execute(stmnt, {"oid": oid})
+            resp = result.scalar_one_or_none()
+            return resp
+        elif is_a == "name" and checkname:
+            stmnt = f"""select id from {table} where "name" = :oid"""
+            session = self.get_session()
+            result = session.execute(stmnt, {"oid": oid})
+            resp = result.scalar_one_or_none()
+            return resp
+        if checkname:
+            raise Exception(f"oid for {table} is not an identifier nor uuid nor name ")
+        raise Exception(f"oid for {table} is not an identifier nor uuid ")
+
+    def get_account_id(
+        self,
+        oid: Union[str, int],
+    ) -> int:
+        return self._get_table_id("account", oid, checkname=False)
+
+    def get_definition_id(
+        self,
+        oid: Union[str, int],
+    ) -> int:
+        return self._get_table_id("service_definition", oid, checkname=True)
 
     ###################################
     ####  AccountServiceDefinition  ###
@@ -788,6 +833,7 @@ class ServiceDbManager(AbstractDbManager):
         plugintype: str = None,
         category: str = None,
         only_container: bool = False,
+        name: str = None,
         *args,
         **kvargs,
     ) -> Tuple[List[AccountServiceDefinition], int]:
@@ -806,7 +852,7 @@ class ServiceDbManager(AbstractDbManager):
         kvargs["def_active"] = True
         kvargs["with_perm_tag"] = False
 
-        if plugintype is not None or category is not None or only_container:
+        if plugintype is not None or category is not None or name is not None or only_container:
             joins = [  # table, alias, on, left, inner
                 (
                     "service_definition",
@@ -835,6 +881,12 @@ class ServiceDbManager(AbstractDbManager):
 
         filters = ApiBusinessObject.get_base_entity_sqlfilters(*args, **kvargs)
         filters.append(PaginatedQueryGenerator.create_sqlfilter("def_active", column="active", alias="t4"))
+        if name is not None:
+            # filters.append(PaginatedQueryGenerator.create_sqlfilter("name", column="name", op_comparison="like", alias="t4"))
+            # kvargs["name"] = f"{name}%"
+
+            filters.append(PaginatedQueryGenerator.create_sqlfilter("t4name", column="name", alias="t4"))
+            kvargs["t4name"] = name
 
         if account_id is not None:
             filters.append(PaginatedQueryGenerator.create_sqlfilter("account_id", column="fk_account_id"))
@@ -1601,6 +1653,37 @@ class ServiceDbManager(AbstractDbManager):
         """
         res = self.update_entity(ServiceDefinition, *args, **kvargs)
         return res
+
+    @query
+    def get_product_code_query(self, filter_name, case_sensitive=False):
+        """Get product code, definitions from anagrafica_prodotti
+
+        :param int oid: filter_name
+        :return: list of codes object
+        :raise QueryError:
+        """
+        session = self.get_session()
+        search_pattern = f"CODPROD--%{filter_name}%"
+        params = {"filter_name": search_pattern}
+
+        binary = ""
+        if case_sensitive:
+            binary = "BINARY"
+
+        sql = [
+            " SELECT SUBSTRING(name, 10) as code ",
+            " FROM service_definition sd  ",
+            " WHERE active = 1 ",
+            " AND (expiry_date IS NULL OR expiry_date > NOW()) ",
+            " AND sd.name LIKE %s :filter_name " % binary,
+        ]
+
+        smtp = text(" ".join(sql))
+        query = session.query(text("code")).from_statement(smtp).params(**params)
+        res_codes = query.all()
+
+        self.logger.debug2("get_product_code - res_codes: %s" % (res_codes))
+        return res_codes
 
     #############################
     ###    ServiceConfig      ###
@@ -4105,6 +4188,25 @@ class ServiceDbManager(AbstractDbManager):
         query = session.query(Account).filter(Account.id == account_id)
         return query.one_or_none()
 
+    @query
+    def count_account_by_acronym(self, acronym, account_id=None):
+        """
+        :param acronym: acronym
+        :param account_id: account oid
+        :return: Account object or None
+        """
+        from sqlalchemy.orm.query import Query
+
+        session = self.get_session()
+        query: Query = session.query(Account)
+        query = query.filter(Account.acronym == acronym)
+        query = query.filter(Account.active == 1)
+        query = query.filter(Account.expiry_date == None)
+        query = query.filter(Account.service_status_id != 6)
+        if account_id is not None:
+            query = query.filter(Account.id != account_id)
+        return query.count()
+
     @transaction
     def add_account(
         self,
@@ -5774,9 +5876,19 @@ class ServiceDbManager(AbstractDbManager):
         if "objid" in kvargs and kvargs.get("objid") is not None:
             filters.append(" AND objid like :objid ")
 
+        if "account" in kvargs and kvargs.get("account") is not None:
+            filters.append(" AND fk_account_id = :account ")
+
         tags, total = self.get_paginated_entities(ServiceTag, filters=filters, *args, **kvargs)
-        services = self.get_tags_service_occurrences(*args, **kvargs)
-        links = self.get_tags_link_occurrences(*args, **kvargs)
+
+        services = {}
+        links = {}
+        if "occurrences" in kvargs and kvargs.get("occurrences") == False:
+            self.logger.info("get_tags - occurrences False")
+        else:
+            services = self.get_tags_service_occurrences(*args, **kvargs)
+            links = self.get_tags_link_occurrences(*args, **kvargs)
+
         res = []
         for tag in tags:
             res.append(ServiceTagOccurrences(tag, services.get(tag.id, 0), links.get(tag.id, 0)))
@@ -5846,7 +5958,7 @@ class ServiceDbManager(AbstractDbManager):
         return {i.id: i.count for i in res}
 
     @transaction
-    def add_tag(self, value, objid):
+    def add_tag(self, value, objid, account_id):
         """Add tag.
 
         :param value: str tag value.
@@ -5854,7 +5966,7 @@ class ServiceDbManager(AbstractDbManager):
         :return: :class:`ServiceTag`
         :raises TransactionError: raise :class:`TransactionError`
         """
-        res = self.add_entity(ServiceTag, value, objid)
+        res = self.add_entity(ServiceTag, value, objid, account_id)
         return res
 
     @transaction

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beehive.common.data import operation
@@ -15,7 +15,7 @@ from beehive.common.apimanager import (
     ApiView,
     CrudApiObjectTaskResponseSchema,
 )
-from beehive_service.controller import ApiServiceType
+from beehive_service.controller import ApiServiceType, ServiceController
 
 
 class DescribeDatabaseServiceRequestSchema(Schema):
@@ -132,7 +132,7 @@ class CreateDatabaseService(ServiceApiView):
     )
     response_schema = CrudApiObjectTaskResponseSchema
 
-    def post(self, controller, data, *args, **kvargs):
+    def post(self, controller: ServiceController, data: dict, *args, **kvargs) -> dict:
         service_definition_id = data.pop("service_def_id")
         account_id = data.pop("owner_id")
         desc = data.pop("desc", "Database service account %s" % account_id)

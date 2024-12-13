@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import json
 from six.moves.urllib.parse import urlencode
@@ -10,7 +10,7 @@ from beecell.simple import str2bool, truncate, dict_get, format_date
 from beecell.types.type_id import is_name
 from beehive.common.apimanager import ApiObject, ApiManagerError
 from beehive.common.data import trace, operation
-from beehive.common.task_v2 import prepare_or_run_task
+from beehive.common.task_v2 import BaseTask, prepare_or_run_task
 from beehive_service.entity import ServiceApiObject
 from beehive_service.entity.service_definition import ApiServiceDefinition
 from beehive_service.entity.service_instance import (
@@ -460,7 +460,7 @@ class ApiServiceTypePlugin(ApiServiceType):
         # check status
         accepted_state = [SrvStatusType.ACTIVE, SrvStatusType.ERROR]
         if self.get_status() not in accepted_state:
-            raise ApiManagerError("Service is not in a correct status")
+            raise ApiManagerError("Service %s is not in a correct status" % self.instance.uuid)
 
     def is_active(self):
         """Check if object has status ACTIVE
@@ -563,7 +563,7 @@ class ApiServiceTypePlugin(ApiServiceType):
     #
     # pre, post function
     #
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -591,7 +591,7 @@ class ApiServiceTypePlugin(ApiServiceType):
         """
         return None
 
-    def pre_import(self, **params):
+    def pre_import(self, **params) -> dict:
         """Check input params before resource import. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -729,6 +729,7 @@ class ApiServiceTypePlugin(ApiServiceType):
         self.logger.debug("params after pre update: %s" % params)
 
         # change resource state
+        initial_status = self.instance.status
         self.update_status(SrvStatusType.BUILDING)
 
         # get sync status of the task
@@ -778,7 +779,10 @@ class ApiServiceTypePlugin(ApiServiceType):
                         self.instance.remove_tag(value)
                         self.logger.debug("Remove tag %s from service instance %s" % (value, self.instance.uuid))
             except Exception as e:
-                self.logger.debug(e)
+                self.logger.error(e)
+                self.update_status(initial_status)
+                raise
+
         try:
             # update resource using asynchronous celery task
             if self.update_task is not None and force is False:
@@ -993,6 +997,7 @@ class ApiServiceTypePlugin(ApiServiceType):
         config = self.instance.get_main_config()
         if config is not None:
             config.delete(soft=True)
+
         self.instance.delete(soft=True)
 
     def expunge_instance(self):
@@ -1329,7 +1334,8 @@ class ApiServiceTypePlugin(ApiServiceType):
                 sleep(delta)
                 state, statemsg = self.__get_task_status(taskid, module)
                 if task is not None:
-                    task.progress(msg="Get %s task %s status: %s" % (module, taskid, state))
+                    baseTask: BaseTask = task
+                    baseTask.progress(msg="Get %s task %s status: %s" % (module, taskid, state))
                 elapsed += delta
                 if elapsed > maxtime:
                     state = "TIMEOUT"

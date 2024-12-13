@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from copy import deepcopy
 from beehive.common.apimanager import ApiManagerError
@@ -69,7 +69,7 @@ class ApiDatabaseService(ApiServiceTypeContainer):
 
         return entities
 
-    def pre_create(self, **params):
+    def pre_create(self, **params) -> dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -462,7 +462,7 @@ class ApiDatabaseServiceInstance(ApiDatabaseServiceInstanceV2):
 #
 #         return instance_item
 #
-#     def pre_create(self, **params):
+#     def pre_create(self, **params)-> dict:> dict:
 #         """Check input params before resource creation. Use this to format parameters for service creation
 #         Extend this function to manipulate and validate create input params.
 #

@@ -12,7 +12,7 @@ select min (period)  from aggregate_cost_store ac ;
 /*
 SPDX-License-Identifier: EUPL-1.2
 
-(C) Copyright 2018-2023 CSI-Piemonte
+(C) Copyright 2018-2024 CSI-Piemonte
 
 */
 
@@ -20,25 +20,25 @@ set @dtp='2022-09-01';
 set @dtm='2022-09-27';
 
 with  p as (
-SELECT  
-	ac.fk_metric_type_id id, 
+SELECT
+	ac.fk_metric_type_id id,
 	min(smt.name) name,
 	count(ac.id) num
-from 
+from
 	aggregate_cost ac
 	inner join service_metric_type smt  on ac.fk_metric_type_id  = smt.id
-where 
+where
 	ac.period = @dtp
 group by ac.fk_metric_type_id
 ), m as (
-SELECT  
-	ac.fk_metric_type_id id, 
+SELECT
+	ac.fk_metric_type_id id,
 	min(smt.name) name,
 	count(ac.id) num
-from 
+from
 	aggregate_cost ac
 	inner join service_metric_type smt  on ac.fk_metric_type_id  = smt.id
-where 
+where
 	ac.period = @dtm
 group by ac.fk_metric_type_id
 )
@@ -54,25 +54,25 @@ SELECT  id, name, status from service_job sj order by id desc;
 
 
 
-SELECT id, period,  creation_date , evaluation_date from aggregate_cost ac  order by id DESC ; 
+SELECT id, period,  creation_date , evaluation_date from aggregate_cost ac  order by id DESC ;
 
 
 with a as (
 	SELECT fk_account_id , COUNT(*) cc
-	from aggregate_cost ac  
+	from aggregate_cost ac
 	where period  ='2020-07-02'
-	group by fk_account_id  
+	group by fk_account_id
 ), b as (
 	SELECT fk_account_id , COUNT(*) cc
-	from aggregate_cost ac  
+	from aggregate_cost ac
 	where period  ='2020-07-01'
-	group by fk_account_id  
+	group by fk_account_id
 )
 SELECT  b.fk_account_id , a.cc acc, b.cc bcc
 from b left outer join a on a.fk_account_id = b.fk_account_id
 ;
-	
---- verifica presnza metriche 
+
+--- verifica presnza metriche
 
 Set @per='2021-06-01';
 
@@ -80,12 +80,12 @@ SELECT  date(@per);
 SELECT  adddate(@per, 1);
 
 
-SELECT si.fk_account_id , COUNT(*) 
-from 
-	service_metric sm  inner join service_instance si  on sm.fk_service_instance_id  = si.id  
+SELECT si.fk_account_id , COUNT(*)
+from
+	service_metric sm  inner join service_instance si  on sm.fk_service_instance_id  = si.id
 where sm.creation_date > date(@per) and sm.creation_date  < ADDDATE(@per, 1)
-GROUP  by si.fk_account_id 
-order by si.fk_account_id 
+GROUP  by si.fk_account_id
+order by si.fk_account_id
 ;
 
 SELECT  * from aggregate_cost ac  where fk_account_id  = @acc and period  = @per;
@@ -93,10 +93,10 @@ SELECT  * from aggregate_cost ac  where fk_account_id  = @acc and period  = @per
 SEt @per='2020-07-01';
 set @acc=29;
 
--- simulazione 
+-- simulazione
 SELECT  * from account a  where id = 287;
 
-SELECT 
+SELECT
 	sm.creation_date , sm.id -- COUNT(*) -- into smetrics
 FROM
     service_metric sm
@@ -107,11 +107,11 @@ WHERE
 order by sm.id  desc ;
 
 
-SELECT 
-	@per, COUNT(*) 
-from 
-	service_metric sm  
-where 
+SELECT
+	@per, COUNT(*)
+from
+	service_metric sm
+where
 	sm.creation_date >=  DATE(@per)
     AND sm.creation_date <  adddate(@per,1)
 ;
@@ -119,20 +119,20 @@ where
     SELECT
                 NOW() creation_date,
                 NOW() modification_date,
-                NULL, 
+                NULL,
                 dd.fk_metric_type_id fk_metric_type_id,
-                0,  
+                0,
                 NOW() evaluation_date,
                 dd.fk_service_instance_id fk_service_instance_id,
                 min(dd.account_id) account_id,
-                -- jobid,  
-                'daily',  
-                @per,  
+                -- jobid,
+                'daily',
+                @per,
                 CASE count(*) WHEN 1 THEN 2 else 1 end fk_cost_type_id,
-                ifnull(sum(value * wt) / sum(wt) , 0)  consumed           
-            FROM ( 
-                    SELECT 
-                        
+                ifnull(sum(value * wt) / sum(wt) , 0)  consumed
+            FROM (
+                    SELECT
+
                         sm.creation_date,
                         UNIX_TIMESTAMP(nm.creation_date)- UNIX_TIMESTAMP(DATE(@per)) wt,
                         sm.value,
@@ -156,10 +156,10 @@ where
                         ON sm.creation_date=prevt.creation_date AND sm.fk_metric_type_id = prevt.fk_metric_type_id
                             AND sm.fk_service_instance_id = prevt.fk_service_instance_id
                 union
-                    SELECT 
-                        
+                    SELECT
+
                         sm.creation_date,
-                        CASE 
+                        CASE
 			            	WHEN sm.creation_date = nm.creation_date THEN 1
 			            	WHEN nm.creation_date < adddate(@per,1) THEN UNIX_TIMESTAMP(nm.creation_date)- UNIX_TIMESTAMP(sm.creation_date)
 			            	ELSE abs(UNIX_TIMESTAMP(adddate(@per,1))- UNIX_TIMESTAMP(sm.creation_date)) END wt,
@@ -175,6 +175,6 @@ where
                     WHERE
                         sm.creation_date >=  DATE(@per)
                         AND sm.creation_date <  adddate(@per,1)
-                    ) dd 
+                    ) dd
                     GROUP by dd.fk_metric_type_id, dd.fk_service_instance_id
                 ;

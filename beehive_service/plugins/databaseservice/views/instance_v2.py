@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
+# DBAAS instance CRUD v2.0
 
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
@@ -99,7 +100,7 @@ class DescribeDBInstanceTypes(ServiceApiView):
     )
     response_schema = DescribeDBInstanceTypesApiV2ResponseSchema
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: ServiceController, data: dict, *args, **kwargs):
         account_id = data.pop("owner_id")
         size = data.pop("MaxResults")
         page = data.pop("NextToken")
@@ -162,8 +163,11 @@ class DescribeDBInstanceEngineTypesApiV2RequestSchema(Schema):
 
 
 class DescribeDBInstanceEngineTypesParamsApiV2ResponseSchema(Schema):
-    engine = fields.String(required=True, example="", description="")
-    engineVersion = fields.String(required=True, example="", description="")
+    engine = fields.String(required=True, example="", description="Database Engine technology")
+    engineVersion = fields.String(required=True, example="", description="Version")
+    fullVersion = fields.String(required=True, example="", description="Full version specification")
+    definition = fields.String(required=True, example="", description="Database Engine Definition")
+    description = fields.String(required=True, example="", description="Database Engine Description")
 
 
 class DescribeDBInstanceEngineTypesApi1V2ResponseSchema(Schema):
@@ -219,12 +223,26 @@ class DescribeDBInstanceEngineTypes(ServiceApiView):
 
         res_type_set = []
         for r in instance_engines_set:
-            name = r.name
-
             if r.name.find("db-engine") != 0:
                 continue
             esplit = r.name.split("-")
-            item = {"engine": esplit[2], "engineVersion": esplit[3]}
+            eng = ""
+            ver = ""
+            full = ""
+            if len(esplit) > 1:
+                eng = esplit[2]
+            if len(esplit) > 2:
+                ver = esplit[3]
+                full = "-".join(esplit[3:])
+
+            item = {
+                "engine": eng,
+                "engineVersion": ver,
+                "fullVersion": full,
+                "definition": r.name,
+                "description": r.model.desc,
+            }
+
             res_type_set.append(item)
             total += 1
 
@@ -633,6 +651,26 @@ class DBInstanceParameterV2ResponseSchema(Schema):
         description="ID of the account that owns the instance",
         data_key="nvl-ownerId",
     )
+    nvl_resourceId = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="Resource uuid of instance",
+        data_key="nvl-resourceId",
+    )
+    nvl_hypervisor = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="Hypervisor of instance",
+        data_key="nvl-hypervisor",
+    )
+    monitoring_enabled = fields.Boolean(
+        required=False,
+        allow_none=True,
+        example=False,
+        description="Monitoring is enable on instance",
+    )
     # nvl_keyName = fields.String(required=False, example='1ffd', allow_none=True,
     #                             description='The name of the key pair')
     ReadReplicaDBClusterIdentifiers = fields.List(fields.String(), required=False)
@@ -726,6 +764,38 @@ class NvlPostgresqlOptionsV2RequestSchema(Schema):
         data_key="Postgresql.GeoExtension",
         description="if True enable installation of postgres extension postgis",
     )
+    pg_db_name = fields.String(required=False, example="mydatabase", description="Database name")
+    pg_encoding = fields.String(
+        default="UTF-8", missing="UTF-8", example="UTF-8", validate=OneOf(["UTF-8"]), description="Database Encoding"
+    )
+    pg_lc_collate = fields.String(
+        default="en_US.UTF-8",
+        missing="en_US.UTF-8",
+        validate=OneOf(["en_US.UTF-8"]),
+        example="en_US.UTF-8",
+        description="Database Collate",
+    )
+    pg_lc_ctype = fields.String(
+        required=False,
+        default="en_US.UTF-8",
+        missing="en_US.UTF-8",
+        example="en_US.UTF-8",
+        validate=OneOf(["en_US.UTF-8"]),
+        description="Database Ctype",
+    )
+    pg_role_name = fields.String(required=False, missing=None, example="myuser", description="Role name")
+    pg_password = fields.String(required=False, missing=None, example="mypassword", description="Role password")
+    pg_schema_name = fields.String(required=False, missing=None, example="myschema", description="Schema name")
+    # validate=OneOf(["pg_stat_statements" "adminpack" "pg_buffercache" "pgcrypto" "orafce" "tablefunc" "uuid-ossp" "postgis"])
+    # validate=OneOf(["pgcrypto", "orafce", "tablefunc", "uuid-ossp", "postgis",]),
+    pg_extensions = fields.List(
+        fields.String(
+            description="Postgresql extension",
+            example="postgis",
+        ),
+        missing=[],
+        description="Postgresql extension to activate",
+    )
 
 
 class NvlMysqlOptionsV2RequestSchema(Schema):
@@ -772,9 +842,9 @@ class CreateDBInstancesApiParamV2RequestSchema(Schema):
     )
     Engine = fields.String(
         required=True,
-        example="MySQL",
+        example="mysql",
         description="engine of DB instance",
-        validate=OneOf(["mysql", "oracle", "postgresql", "sqlserver"]),
+        validate=OneOf(["mysql", "oracle", "postgresql", "sqlserver", "mariadb"]),
     )
     EngineVersion = fields.String(required=True, example="5.7", description="engine version of DB instance")
     # Iops: The amount of Provisioned IOPS (input/output operations per second) to be initially allocated for the DB
@@ -798,7 +868,7 @@ class CreateDBInstancesApiParamV2RequestSchema(Schema):
     MultiAZ = fields.Boolean(
         required=False,
         missing=False,
-        description="A value that indicates whether the DB instance" " is a Multi-AZ deployment",
+        description="A value that indicates whether the DB instance is a Multi-AZ deployment",
     )
     # OptionGroupName: Indicates that the DB instance should be associated with the specified option group.
     Port = fields.String(
@@ -890,8 +960,11 @@ class CreateDBInstances(ServiceApiView):
     def post(self, controller: ServiceController, data, *args, **kwargs):
         inner_data = data.get("dbinstance")
 
-        service_definition_id = inner_data.get("DBInstanceClass")
+        sdef_oid = inner_data.get("DBInstanceClass")
+        service_definition_id = controller.get_definition_id(sdef_oid)
+
         account_id = inner_data.get("AccountId")
+
         name = inner_data.get("DBInstanceIdentifier")
         desc = inner_data.get("DBInstanceIdentifier")
         engine = inner_data.get("Engine")
@@ -899,28 +972,30 @@ class CreateDBInstances(ServiceApiView):
         # check instance with the same name already exists
         self.service_exist(controller, name, ApiDatabaseServiceInstance.plugintype)
 
-        account, parent_inst = self.check_parent_service(
-            controller, account_id, plugintype=ApiDatabaseService.plugintype
+        # account, parent_inst = self.check_parent_service(
+        #     controller, account_id, plugintype=ApiDatabaseService.plugintype
+        # )
+        account, parent_inst = controller.check_service_type_plugin_parent_service(
+            account_id, plugintype=ApiDatabaseService.plugintype
         )
-
         # get service definition with engine configuration
         engine_def_name = "db-engine-%s-%s" % (engine, engine_version)
-        engine_defs, tot = controller.get_paginated_service_defs(name=engine_def_name)
+        engine_defs, tot = account.get_definitions(name=engine_def_name, plugintype="VirtualService")
         if len(engine_defs) < 1 or len(engine_defs) > 1:
-            raise ApiManagerError("Engine %s with version %s saw not found" % (engine, engine_version))
+            raise ApiManagerError("Engine %s with version %s was not found" % (engine, engine_version))
 
         # add engine config
         engine_def_config = engine_defs[0].get_main_config().params
         data.update({"engine": engine_def_config})
 
         # check service definition
-        service_defs, total = controller.get_paginated_service_defs(
-            service_definition_uuid_list=[service_definition_id],
-            plugintype=ApiDatabaseServiceInstance.plugintype,
+        service_defs, total = account.get_definitions(
+            service_definition_id=service_definition_id, plugintype=ApiDatabaseServiceInstance.plugintype
         )
-        self.logger.warn(service_defs)
+
+        self.logger.warning(service_defs)
         if total < 1:
-            raise ApiManagerError("DBInstanceClass is wrong")
+            raise ApiManagerError(f"Account {account_id} has not service definition {service_definition_id}")
 
         # create service instance
         data["computeZone"] = parent_inst.instance.resource_uuid
@@ -1165,10 +1240,12 @@ class DeleteDBInstances(ServiceApiView):
     )
     response_schema = DeleteDBInstancesApiV2ResponseSchema
 
-    def delete(self, controller, data, *args, **kwargs):
+    def delete(self, controller: ServiceController, data, *args, **kwargs):
         instance_id = data.pop("DBInstanceIdentifier")
 
-        type_plugin: ApiDatabaseServiceInstance = controller.get_service_type_plugin(instance_id)
+        type_plugin: ApiDatabaseServiceInstance = controller.get_service_type_plugin(
+            instance_id, plugin_class=ApiDatabaseServiceInstance
+        )
         info = type_plugin.aws_info(api_version="v2.0")
         type_plugin.delete()
 
@@ -1282,18 +1359,20 @@ class ModifyDBInstance(ServiceApiView):
     def put(self, controller, data, *args, **kwargs):
         # check service definition
         service_definition_id = data.get("DBInstanceClass")
+        sdi = controller.get_definition_id(service_definition_id)
+        instance_id = data.pop("DBInstanceIdentifier")
+        type_plugin: ApiDatabaseServiceInstance = controller.get_service_type_plugin(instance_id)
+        account = type_plugin.get_account()
         if service_definition_id is not None:
-            service_def = controller.get_service_def(service_definition_id)
-            service_defs, total = controller.get_paginated_service_defs(
-                service_definition_id_list=[service_def.oid],
+            # service_def = controller.get_service_def(service_definition_id)
+            service_defs, total = account.get_definitions(
+                service_definition_id=sdi,
                 plugintype=ApiDatabaseServiceInstance.plugintype,
             )
             self.logger.info("service_defs: %s" % service_defs)
             if total < 1:
                 raise ApiManagerError("DBInstanceClass is wrong")
 
-        instance_id = data.pop("DBInstanceIdentifier")
-        type_plugin: ApiDatabaseServiceInstance = controller.get_service_type_plugin(instance_id)
         info = type_plugin.aws_info(api_version="v2.0")
         type_plugin.update(**data)
 

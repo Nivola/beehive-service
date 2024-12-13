@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from urllib import response
 from flasgger import fields, Schema
+from beehive_service.controller import ServiceController
 from beehive_service.entity.service_type import ApiServiceTypePlugin
 from beehive_service.views import ServiceApiView
 from beecell.swagger import SwaggerHelper
@@ -127,7 +128,7 @@ class DescribeTags(ServiceApiView):
     responses = ServiceApiView.setResponses({200: {"description": "success", "schema": DescribeTagsApiResponseSchema}})
     response_schema = DescribeTagsApiResponseSchema
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: ServiceController, data, *args, **kwargs):
         data_search = {}
         data_search["size"] = data.get("MaxResults", 10)
         data_search["page"] = int(data.get("NextToken", 0))

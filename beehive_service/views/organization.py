@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from typing import Dict
 from beehive.common.apimanager import (
@@ -25,6 +25,7 @@ from beehive_service.views import (
     ApiServiceObjectRequestSchema,
 )
 from beehive_service.views.account import ContainerInstancesItemResponseSchema
+from .check import validate_org_name
 
 
 class ListOrganizationsRequestSchema(
@@ -143,7 +144,7 @@ class GetOrganizationPerms(ServiceApiView):
 
 
 class CreateOrganizationParamRequestSchema(Schema):
-    name = fields.String(required=True)
+    name = fields.String(required=True, validate=validate_org_name)
     desc = fields.String(required=False, allow_none=True)
     org_type = fields.String(required=True)
     ext_anag_id = fields.String(required=False, allow_none=True)
@@ -273,6 +274,7 @@ class DeleteOrganization(ServiceApiView):
 
 
 class GetOrganizationRolesItemResponseSchema(Schema):
+    role = fields.String(required=True, example="OrgAdminRole-123456")
     name = fields.String(required=True, example="master")
     desc = fields.String(required=True, example="")
 
@@ -314,6 +316,8 @@ class GetOrganizationUsersItemDateResponseSchema(ApiObjectResponseDateSchema):
 class GetOrganizationUsersItemResponseSchema(ApiObjectResponseSchema):
     role = fields.String(required=True, example="master")
     email = fields.String(required=False)
+    taxcode = fields.String(required=False, allow_none=True)
+    ldap = fields.String(required=False, allow_none=True)
     date = fields.Nested(GetOrganizationUsersItemDateResponseSchema, required=True)
 
 
