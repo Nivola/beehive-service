@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
+    ApiObjectSmallResponseSchema,
     ApiView,
     PaginatedRequestQuerySchema,
     PaginatedResponseSchema,
@@ -25,13 +26,36 @@ from beehive_service.views import (
 from beehive_service.model import SrvStatusType
 
 
+class ParentResponseSchema(Schema):
+    uuid = fields.UUID(
+        required=False,
+        allow_none=True,
+        metadata={"example": "6d960236-d280-46d2-817d-f3ce8f0aeff7", "description": "api object uuid"},
+    )
+    name = fields.String(
+        required=False,
+        dump_default="test",
+        allow_none=True,
+        metadata={"example": "test", "description": "entity name"},
+    )
+
+
 class GetServiceInstanceParamsResponseSchema(ApiObjectResponseSchema):
     account_id = fields.String(required=True)
     service_definition_id = fields.String(required=True)
-    status = fields.String(required=False, default=SrvStatusType.RELEASED)
+    status = fields.String(required=False, dump_default=SrvStatusType.RELEASED)
     bpmn_process_id = fields.Integer(required=False, allow_none=True)
     resource_uuid = fields.String(required=False, allow_none=True)
     config = fields.Dict(required=False, allow_none=True)
+
+    last_error = fields.String(required=False, allow_none=True)
+    version = fields.String(required=False, allow_none=True)
+    definition = fields.Nested(ApiObjectSmallResponseSchema, required=True, allow_none=True)
+    parent = fields.Nested(ParentResponseSchema, required=True, allow_none=True)
+    account = fields.Nested(ApiObjectSmallResponseSchema, required=True, allow_none=True)
+    version = fields.String(required=False, allow_none=True)
+    params = fields.String(required=False, allow_none=True)
+    is_container = fields.Boolean(required=False)
 
 
 class V1GetServiceInstanceResponseSchema(Schema):
@@ -54,7 +78,7 @@ class GetServiceInstance(ServiceApiView):
         return {"serviceinst": srv_inst.detail()}
 
 
-class ListServiceInstancesRequestSchema(
+class ListServiceInstancesV10RequestSchema(
     ApiServiceObjectRequestSchema,
     ApiObjectRequestFiltersSchema,
     PaginatedRequestQuerySchema,
@@ -68,18 +92,13 @@ class ListServiceInstancesRequestSchema(
     plugintype = fields.String(required=False, context="query")
     tags = fields.String(
         context="query",
-        description="List of tags. Use comma as separator if tags are in or. Use + " "separator if tags are in and",
+        metadata={"description": "List of tags. Use comma as separator if tags are in or. Use + " "separator if tags are in and"},
     )
-    flag_container = fields.Boolean(context="query", description="if True show only container instances")
+    flag_container = fields.Boolean(context="query", metadata={"description": "if True show only container instances"})
 
 
 class V1ListServiceInstancesResponseSchema(PaginatedResponseSchema):
-    serviceinsts = fields.Nested(
-        GetServiceInstanceParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
+    serviceinsts = fields.Nested(GetServiceInstanceParamsResponseSchema, many=True, required=True, allow_none=True)
 
 
 class ListServiceInstances(ServiceApiView):
@@ -87,8 +106,8 @@ class ListServiceInstances(ServiceApiView):
     definitions = {
         "V1ListServiceInstancesResponseSchema": V1ListServiceInstancesResponseSchema,
     }
-    parameters = SwaggerHelper().get_parameters(ListServiceInstancesRequestSchema)
-    parameters_schema = ListServiceInstancesRequestSchema
+    parameters = SwaggerHelper().get_parameters(ListServiceInstancesV10RequestSchema)
+    parameters_schema = ListServiceInstancesV10RequestSchema
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": V1ListServiceInstancesResponseSchema}}
     )

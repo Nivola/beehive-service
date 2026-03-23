@@ -1,28 +1,20 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_service.controller.api_division import ApiDivision
 from beehive_service.controller.api_orgnization import ApiOrganization
-from beehive_service.entity.service_definition import ApiServiceDefinition
-from beecell.simple import format_date
+#from beehive_service.entity.service_definition import ApiServiceDefinition
 from beehive.common.apimanager import (
-    ApiObjectMetadataResponseSchema,
-    ApiObjectResponseDateSchema,
     ApiView,
     PaginatedRequestQuerySchema,
     PaginatedResponseSchema,
     ApiObjectResponseSchema,
     CrudApiObjectResponseSchema,
     GetApiObjectRequestSchema,
-    ApiObjectPermsResponseSchema,
-    ApiObjectPermsRequestSchema,
-    CrudApiObjectSimpleResponseSchema,
     CrudApiObjectTaskResponseSchema,
 )
 from flasgger import fields, Schema
-from marshmallow import ValidationError
-from marshmallow.decorators import validates_schema
 from marshmallow.validate import OneOf
 from beecell.swagger import SwaggerHelper
 from beehive_service.controller import ApiAccount, ServiceController
@@ -33,16 +25,8 @@ from beehive_service.views import (
 )
 from beehive_service.views import ApiServiceObjectResponseSchema
 from beehive_service.service_util import __SRV_SERVICE_CATEGORY__, __SRV_PLUGIN_TYPE__
-from typing import List
 
 API_ACCOUNT_VERSION = "v2.0"
-
-
-try:
-    from dateutil.parser import relativedelta
-except ImportError as ex:
-    from dateutil import relativedelta
-
 
 class ListAccountsV20RequestSchema(
     ApiServiceObjectRequestSchema,
@@ -57,20 +41,30 @@ class ListAccountsV20RequestSchema(
     email_support_link = fields.String(required=False, context="query")
 
 
+class AccountServiceResponseSchema(Schema):
+    base = fields.Integer(required=False)
+    core = fields.Integer(required=False)
+
+
 class AccountResponseSchema(ApiObjectResponseSchema):
-    service_status_id = fields.Integer(required=False, default=6)
-    version = fields.String(required=False, default="1.0")
+    service_status_id = fields.Integer(required=False, dump_default=6)
+    version = fields.String(required=False, dump_default="1.0")
     division_id = fields.String(required=True)
-    note = fields.String(required=False, allow_none=True, default="")
-    contact = fields.String(required=False, allow_none=True, default="")
-    email = fields.String(required=False, allow_none=True, default="")
-    email_support = fields.String(required=False, allow_none=True, default="")
-    email_support_link = fields.String(required=False, allow_none=True, default="")
-    managed = fields.Boolean(required=False, allow_none=True, default=False)
-    acronym = fields.String(required=False, allow_none=True, default="")
-    account_type = fields.String(required=False, allow_none=True, default="")
-    management_model = fields.String(required=False, allow_none=True, default="")
-    pods = fields.String(required=False, allow_none=True, default="")
+    note = fields.String(required=False, allow_none=True, dump_default="")
+    contact = fields.String(required=False, allow_none=True, dump_default="")
+    email = fields.String(required=False, allow_none=True, dump_default="")
+    email_support = fields.String(required=False, allow_none=True, dump_default="")
+    email_support_link = fields.String(required=False, allow_none=True, dump_default="")
+    managed = fields.Boolean(required=False, allow_none=True, dump_default=False)
+    acronym = fields.String(required=False, allow_none=True, dump_default="")
+
+    # fix
+    status = fields.String(required=False, allow_none=True, dump_default="")
+    division_name = fields.String(required=False, allow_none=True, dump_default="")
+    services = fields.Nested(AccountServiceResponseSchema, required=False, allow_none=True)
+    account_type = fields.String(required=False, allow_none=True, dump_default="")
+    management_model = fields.String(required=False, allow_none=True, dump_default="")
+    pods = fields.String(required=False, allow_none=True, dump_default="")
 
 
 class ListAccountsV20ResponseSchema(PaginatedResponseSchema):
@@ -135,24 +129,21 @@ class GetAccountV20(ServiceApiView):
 class DeleteAccountV20RequestSchema(Schema):
     delete_services = fields.Boolean(
         required=False,
-        missing=False,
-        example=False,
+        load_default=False,
         context="query",
-        description="if True delete all child services before remove the account",
+        metadata={"example": False, "description": "if True delete all child services before remove the account"},
     )
     delete_tags = fields.Boolean(
         required=False,
-        missing=False,
-        example=False,
+        load_default=False,
         context="query",
-        description="if True delete all child tags before remove the account",
+        metadata={"example": False, "description": "if True delete all child tags before remove the account"},
     )
     close_account = fields.Boolean(
         required=False,
-        missing=False,
-        example=False,
+        load_default=False,
         context="query",
-        description="if True close the account",
+        metadata={"example": False, "description": "if True close the account"},
     )
 
 
@@ -190,23 +181,23 @@ class GetAccountDefinitionsRequestSchema(
     ApiObjectRequestFiltersSchema,
     PaginatedRequestQuerySchema,
 ):
-    oid = fields.String(required=False, context="path", description="account id")
+    oid = fields.String(required=False, context="path", metadata={"description": "account id"})
     plugintype = fields.String(
         required=False,
         context="query",
-        description="plugin type name",
         validate=OneOf(__SRV_PLUGIN_TYPE__),
+        metadata={"description": "plugin type name"},
     )
     category = fields.String(
         required=False,
         context="query",
-        description="definiton category",
         validate=OneOf(__SRV_SERVICE_CATEGORY__),
+        metadata={"description": "definiton category"},
     )
     only_container = fields.Boolean(
         required=False,
         context="query",
-        description="if True select only definition with type that is a container",
+        metadata={"description": "if True select only definition with type that is a container"},
     )
 
 
@@ -261,16 +252,24 @@ class GetAccountDefinitions(ServiceApiView):
 
 
 class AddAccountDefinitionsRequestSchema(Schema):
-    definitions = fields.List(fields.String(), required=True, description="list of service definition uuid")
+    definitions = fields.List(
+        fields.String(),
+        required=True,
+        metadata={"description": "list of service definition uuid"},
+    )
 
 
 class AddAccountDefinitionsBodyRequestSchema(Schema):
-    oid = fields.String(required=False, context="path", description="account id")
+    oid = fields.String(required=False, context="path", metadata={"description": "account id"})
     body = fields.Nested(AddAccountDefinitionsRequestSchema, context="body")
 
 
-class AddAccountDefinitionsResponseSchema(PaginatedResponseSchema):
-    definitions = fields.List(fields.String(), required=True, description="list of service definition uuid")
+class AddAccountDefinitionsResponseSchema(Schema):
+    definitions = fields.List(
+        fields.String(),
+        required=True,
+        metadata={"description": "list of service definition uuid"},
+    )
 
 
 class AddAccountDefinitions(ServiceApiView):
@@ -310,7 +309,7 @@ class AddAccountDefinitions(ServiceApiView):
 
 
 class CheckAccountRequestSchema(Schema):
-    oid = fields.String(required=False, context="path", description="account id")
+    oid = fields.String(required=False, context="path", metadata={"description": "account id"})
 
 
 class CheckAccountResponseSchema(PaginatedResponseSchema):
@@ -340,6 +339,7 @@ class CheckAccount(ServiceApiView):
         accounts = None
 
         # override authorize default of get_paginated_entities and get_entity
+        total = 0
         if len(oid) == 1:
             accounts, total = controller.get_accounts(name=oid[0], authorize=False)
         elif len(oid) == 2:
@@ -368,6 +368,38 @@ class CheckAccount(ServiceApiView):
         return resp
 
 
+class DeleteAccountDefinitionRequestSchema(Schema):
+    oid = fields.String(required=False, context="path", metadata={"description": "account id"})
+    definitionid = fields.String(required=False, context="path", metadata={"description": "definition"})
+
+class DeleteAccountDefinition(ServiceApiView):
+    summary = "Delete one Account available Service Definitions"
+    description = "Delete one Account available Service Definitions"
+    tags = ["authority"]
+    definitions = {
+        "DeleteAccountDefinitionRequestSchema": DeleteAccountDefinitionRequestSchema,
+        "AddAccountDefinitionsResponseSchema": AddAccountDefinitionsResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(DeleteAccountDefinitionRequestSchema)
+    parameters_schema = DeleteAccountDefinitionRequestSchema
+    responses = ServiceApiView.setResponses(
+        {
+            200: {"description": "no response"},
+            201: {"description": "success", "schema": CrudApiObjectTaskResponseSchema},
+        }
+    )
+    # response_schema = CrudApiObjectTaskResponseSchema
+
+    def delete(self, controller: ServiceController, data: dict, oid: str, definitionid:str,  *args, **kwargs):
+        account: ApiAccount = controller.get_account(oid)
+        apidefinition = controller.check_service_definition(definitionid)
+        controller.del_account_service_definition(
+            account_id=account.oid,
+            service_definition_id=apidefinition.oid)
+        return None, 200
+
+
+
 class AccountV20API(ApiView):
     """AccountAPI version 2.0"""
 
@@ -381,7 +413,7 @@ class AccountV20API(ApiView):
             ("%s/accounts/<oid>" % base, "DELETE", DeleteAccountV20, {}),
             ("%s/accounts/<oid>/definitions" % base, "GET", GetAccountDefinitions, {}),
             ("%s/accounts/<oid>/definitions" % base, "POST", AddAccountDefinitions, {}),
-            # ('%s/accounts/<oid>/definitions' % base, 'DELETE', DelAccountDefinitions, {}),
+            ('%s/accounts/<oid>/definitions/<definitionid>' % base, 'DELETE', DeleteAccountDefinition, {}),
         ]
 
         kwargs["version"] = API_ACCOUNT_VERSION

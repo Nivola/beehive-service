@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from copy import deepcopy
 import logging
@@ -12,6 +12,7 @@ from marshmallow.fields import String
 from sqlalchemy.sql.functions import array_agg
 from beecell.simple import format_date, obscure_data, dict_get
 from beecell.types.type_string import truncate
+from beehive_service.controller import ServiceController
 from beehive_service.controller.api_account import ApiAccount
 from beehive_service.entity.service_instance import ApiServiceInstance
 from beehive_service.entity.service_type import (
@@ -74,7 +75,7 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
             # self.logger.debug("post_get - resource_desc: %s" % resource_desc)
 
     @staticmethod
-    def customize_list(controller, entities, *args, **kvargs):
+    def customize_list(controller: ServiceController, entities, *args, **kvargs):
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
@@ -85,8 +86,6 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
         :return: None
         :raise ApiManagerError:
         """
-        # +++++++ logger = logging.getLogger(__name__)
-
         account_idx = controller.get_account_idx()
         compute_service_idx = controller.get_service_instance_idx(ApiMonitoringAlert.plugintype, index_key="account_id")
         instance_type_idx = controller.get_service_definition_idx(ApiMonitoringAlert.plugintype)
@@ -94,7 +93,6 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
         # get resources
         zones = []
         resources = []
-        # logger.info('+++++ customize_list - entities: %s' % entities)
         for entity in entities:
             # entity: ApiMonitoringAlert
             account_id = str(entity.instance.account_id)
@@ -107,6 +105,7 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
             if entity.instance.resource_uuid is not None:
                 resources.append(entity.instance.resource_uuid)
 
+        # print("+++++ customize_list - zones: %s - resources: %s" % (len(zones), len(resources)))
         if len(resources) == 0:
             resources_idx = {}
         else:
@@ -114,8 +113,10 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
                 resources = None
             else:
                 zones = []
+
             if len(zones) > 40 or len(zones) == 0:
                 zones = None
+
             resources_list = ApiMonitoringAlert(controller).list_resources(zones=zones, uuids=resources)
             resources_idx = {r["uuid"]: r for r in resources_list}
 
@@ -177,8 +178,8 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
         # if "severity" in self.resource:
         #    instance_item["severity"] = self.resource.get("severity")
 
-        instance_item["users_email"] = "-"
-        instance_item["user_severities"] = "-"
+        instance_item["users_email"] = []
+        instance_item["user_severities"] = []
 
         if self.resource is not None:
             if "users_email" in self.resource:
@@ -420,8 +421,8 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # set resource uuid
         if uuid is not None and taskid is not None:
@@ -581,8 +582,8 @@ class ApiMonitoringAlert(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # wait job
         if taskid is not None:

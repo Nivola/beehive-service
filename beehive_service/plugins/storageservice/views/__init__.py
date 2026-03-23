@@ -1,12 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from typing import TYPE_CHECKING, List
 from flasgger import fields, Schema
-from beehive.common.data import operation
-from beehive_service.model.base import SrvStatusType
-from beehive_service.plugins.storageservice.controller import ApiStorageService
-from beehive_service.views import ServiceApiView
 from beecell.swagger import SwaggerHelper
 from beehive.common.apimanager import (
     SwaggerApiView,
@@ -15,31 +12,41 @@ from beehive.common.apimanager import (
     ApiView,
     CrudApiObjectTaskResponseSchema,
 )
-from beehive_service.controller import ApiServiceType
+from beehive.common.data import operation
+from beehive_service.entity.service_type import ApiServiceType
+from beehive_service.plugins.storageservice.controller import ApiStorageService
+from beehive_service.views import ServiceApiView
+from beehive_service.views.service_plugin import (
+    DescribePluginServiceRequestSchema,
+    PluginResponseSchema,
+    DescribePluginServiceResponseSchema,
+    DescribePluginApiResponseSchema,
+    CreatePluginServiceApiRequestSchema,
+    CreatePluginServiceApiBodyRequestSchema,
+    UpdatePluginServiceApiRequestSchema,
+    UpdatePluginServiceApiBodyRequestSchema
+)
+if TYPE_CHECKING:
+    from beehive_service.controller import ServiceController
 
 
-class DescribeStorageServiceRequestSchema(Schema):
-    owner_id = fields.String(
+class DescribeStorageServiceRequestSchema(DescribePluginServiceRequestSchema):
+    pass
+
+
+class DescribeStorageServiceResponseSchema(DescribePluginServiceResponseSchema):
+    pluginSet = fields.Nested(PluginResponseSchema, data_key="storageSet", many=True, required=False)
+    pluginTotal = fields.Integer(required=False, data_key="storageTotal")
+
+
+class DescribeStorageApiResponseSchema(DescribePluginApiResponseSchema):
+    DescribePluginResponse = fields.Nested(
+        DescribeStorageServiceResponseSchema,
+        data_key="DescribeStorageResponse",
         required=True,
+        many=False,
         allow_none=False,
-        context="query",
-        data_key="owner-id",
-        description="account ID of the instance owner",
     )
-
-
-class DescribeStorageServiceResponseSchema(Schema):
-    id = fields.String(required=True)
-    name = fields.String(required=True)
-    description = fields.String(required=True)
-    account_id = fields.String(required=True)
-    account_name = fields.String(required=True)
-    template_id = fields.String(required=True)
-    template_name = fields.String(required=True)
-    state = fields.String(required=False, default=SrvStatusType.DRAFT)
-    resource_uuid = fields.String(required=False, allow_none=True)
-    stateReason = fields.String(required=False, default="")
-    limits = fields.Dict(required=False, default={})
 
 
 class DescribeStorageService(ServiceApiView):
@@ -48,7 +55,7 @@ class DescribeStorageService(ServiceApiView):
     tags = ["storageservice"]
     definitions = {
         "DescribeStorageServiceRequestSchema": DescribeStorageServiceRequestSchema,
-        "DescribeStorageServiceResponseSchema": DescribeStorageServiceResponseSchema,
+        "DescribeStorageApiResponseSchema": DescribeStorageApiResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(DescribeStorageServiceRequestSchema)
     parameters_schema = DescribeStorageServiceRequestSchema
@@ -56,14 +63,15 @@ class DescribeStorageService(ServiceApiView):
         {
             200: {
                 "description": "success",
-                "schema": DescribeStorageServiceResponseSchema,
+                "schema": DescribeStorageApiResponseSchema,
             }
         }
     )
-    response_schema = DescribeStorageServiceResponseSchema
+    response_schema = DescribeStorageApiResponseSchema
 
-    def get(self, controller, data, *args, **kvargs):
+    def get(self, controller: 'ServiceController', data, *args, **kvargs):
         # get instances list
+        res: List['ApiStorageService']
         res, tot = controller.get_service_type_plugins(
             account_id_list=[data.get("owner_id")],
             plugintype=ApiStorageService.plugintype,
@@ -75,22 +83,10 @@ class DescribeStorageService(ServiceApiView):
                 "__xmlns": self.xmlns,
                 "requestId": operation.id,
                 "storageSet": storage_set,
-                "storageTotal": 1,
+                "storageTotal": tot,
             }
         }
         return res
-
-
-class CreateStorageServiceApiRequestSchema(Schema):
-    owner_id = fields.String(required=True)
-    name = fields.String(required=False, default="")
-    desc = fields.String(required=False, default="")
-    service_def_id = fields.String(required=True, example="")
-    resource_desc = fields.String(required=False, default="")
-
-
-class CreateStorageServiceApiBodyRequestSchema(Schema):
-    body = fields.Nested(CreateStorageServiceApiRequestSchema, context="body")
 
 
 class CreateStorageService(ServiceApiView):
@@ -98,17 +94,17 @@ class CreateStorageService(ServiceApiView):
     description = "Create storage service info"
     tags = ["storageservice"]
     definitions = {
-        "CreateStorageServiceApiRequestSchema": CreateStorageServiceApiRequestSchema,
+        "CreatePluginServiceApiRequestSchema": CreatePluginServiceApiRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
-    parameters = SwaggerHelper().get_parameters(CreateStorageServiceApiBodyRequestSchema)
-    parameters_schema = CreateStorageServiceApiRequestSchema
+    parameters = SwaggerHelper().get_parameters(CreatePluginServiceApiBodyRequestSchema)
+    parameters_schema = CreatePluginServiceApiRequestSchema
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
     response_schema = CrudApiObjectTaskResponseSchema
 
-    def post(self, controller, data, *args, **kvargs):
+    def post(self, controller: 'ServiceController', data, *args, **kvargs):
         service_definition_id = data.pop("service_def_id")
         account_id = data.pop("owner_id")
         desc = data.pop("desc", "Storage service account %s" % account_id)
@@ -127,41 +123,20 @@ class CreateStorageService(ServiceApiView):
         return {"uuid": uuid, "taskid": taskid}, 202
 
 
-class UpdateStorageServiceApiRequestParamSchema(Schema):
-    owner_id = fields.String(
-        required=True,
-        allow_none=False,
-        context="query",
-        data_key="owner-id",
-        description="account ID of the instance owner",
-    )
-    name = fields.String(required=False, default="")
-    desc = fields.String(required=False, default="")
-    service_def_id = fields.String(required=False, default="")
-
-
-class UpdateStorageServiceApiRequestSchema(Schema):
-    serviceinst = fields.Nested(UpdateStorageServiceApiRequestParamSchema, context="body")
-
-
-class UpdateStorageServiceApiBodyRequestSchema(Schema):
-    body = fields.Nested(UpdateStorageServiceApiRequestSchema, context="body")
-
-
 class UpdateStorageService(ServiceApiView):
     summary = "Update storage service info"
     description = "Update storage service info"
     tags = ["storageservice"]
     definitions = {
-        "UpdateStorageServiceApiRequestSchema": UpdateStorageServiceApiRequestSchema,
+        "UpdatePluginServiceApiRequestSchema": UpdatePluginServiceApiRequestSchema,
         "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
-    parameters = SwaggerHelper().get_parameters(UpdateStorageServiceApiBodyRequestSchema)
-    parameters_schema = UpdateStorageServiceApiRequestSchema
+    parameters = SwaggerHelper().get_parameters(UpdatePluginServiceApiBodyRequestSchema)
+    parameters_schema = UpdatePluginServiceApiRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
-    def put(self, controller, data, *args, **kvargs):
+    def put(self, controller: 'ServiceController', data, *args, **kvargs):
         data = data.get("serviceinst")
 
         def_id = data.get("service_def_id", None)
@@ -172,14 +147,15 @@ class UpdateStorageService(ServiceApiView):
             plugintype=ApiStorageService.plugintype,
             filter_expired=False,
         )
+        if tot==0:
+            raise ApiManagerError(f"Account {account_id} has no storage instance associated")
         if tot > 0:
+            # do strict ==0 check?
             inst_service = inst_services[0]
-        else:
-            raise ApiManagerError("Account %s has no storage instance associated" % account_id)
 
         # get service def
         if def_id is not None:
-            plugin_root = ApiServiceType(controller).instancePlugin(None, inst=inst_service)
+            plugin_root: 'ApiStorageService' = ApiServiceType(controller).instancePlugin(None, inst=inst_service)
             plugin_root.change_definition(inst_service, def_id)
 
         return {"uuid": inst_service.uuid}
@@ -191,15 +167,16 @@ class DescribeAccountAttributesRequestSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
 
 
 class DescribeAccountAttributeSetResponseSchema(Schema):
-    uuid = fields.String(required=True, example="")
+    uuid = fields.String(required=True)
 
 
 class DescribeAccountAttributeResponseSchema(Schema):
+    xmlns = fields.String(required=False, data_key="__xmlns")
     requestId = fields.String(required=True, allow_none=True)
     accountAttributeSet = fields.Nested(DescribeAccountAttributeSetResponseSchema, many=True, required=True)
 
@@ -230,6 +207,7 @@ class DescribeAccountAttributeSetSSResponseSchema(Schema):
 
 
 class DescribeAccountAttributeSSResponseSchema(Schema):
+    xmlns = fields.String(required=False, data_key="__xmlns")
     requestId = fields.String(required=True, allow_none=True)
     accountAttributeSet = fields.Nested(DescribeAccountAttributeSetSSResponseSchema, many=True, required=True)
 
@@ -263,6 +241,7 @@ class DescribeAccountAttributes(ServiceApiView):
 
     def get(self, controller, data, *args, **kvargs):
         # get instances list
+        res: List[ApiStorageService]
         res, tot = controller.get_service_type_plugins(
             account_id_list=[data.get("owner_id")],
             plugintype=ApiStorageService.plugintype,
@@ -287,7 +266,7 @@ class DescribeAccountAttributes(ServiceApiView):
 
 class ModifyAccountAttributeBodyRequestSchema(Schema):
     owner_id = fields.String(required=True)
-    quotas = fields.Dict(required=True, example="")
+    quotas = fields.Dict(required=True)
 
 
 class ModifyAccountAttributesBodyRequestSchema(Schema):
@@ -295,7 +274,7 @@ class ModifyAccountAttributesBodyRequestSchema(Schema):
 
 
 class ModifyAccountAttributeSetResponseSchema(Schema):
-    uuid = fields.String(required=True, example="")
+    uuid = fields.String(required=True)
 
 
 class ModifyAccountAttributeResponseSchema(Schema):
@@ -358,8 +337,8 @@ class ModifyAccountAttributes(ServiceApiView):
 
 
 class DeleteStorageServiceResponseSchema(Schema):
-    uuid = fields.String(required=True, description="Instance id")
-    taskid = fields.String(required=True, description="task id")
+    uuid = fields.String(required=True, metadata={"description": "Instance id"})
+    taskid = fields.String(required=True, metadata={"description": "task id"})
 
 
 class DeleteStorageServiceRequestSchema(Schema):
@@ -367,7 +346,7 @@ class DeleteStorageServiceRequestSchema(Schema):
         required=True,
         allow_none=True,
         context="query",
-        description="Instance uuid or name",
+        metadata={"description": "Instance uuid or name"},
     )
 
 
@@ -419,5 +398,4 @@ class StorageServiceAPI(ApiView):
                 {},
             ),
         ]
-
         ApiView.register_api(module, rules, **kwargs)

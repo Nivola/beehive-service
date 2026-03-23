@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from sys import version_info
 from setuptools import setup
@@ -65,10 +65,16 @@ if __name__ == "__main__":
             "beehive_service.plugins.databaseservice.entity",
             "beehive_service.plugins.databaseservice.views",
             "beehive_service.plugins.dummy",
+            # logaas
             "beehive_service.plugins.loggingservice",
             "beehive_service.plugins.loggingservice.views",
+            # maas
             "beehive_service.plugins.monitoringservice",
             "beehive_service.plugins.monitoringservice.views",
+            # ecaas
+            "beehive_service.plugins.containerservice",
+            "beehive_service.plugins.containerservice.views",
+            # staas
             "beehive_service.plugins.storageservice",
             "beehive_service.plugins.storageservice.views",
             "beehive_service.server",

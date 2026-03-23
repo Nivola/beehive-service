@@ -1,14 +1,14 @@
 # SPDX# SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import re
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf, Length, Range
 from marshmallow.decorators import validates_schema
 from marshmallow.exceptions import ValidationError
-from six import ensure_text
+from beecell.util import ensure_text
 from beehive_service.controller import ServiceController
 from beehive_service.controller.api_account import ApiAccount
 from beehive_service.plugins.computeservice.controller import (
@@ -34,15 +34,18 @@ from beecell.types.type_string import validate_string
 
 
 class CreateMonitoringInstanceApiParamRequestSchema(Schema):
-    ComputeInstanceId = fields.String(required=True, description="compute instance id")
+    ComputeInstanceId = fields.String(required=True, metadata={"description": "compute instance id"})
     owner_id = fields.String(
         required=True,
-        example="1",
         data_key="owner-id",
-        description="account id or uuid associated to compute zone",
+        metadata={"example": "1", "description": "account id or uuid associated to compute zone"},
     )
     InstanceType = NotEmptyString(required=False, description="service definition of the instance")
-    norescreate = fields.Boolean(required=False, allow_none=True, description="don't create physical resource")
+    norescreate = fields.Boolean(
+        required=False,
+        allow_none=True,
+        metadata={"description": "don't create physical resource"},
+    )
 
 
 class CreateMonitoringInstanceApiRequestSchema(Schema):
@@ -57,19 +60,16 @@ class CreateMonitoringInstanceApiResponse1Schema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
     requestId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="api request id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "api request id"},
     )
     instanceId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="instance id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "instance id"},
     )
     nvl_activeTask = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
         data_key="nvl-activeTask",
-        description="task id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "task id"},
     )
 
 
@@ -167,9 +167,8 @@ class CreateMonitoringInstance(ServiceApiView):
 class DeleteMonitoringInstanceApiRequestSchema(Schema):
     InstanceId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="instance id",
         context="query",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "instance id"},
     )
 
 
@@ -177,19 +176,16 @@ class DeleteMonitoringInstanceApiResponse1Schema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
     requestId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="api request id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "api request id"},
     )
     instanceId = fields.String(
         required=False,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="instance id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "instance id"},
     )
     nvl_activeTask = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
         data_key="nvl-activeTask",
-        description="task id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "task id"},
     )
 
 
@@ -239,50 +235,56 @@ class DeleteMonitoringInstance(ServiceApiView):
 
 
 class MonitoringInstanceStateReasonResponseSchema(Schema):
-    nvl_code = fields.Integer(required=False, allow_none=True, description="state code", data_key="nvl-code")
+    nvl_code = fields.Integer(
+        required=False,
+        allow_none=True,
+        data_key="nvl-code",
+        metadata={"description": "state code"},
+    )
     nvl_message = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="state message",
         data_key="nvl-message",
+        metadata={"description": "state message"},
     )
 
 
 class MonitoringInstanceItemParameterResponseSchema(Schema):
     id = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="id of the instance",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "id of the instance"},
     )
-    name = fields.String(required=True, example="test", description="name of the instance")
-    creationDate = fields.DateTime(required=True, example="2022-01-25T11:20:18Z", description="creation date")
-    description = fields.String(required=True, example="test", description="description of the instance")
+    name = fields.String(required=True, metadata={"example": "test", "description": "name of the instance"})
+    creationDate = fields.DateTime(
+        required=True,
+        metadata={"example": "2022-01-25T11:20:18Z", "description": "creation date"},
+    )
+    description = fields.String(
+        required=True,
+        metadata={"example": "test", "description": "description of the instance"},
+    )
     ownerId = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="account id of the owner of the instance",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "account id of the owner of the instance"},
     )
     ownerAlias = fields.String(
         required=True,
         allow_none=True,
-        example="test",
-        description="account name of the owner of the instance",
+        metadata={"example": "test", "description": "account name of the owner of the instance"},
     )
     state = fields.String(
         required=True,
-        example="available",
-        description="state of the instance",
         data_key="state",
+        metadata={"example": "available", "description": "state of the instance"},
     )
     stateReason = fields.Nested(
         MonitoringInstanceStateReasonResponseSchema,
         many=False,
         required=True,
-        description="state description",
+        metadata={"description": "state description"},
     )
     computeInstanceId = fields.String(required=False, allow_none=True)
-    modules = fields.Dict(required=False, default={}, allow_none=True)
+    modules = fields.Dict(required=False, dump_default={}, allow_none=True)
 
 
 class DescribeMonitoringInstances1ResponseSchema(Schema):
@@ -290,19 +292,13 @@ class DescribeMonitoringInstances1ResponseSchema(Schema):
     next_token = fields.String(required=True, allow_none=True)
     requestId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="api request id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "api request id"},
     )
-    instanceInfo = fields.Nested(
-        MonitoringInstanceItemParameterResponseSchema,
-        many=True,
-        required=False,
-    )
+    instanceInfo = fields.Nested(MonitoringInstanceItemParameterResponseSchema, many=True, required=False)
     nvl_instanceTotal = fields.Integer(
         required=False,
-        example="0",
-        descriptiom="total monitoring instance",
         data_key="nvl-instanceTotal",
+        metadata={"example": "0", "description": "total monitoring instance"},
     )
 
 
@@ -323,9 +319,9 @@ class DescribeMonitoringInstancesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="owner-id.N",
-        description="account id",
+        metadata={"description": "account id"},
     )
-    InstanceName = fields.String(required=False, description="monitoring instance name", context="query")
+    InstanceName = fields.String(required=False, context="query", metadata={"description": "monitoring instance name"})
     instance_id_N = fields.List(
         fields.String(),
         required=False,
@@ -333,21 +329,20 @@ class DescribeMonitoringInstancesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="instance-id.N",
-        description="list of monitoring instance id",
+        metadata={"description": "list of monitoring instance id"},
     )
     MaxItems = fields.Integer(
         required=False,
-        missing=100,
+        load_default=100,
         validation=Range(min=1),
         context="query",
-        description="max number elements to return in the response",
+        metadata={"description": "max number elements to return in the response"},
     )
     Marker = fields.String(
         required=False,
-        missing="0",
-        example="",
-        description="pagination token",
+        load_default="0",
         context="query",
+        metadata={"description": "pagination token"},
     )
 
 

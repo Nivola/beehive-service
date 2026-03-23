@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 from __future__ import annotations
 
-from re import match
+#from re import match
 import ujson as json
-from six.moves.urllib.parse import urlencode
+from urllib.parse import urlencode
 from beehive.common.apimanager import ApiController, ApiManagerError, ApiManagerWarning
 from beecell.types.type_string import validate_service_name, truncate, compat, str2bool
 from beecell.types.type_date import format_date, parse_date
@@ -27,7 +27,7 @@ from beehive_service.controller.api_service_price_list import ApiServicePriceLis
 from beehive_service.controller.api_service_price_metric import ApiServicePriceMetric
 from beehive_service.controller.api_service_tag import ApiServiceTag
 from beehive_service.controller.api_wallet import ApiWallet
-from beehive_service.controller.authority_api_object import AuthorityApiObject
+#from beehive_service.controller.authority_api_object import AuthorityApiObject
 from beehive_service.entity.account_service_definition import (
     ApiAccountServiceDefinition,
 )
@@ -37,6 +37,7 @@ from beehive_service.entity.service_definition import (
     ApiServiceConfig,
     ApiServiceLinkDef,
 )
+from beehive_service.entity.service_status import ApiServiceStatus
 from beehive_service.entity.service_type import ApiServiceType, ApiServiceProcess
 from beehive_service.model import (
     ServiceInstance,
@@ -61,16 +62,15 @@ from beehive_service.model.service_metric_type import MetricType
 from beehive_service.model.aggreagate_cost import AggregateCost
 from beehive_service.model.service_instance import (
     ServiceInstanceConfig,
-    ServiceTypePluginInstance,
 )
 from beehive_service.model.service_link import ServiceLink
+from beehive_service.model.service_status import ServiceStatus
 from beehive_service.model.service_tag import ServiceTag
 from beehive_service.model.service_catalog import ServiceCatalog
 from beehive_service.model.service_definition import ServiceConfig
 from beehive_service.model.service_process import ServiceProcess
 from beehive_service.model.account_capability import AccountCapability
 from beehive_service.model.organization import Organization
-from beehive_service.model.monitoring_message import MonitoringMessage
 from beehive_service.model.division import Division
 from beehive_service.model.deprecated import (
     Agreement,
@@ -93,7 +93,7 @@ from beehive.common.assert_util import AssertUtil
 from beehive.common.data import transaction
 from beehive_service.service_util import ServiceUtil
 from beehive.common.task_v2 import prepare_or_run_task
-from beehive.common.task_v2.manager import task_manager
+#from beehive.common.task_v2.manager import task_manager # TODO verify
 from datetime import datetime, date, timedelta
 from dateutil.parser import parse
 from beehive_service.service_util import __SRV_REPORT_COMPLETE_MODE__
@@ -102,13 +102,15 @@ try:
     from dateutil.parser import relativedelta
 except ImportError as ex:
     from dateutil import relativedelta
-from typing import List, Type, Tuple, Any, Union, Dict, TypeVar, Callable, Optional, TYPE_CHECKING
+from typing import List, Type, Tuple, Any, Union, Dict, TypeVar, Callable, TYPE_CHECKING
 from beecell.simple import jsonDumps
 
-if TYPE_CHECKING:  # <-try this,
+if TYPE_CHECKING:
+    from beehive_service.model.service_instance import ServiceTypePluginInstance
+    from beehive_service.model.monitoring_message import MonitoringMessage
+    from beehive_service.entity.service_type import ApiServiceTypePlugin
     from beehive_service.entity.service_type import AsyncApiServiceTypePlugin
-
-
+    from beehive_service.model.account import Account
 class ServiceLinkType(object):
     SRVLINKDEF_L = "servicelinkdef"
     SRVLINKDEF_U = "ServiceLinkDef"
@@ -124,6 +126,7 @@ class ServiceController(ApiController):
     """Service Module controller."""
 
     version = "v1.0"
+    manager: ServiceDbManager
 
     def __init__(self, module):
         ApiController.__init__(self, module)
@@ -172,6 +175,7 @@ class ServiceController(ApiController):
         """
         TODO Check if used is stille necessary
         """
+        raise NotImplementedError("broken, do not call")
         AssertUtil.assert_is_not_none(instance_id)
         instance = self.get_service_instance(instance_id)
         plugins = self.instancePlugin(None, instance)
@@ -269,7 +273,7 @@ class ServiceController(ApiController):
 
     def get_service_instance_idx(self, plugintype, *args, **kvargs) -> Dict[str, ApiServiceInstance]:
         """Get service instance indexed by id and uuid or custom index_key"""
-        ret: Dict[str, ApiServiceInstance] = self.get_entities_idx(
+        ret = self.get_entities_idx(
             ApiServiceInstance,
             self.manager.get_paginated_service_instances,
             plugintype=plugintype,
@@ -297,8 +301,7 @@ class ServiceController(ApiController):
         Returns:
             int: primary key numeric id
         """
-        dao: ServiceDbManager = self.manager
-        return dao.get_account_id(oid)
+        return self.manager.get_account_id(oid)
 
     def get_definition_id(self, oid: Union[int, str]) -> int:
         """get definition primary key numeric id from id,uuid, or name
@@ -309,8 +312,7 @@ class ServiceController(ApiController):
         Returns:
             int: primary key numeric id
         """
-        dao: ServiceDbManager = self.manager
-        return dao.get_definition_id(oid)
+        return self.manager.get_definition_id(oid)
 
     @transaction
     def emptytransaction(self):
@@ -376,7 +378,7 @@ class ServiceController(ApiController):
         # check authorization
         if operation.authorize is True:
             self.check_authorization("task", "Manager", "*", "view")
-        self.logger.warn(size)
+
         jobs, count = self.manager.get_paginated_jobs(
             job=job,
             account_id=account,
@@ -385,11 +387,12 @@ class ServiceController(ApiController):
             name=name,
             with_perm_tag=False,
         )
-        redis_manager = self.redis_taskmanager
         res = []
+        from beehive.common.task_v2.manager import get_task_manager
+        task_manager = get_task_manager()
         for j in jobs:
             try:
-                task = redis_manager.get(task_manager.conf.CELERY_REDIS_RESULT_KEY_PREFIX + j.job)
+                task = self.redis_taskmanager.get(task_manager.conf.CELERY_REDIS_RESULT_KEY_PREFIX + j.job)
                 task = json.loads(task)
             except Exception:
                 task = {}
@@ -509,6 +512,7 @@ class ServiceController(ApiController):
         category: str = None,
         only_container: bool = False,
         name: str = None,
+        namelike: bool= False,
         page: int = 0,
         size: int = 50,
         order: str = "DESC",
@@ -536,9 +540,11 @@ class ServiceController(ApiController):
             kvargs["account_id"] = account_id
             kvargs["service_definition_id"] = service_definition_id
             kvargs["plugintype"] = plugintype
+            kvargs["active"] = 1
             kvargs["category"] = category
             kvargs["only_container"] = only_container
             kvargs["name"] = name
+            kvargs["namelike"] = namelike
             kvargs["page"] = page
             kvargs["size"] = size
             kvargs["order"] = order
@@ -689,6 +695,29 @@ class ServiceController(ApiController):
         except (QueryError, TransactionError) as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=ex.code)
+
+    def del_account_service_definition(
+        self,
+        account_id: int,
+        service_definition_id: int
+    ):
+        """Create a new Account Service Definition from account an Service Definition the objid is created using the
+        account as parent and the service definition service_categoty propoerty the service category is a property
+        inherited from the so that
+        """
+        srvdfs, tot = self.get_account_service_defintions(
+            account_id=account_id,
+            service_definition_id=service_definition_id,
+            authorize=False,
+        )
+        if tot == 0:
+            raise ApiManagerError(f"Service definition {service_definition_id} do not  exists for Account {account_id}")
+
+        # check admin authorization
+        self.is_admin_service()
+        accsdef = srvdfs[0]
+        self.manager.delete(accsdef.model)
+
 
     ############################
     ###  ServiceJobSchedule  ###
@@ -1066,7 +1095,7 @@ class ServiceController(ApiController):
         Returns:
             int: last generated metric id
         """
-        from beecell.debug import dbgprint
+        # from beecell.debug import dbgprint
 
         ret: int = 0
         dummyjob: dict = {}
@@ -1659,7 +1688,7 @@ class ServiceController(ApiController):
                 res = self.manager.delete_service_metric_type_limits(parent_id=srv_mt.oid)
                 res = self.manager.delete_service_metric_type(id=srv_mt.oid)
 
-                self.deregister_object(srv_mt.objid.split("//"))
+                srv_mt.deregister_object(srv_mt.objid.split("//"))
 
             return res
         except (QueryError, TransactionError) as ex:
@@ -1909,6 +1938,110 @@ class ServiceController(ApiController):
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=ex.code)
 
+
+    ################################
+    ###    ServiceStaus          ###
+    ################################
+
+    @trace(entity="ApiServiceStatus", op="view")
+    def get_service_status(self, oid):
+        """Get single service_status.
+
+        :param oid: entity model id, uuid
+        :return: ServiceStatus
+        :raises ApiManagerError: raise :class:`ApiManagerError`
+        """
+        entity_class = ApiServiceStatus
+        model_class = ServiceStatus
+        details=False
+
+        # srv_status = self.get_entity(ApiServiceStatus, ServiceStatus, oid, authorize=False)
+        try:
+            entity = self.manager.get_entity(model_class, oid)
+        except QueryError as ex:
+            self.logger.error(ex, exc_info=True)
+            entity_name = entity_class.__name__
+            raise ApiManagerError("%s %s not found or name is not unique" % (entity_name, oid), code=404)
+
+        if entity is None:
+            entity_name = entity_class.__name__
+            self.logger.warning("%s %s not found" % (entity_name, oid))
+            raise ApiManagerError("%s %s not found" % (entity_name, oid), code=404)
+
+        res = entity_class(
+            self,
+            oid=entity.id,
+            # objid=entity.objid,
+            name=entity.name,
+            # active=entity.active,
+            desc=entity.desc,
+            # model=entity,
+        )
+
+        # execute custom post_get
+        # if details is True:
+        #     res.post_get()
+
+        self.logger.debug("Get %s : %s" % (entity_class.__name__, res))
+        return res
+
+    @trace(entity="ApiServiceStatus", op="view")
+    def get_service_statuses(self, *args, **kvargs):
+        """Get ServiceStatus.
+
+        :param name: name like [optional]
+        :param page: users list page to show [default=0]
+        :param size: number of users to show in list per page [default=0]
+        :param order: sort order [default=DESC]
+        :param field: sort field [default=id]
+        :return: List of ServiceStatus
+        :raises ApiManagerError: if query empty return error.
+        """
+
+        def recuperaServiceStatuses(*args, **kvargs):
+            entities, total = self.manager.get_paginated_service_statuses(*args, **kvargs)
+            return entities, total
+
+        # def customize(res, *args, **kvargs):
+        #     return res
+
+        # res, total = self.get_paginated_entities(
+        #     ApiServiceStatus, recuperaServiceStatuses, authorize=False, customize=customize, *args, **kvargs
+        # )
+
+        entity_class = ApiServiceStatus
+        get_entities = recuperaServiceStatuses
+        # page=0,
+        # size=10,
+        # order="DESC",
+        # field="id",
+
+        entities, total = get_entities(
+            # tags=tags,
+            # page=page,
+            # size=size,
+            # order=order,
+            # field=field,
+            *args,
+            **kvargs,
+        )
+
+        res = []
+        for entity in entities:
+            obj = entity_class(
+                self,
+                oid=entity.id,
+                # objid=entity.objid,
+                name=entity.name,
+                # active=entity.active,
+                desc=entity.desc,
+                # model=entity,
+            )
+            res.append(obj)
+
+        return res, total
+
+
     ################################
     ###    ServiceType Plugin    ###
     ################################
@@ -1942,7 +2075,7 @@ class ServiceController(ApiController):
         return account, plugin
 
     @trace(entity="ApiServiceInstance", op="view")
-    def get_service_type_plugin(self, instance, plugin_class: APIPLUGIN = None, details=True) -> APIPLUGIN:
+    def get_service_type_plugin(self, instance, plugin_class: Type[APIPLUGIN] = None, details=True) -> APIPLUGIN:
         """Get single service type plugin from service instance.
 
         :param instance: service instance id, uuid or name
@@ -1967,7 +2100,7 @@ class ServiceController(ApiController):
         return plugin
 
     @trace(entity="ApiServiceInstance", op="view")
-    def get_service_type_plugins(self, *args, **kvargs) -> Tuple[List[Any], int]:
+    def get_service_type_plugins(self, *args, **kvargs) -> Tuple[List['ApiServiceTypePlugin'], int]:
         """Get service type plugins related to queried service instances.
 
         :param id: filter by id
@@ -2003,6 +2136,7 @@ class ServiceController(ApiController):
         :param service_status_name_list: list of status names related to services instances [optional]
         :param servicetags_and: list of service tags. Search exactly the list of tags.  [optional]
         :param servicetags_or: list of service tags. Search in the tag list. [optional]
+        :param instance_version: service instance version [optional]
         :param details: if True and plugintype is not None exec custom staticmethod customize_list() [default=True]
         :param page: entities list page to show [default=0]
         :param size: number of entities to show in list per page [default=0]
@@ -2042,18 +2176,27 @@ class ServiceController(ApiController):
             kvargs["account_id_list"] = accounts
 
         try:
-            insts: List[ServiceTypePluginInstance]
+            insts: List['ServiceTypePluginInstance']
             total_insts: int
-            insts, total_insts = self.manager.get_paginated_service_type_plugins(tags=tags, *args, **kvargs)
+            if kvargs.get("simple", False) is True:
+                insts, total_insts = self.manager.get_paginated_service_type_plugins_optimized(tags=tags, *args, **kvargs)
+            else:
+                insts, total_insts = self.manager.get_paginated_service_type_plugins(tags=tags, *args, **kvargs)
+            
             inst_class = None
 
             # get indexes
             inst_oids: List[int] = []
             type_ids: List[int] = []
+            # list account of service instance selected
+            account_ids: List[int] = []
             for inst in insts:
                 inst_oids.append(inst.id)
                 if inst.type_id not in type_ids:
                     type_ids.append(inst.type_id)
+
+                if inst.account_id not in account_ids:
+                    account_ids.append(inst.account_id)
 
             type_idx = {}
             config_idx = {}
@@ -2067,7 +2210,7 @@ class ServiceController(ApiController):
                 config_idx = self.get_service_instance_config_idx(
                     service_instance_ids=inst_oids, index_key="service_instance_id"
                 )
-                account_idx = self.get_account_idx()
+                account_idx = self.get_account_idx(id_list=account_ids)
 
             for inst in insts:
                 inst_class = import_class(inst.objclass)
@@ -2076,7 +2219,6 @@ class ServiceController(ApiController):
                     continue
 
                 inst_type = type_idx.get(inst.type_id)
-
                 obj = inst_class(
                     self,
                     oid=inst_type.id,
@@ -2104,13 +2246,16 @@ class ServiceController(ApiController):
                 obj.definition_name = inst.definition_name
 
             # if only one plugin type is selected exec customize list
-            if (
-                kvargs.get("plugintype", None) is not None
-                and kvargs.get("details", True) is True
-                and inst_class is not None
-            ):
-                inst_class.customize_list(self, res, *args, **kvargs)
             if inst_class is not None:
+                if (
+                    kvargs.get("plugintype", None) is not None
+                    and kvargs.get("details", True) is True
+                ):
+                    inst_class.customize_list(self, res, *args, **kvargs)
+
+                elif kvargs.get("simple", False) is True:
+                    inst_class.customize_simple_list(self, res, *args, **kvargs)
+            
                 self.logger.info("Get %s (total:%s): %s" % (inst_class.__name__, total_insts, truncate(str(res))))
             return res, total_insts
         except QueryError as ex:
@@ -2133,7 +2278,7 @@ class ServiceController(ApiController):
         instance_version="1.0",
         *args,
         **kvargs,
-    ) -> AsyncApiServiceTypePlugin:
+    ) -> 'AsyncApiServiceTypePlugin':
         """Factory used to create new service instance using the related service type plugin
 
         :param service_definition_id: service definition identifier
@@ -2212,7 +2357,7 @@ class ServiceController(ApiController):
                     "Link service instance %s to parent instance %s" % (inst.uuid, parent_plugin.instance.uuid)
                 )
 
-            self.release_session(None)
+            self.release_session()
             self.get_session()
             inst.update_status(status)
         except ApiManagerError as ex:
@@ -2304,6 +2449,7 @@ class ServiceController(ApiController):
         instance_config=None,
         account=None,
         resource_id=None,
+        instance_version="1.0",
         *args,
         **kvargs,
     ):
@@ -2363,7 +2509,7 @@ class ServiceController(ApiController):
                 account=account,
                 bpmn_process_id=None,
                 active=True,
-                version="1.0",
+                version=instance_version,
             )
 
             # create service instance config
@@ -2385,7 +2531,7 @@ class ServiceController(ApiController):
                     "Link service instance %s to parent instance %s" % (inst.uuid, parent_plugin.instance.uuid)
                 )
 
-            self.release_session(None)
+            self.release_session()
             self.get_session()
             inst.update_status(SrvStatusType.DRAFT)
         except ApiManagerError as ex:
@@ -3278,17 +3424,30 @@ class ServiceController(ApiController):
         return res, total
 
     @trace(entity="ApiServiceInstance", op="view")
-    def get_service_instance_by_resource_uuid(self, resource_uuid, plugintype=None):
+    def get_service_instance_by_resource_uuid(self, resource_uuid, plugintype=None, details=True):
         """Get ServiceInstance by resource uuid
 
         :param resource_uuid: resource uuid
         :return: service instance
         """
-        res, tot = self.get_paginated_service_instances(resource_uuid=resource_uuid, plugintype=plugintype)
+        res, tot = self.get_paginated_service_instances(resource_uuid=resource_uuid, plugintype=plugintype, details=details)
         if tot == 0:
             raise ApiManagerError("no service instance found for resource uuid %s" % resource_uuid)
         res = res[0]
         self.logger.debug("get service instance %s by resource uuid %s" % (res.uuid, resource_uuid))
+        return res
+
+    @trace(entity="ApiServiceInstance", op="view")
+    def get_service_instances_by_resource_uuids(self, resource_uuid_list: List[str], plugintype=None):
+        """Get ServiceInstances by resource uuids
+
+        :param resource_uuid_list: list of resource uuids
+        :return: service instance list
+        """
+        res, tot = self.get_paginated_service_instances(resource_uuid_list=resource_uuid_list, plugintype=plugintype)
+        if tot == 0:
+            raise ApiManagerError("no service instance found for resource uuid list %s" % resource_uuid_list)
+        self.logger.debug("get service instances by resource uuids %s",resource_uuid_list)
         return res
 
     @trace(entity="ApiServiceInstance", op="insert")
@@ -3369,41 +3528,8 @@ class ServiceController(ApiController):
 
             # create object and permission
             api_inst.register_object(objid.split("//"), desc=name)
-            # ApiServiceInstance(self, oid=res.id).register_object(objid.split('//'), desc=name)
-
             self.logger.info("Create service instance: %s" % api_inst.uuid)
 
-            # # create the service link instance
-            # if parent_id is not None:
-            #     #  get the parent entity Service Instance
-            #     srv_inst_start = self.get_service_instance(parent_id)
-            #
-            #     # get the model ServiceType
-            #     srv_type = srv_inst_start.model.service_definition.service_type
-            #
-            #     # check if the ServiceType is a container
-            #     pluginRoot = srv_inst_start.instancePlugin(None, srv_inst_start)
-            #     if isinstance(pluginRoot, ApiServiceTypeContainer):
-            #         # check priority
-            #         if priority is None:
-            #             if srv_inst_start.model.linkChildren is not None:
-            #                 link = max(srv_inst_start.model.linkChildren, key=lambda p: p.priority)
-            #                 nextPriority = link.priority+1
-            #             else:
-            #                 nextPriority = 1
-            #         else:
-            #             nextPriority = priority
-            #
-            #         # make link name
-            #         linkInstName = 'lnk_%s_%s' % (srv_inst_start.oid, res.id)
-            #
-            #         # add link
-            #         srv_instlink = self.add_service_instlink(linkInstName, srv_inst_start.oid, res.id,
-            #                                                  priority=nextPriority)
-            #         # TODO matching rule to verify compatibility beetween ServiceType
-            #         self.logger.info('Added ServiceLinkInst: %s' % srv_instlink)
-            #     else:
-            #         self.logger.warn('Attribute parent_id have been ignored because the is not a container instance')
             return api_inst
 
         except (QueryError, TransactionError) as ex:
@@ -3413,7 +3539,6 @@ class ServiceController(ApiController):
     @transaction
     def delete_service_instance2(self, srv_inst, data, recursive_delete=True, batch=True):
         """Delete service instance
-        TODO: compatibility with camunda
 
         :param srv_inst:
         :param data:
@@ -3488,7 +3613,6 @@ class ServiceController(ApiController):
     @transaction
     def delete_service_instance(self, srv_inst, data, recursive_delete=True, batch=True):
         """Delete service instance
-        TODO: compatibility with camunda
 
         :param srv_inst:
         :param data:
@@ -3745,10 +3869,6 @@ class ServiceController(ApiController):
         self.resolve_fk_id("end_service_id", self.get_service_instance, kvargs)
         res, total = self.get_paginated_entities(ApiServiceLinkInst, get_entities, customize=customize, *args, **kvargs)
         return res, total
-
-    @trace(entity="ApiServiceLinkInst", op="view")
-    def count_service_instlinks(self):
-        return self.manager.count_entities(ServiceLinkInstance)
 
     @trace(entity="ApiServiceLinkInst", op="view")
     def get_service_instlink(self, oid, authorize=True):
@@ -4362,10 +4482,11 @@ class ServiceController(ApiController):
             )
             api_account.register_object(objid.split("//"), desc=name)
 
-            if price_list_id is not None:
-                price_list_id = self.get_service_price_list(price_list_id).oid
-                # Aggiunge entry nella tabella di collegamento con il price_list
-                self.manager.add_account_prices(account.id, price_list_id)
+            # DEORECATED price list are to be deleted
+            # if price_list_id is not None:
+            #     price_list_id = self.get_service_price_list(price_list_id).oid
+            #     # Aggiunge entry nella tabella di collegamento con il price_list
+            #     self.manager.add_account_prices(account.id, price_list_id)
 
             api_account.update_status(1)  # ACTIVE
 
@@ -4522,7 +4643,7 @@ class ServiceController(ApiController):
                 srv_mt = self.get_service_metric_type(bundle.get("metric_type_id"))
                 # check if is not of type consume
                 if srv_mt.metric_type == MetricType.CONSUME:
-                    raise ApiManagerWarning("applied bundle %s has a wrong metric type" % srv_mt.id)
+                    raise ApiManagerWarning("applied bundle %s has a wrong metric type" % srv_mt.oid)
 
                 start_date = datetime.strptime(bundle.get("start_date"), "%Y-%m-%d")
                 end_date = None
@@ -5120,7 +5241,7 @@ class ServiceController(ApiController):
         return res, total
 
     @trace(entity="ApiServiceTag", op="view")
-    def get_tags(self, *args, **kvargs):
+    def get_tags(self, *args, **kvargs) -> Tuple[List[ApiServiceTag],int]:
         """Get tags.
 
         :param value: tag value [optional]
@@ -5436,32 +5557,23 @@ class ServiceController(ApiController):
     def account_user_task_list(self, oid):
         """Get the user task list pending for the service instance"""
         account = self.get_entity(ApiAccount, Account, oid, authorize=True)
-        res = self.module.api_manager.camunda_engine.tasks(account_id=account.uuid)
-        return res
 
     @trace(entity="ApiServiceInstance", op="view")
     def serviceinstance_user_task_list(self, oid):
         """Get the user task list pending for the service instance"""
         service = self.get_entity(ApiServiceInstance, ServiceInstance, oid, authorize=True)
-        res = self.module.api_manager.camunda_engine.tasks(instance_id=service.uuid)
-        return res
 
     @trace(entity="ApiServiceInstance", op="view")
     def user_task_detail(self, service_oid, task_id=None, execution_id=None):
         """Gets user task detail"""
         inst = self.get_service_instance(service_oid)
         self.check_authorization(ApiServiceInstance.objtype, ApiServiceInstance.objdef, inst.objid, "view")
-        res = self.module.api_manager.camunda_engine.task_localvariables(task_id=task_id, execution_id=execution_id)
-        return res
 
     @trace(entity="ApiServiceInstance", op="update")
     def complete_user_task(self, service_oid, task_id, variables):
         """Gets user task detail"""
         inst = self.get_service_instance(service_oid)
         self.check_authorization(ApiServiceInstance.objtype, ApiServiceInstance.objdef, inst.objid, "update")
-
-        res = self.module.api_manager.camunda_engine.task_complete(task_id, variables)
-        return res
 
     def get_empty_portal_user_services_structure(self):
         return {
@@ -6167,5 +6279,5 @@ class ServiceController(ApiController):
     def compute_monitoring_message(self) -> Tuple[str, str]:
         return self.manager.call_monitoring_proc()
 
-    def get_monitoring_message(self, period: str = None) -> MonitoringMessage:
+    def get_monitoring_message(self, period: str = None) -> 'MonitoringMessage':
         return self.manager.monit_message_at(period)

@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from typing import TYPE_CHECKING
 from beehive.common.apimanager import (
     ApiView,
     PaginatedRequestQuerySchema,
@@ -17,15 +18,16 @@ from beehive.common.apimanager import (
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive_service.entity.service_instance import ApiServiceInstanceLink
-
+if TYPE_CHECKING:
+    from beehive_service.controller import ServiceController
 
 class ServiceSmallResponseSchema(ApiObjectSmallResponseSchema):
     pass
 
 
 class UpdateServiceTagDescRequestSchema(Schema):
-    cmd = fields.String(default="add", required=True)
-    values = fields.List(fields.String(default="test"), required=True)
+    cmd = fields.String(dump_default="add", required=True)
+    values = fields.List(fields.String(dump_default="test"), required=True)
 
 
 class ListLinksRequestSchema(PaginatedRequestQuerySchema):
@@ -33,12 +35,12 @@ class ListLinksRequestSchema(PaginatedRequestQuerySchema):
     end_service = fields.String(context="query")
     service = fields.String(context="query")
     type = fields.String(context="query")
-    tags = fields.String(context="query", description="comma separated tag list")
+    tags = fields.String(context="query", metadata={"description": "comma separated tag list"})
 
 
 class ListLinksParamsDetailsResponseSchema(Schema):
-    type = fields.String(required=True, example="relation")
-    attributes = fields.Dict(required=True, example={})
+    type = fields.String(required=True, metadata={"example": "relation"})
+    attributes = fields.Dict(required=True, metadata={"example": {}})
     start_service = fields.Nested(ServiceSmallResponseSchema, required=True, allow_none=True)
     end_service = fields.Nested(ServiceSmallResponseSchema, required=True, allow_none=True)
 
@@ -64,7 +66,7 @@ class ListLinks(SwaggerApiView):
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListLinksResponseSchema}})
     response_schema = ListLinksResponseSchema
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: 'ServiceController', data, *args, **kwargs):
         tags = data.pop("tags", None)
         data["servicetags"] = tags
         links, total = controller.get_links(**data)
@@ -73,8 +75,8 @@ class ListLinks(SwaggerApiView):
 
 
 class GetLinkParamsDetailsResponseSchema(Schema):
-    type = fields.String(required=True, example="relation")
-    attributes = fields.Dict(required=True, example={})
+    type = fields.String(required=True, metadata={"example": "relation"})
+    attributes = fields.Dict(required=True, metadata={"example": {}})
     start_service = fields.Nested(ServiceSmallResponseSchema, required=True, allow_none=True)
     end_service = fields.Nested(ServiceSmallResponseSchema, required=True, allow_none=True)
 
@@ -98,7 +100,7 @@ class GetLink(SwaggerApiView):
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetLinkResponseSchema}})
     response_schema = GetLinkResponseSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: 'ServiceController', data, oid, *args, **kwargs):
         link = controller.get_link(oid)
         return {"link": link.detail()}
 
@@ -116,19 +118,19 @@ class GetLinkPerms(SwaggerApiView):
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ApiObjectPermsResponseSchema}})
     response_schema = ApiObjectPermsResponseSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: 'ServiceController', data, oid, *args, **kwargs):
         link = controller.get_link(oid)
         res, total = link.authorization(**data)
         return self.format_paginated_response(res, "perms", total, **data)
 
 
 class CreateLinkParamRequestSchema(Schema):
-    type = fields.String(required=True, example="relation")
-    name = fields.String(required=True, example="1")
-    attributes = fields.Dict(required=True, example={})
-    start_service = fields.String(required=True, example="2")
-    end_service = fields.String(required=True, example="3")
-    account = fields.String(required=True, description="Account id or uuid related to tag")
+    type = fields.String(required=True, metadata={"example": "relation"})
+    name = fields.String(required=True, metadata={"example": "1"})
+    attributes = fields.Dict(required=True, metadata={"example": {}})
+    start_service = fields.String(required=True, metadata={"example": "2"})
+    end_service = fields.String(required=True, metadata={"example": "3"})
+    account = fields.String(required=True, metadata={"description": "Account id or uuid related to tag"})
 
 
 class CreateLinkRequestSchema(Schema):
@@ -152,17 +154,17 @@ class CreateLink(SwaggerApiView):
     responses = SwaggerApiView.setResponses({201: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
-    def post(self, controller, data, *args, **kwargs):
+    def post(self, controller: 'ServiceController', data, *args, **kwargs):
         resp = controller.add_link(**data.get("link"))
         return {"uuid": resp}, 201
 
 
 class UpdateLinkParamRequestSchema(Schema):
-    type = fields.String(default="relation")
-    name = fields.String(default="1")
-    attributes = fields.Dict(default={})
-    start_service = fields.String(default="2")
-    end_service = fields.String(default="3")
+    type = fields.String(dump_default="relation")
+    name = fields.String(dump_default="1")
+    attributes = fields.Dict(dump_default={})
+    start_service = fields.String(dump_default="2")
+    end_service = fields.String(dump_default="3")
     tags = fields.Nested(UpdateServiceTagDescRequestSchema, allow_none=True)
 
 
@@ -187,7 +189,7 @@ class UpdateLink(SwaggerApiView):
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
-    def put(self, controller, data, oid, *args, **kwargs):
+    def put(self, controller: 'ServiceController', data, oid, *args, **kwargs):
         link: ApiServiceInstanceLink = controller.get_link(oid)
         data = data.get("link")
         tags = data.pop("tags", None)
@@ -213,7 +215,7 @@ class DeleteLink(SwaggerApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({204: {"description": "no response"}})
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller: 'ServiceController', data, oid, *args, **kwargs):
         link = controller.get_link(oid)
         resp = link.delete()
         return resp, 204

@@ -1,4 +1,185 @@
 changelog:
+  - version: 1.18.2
+    date: 2026-03-12
+    added:
+      - Edb + TDE
+      - Check in dbaas definitions
+      - db simple list
+    fixed:
+      - fix db instance aws_simple_info (case of status failed)
+      - Remove some dead commented code
+      - fix CreateBackupJob: cast int in random_start_in_window, swagger response
+      - fix ApiComputeInstance customize_simple_list resource_uuid None
+  - version: 1.18.1
+    date: 2026-02-12
+    added: 
+      - add missing license headers
+      - Update requirements
+      - ecaas namespace update application to the last version
+    fixed:
+      - beautify code
+      - Bug fixing NSX firewall rules optimization
+      - describesimpleinstances fix param customize_simple_list
+      - describesimpleinstances add division info, params info to add
+      - describesimpleinstances default aws_simple_info
+      - fix GetUserRolesAndServicesByUserName filter expired accounts      
+      - new get_paginated_service_type_plugins_optimized
+
+  - version: 1.18.0
+    date: 2026-01-22
+    added: 
+        - type hints
+        - lbaas as paas using stack
+        - 
+        - 
+    awx job: add container info in error/success message
+    fixed: 
+        - updated python version, labraries and dependencies     
+        - schema definitions
+        - some ninor errors
+    removed:
+        - unused files
+        - six direct usage
+  - version: 1.17.13
+    date: 2025-12-11
+    added: 
+      - minor ecaas namespace remove check_environment in update (namspaces created with no rules)
+    fixed: []
+
+  - version: 1.17.12
+    date: 2025-11-27
+    added:
+        - staas_ontap_v2 goldencopy (compliance) management for shared volumes
+        - ApiComputeInstace add middleware info
+        - ecaas manage networkPolicyActive, list filter name
+        - new method delete account definitions
+    fixed:
+        - minor fix namespace filter NamespaceName
+        - staas v2 enable/disable compliance bug fix
+        - Add volume_types validation in RunInstanceV2 schema for anco and sirmet account
+
+  - version: 1.17.11
+    date: 2025-11-06
+    added: 
+      - 'ecaas: create/update namespace calling ns-provisioning-api'
+      - 'ecaas namespace: check valid mandatory fields, complete delete'
+      - 'ecaas namespace: fix allowed fields empty'
+      - 'ecaas namespace: fix allowed... fields'
+      - 'minor ecaas namespace: add check changes to namespace to avoid update task'
+      - 'STAAS v2: aggiunto attributo CreationToken in share_data di DR e volume unlinked'
+    fixed: []
+
+  - version: 1.17.10
+    date: 2025-10-09
+    added:
+      - ecaas: namespace crud api
+      - dbaas metric as parameter in definition
+      - vpc ip availability
+
+  - version: 1.17.7
+    date: 2025-08-05
+    added:
+      - SecurityGroup rule apply to NSX security group not to NSX distribuited firewall
+    fixed:
+      - fix validate AddAccountDefinitionsResponseSchema
+      - Update sg info to view ingress and egress rules correctly  when rules optimization is enabled
+      - call sqlstack delete when deleting dbaas
+      - Add check not to create egress rule when a general egress rule to any destination already exists
+      - Sg rule logging
+
+  - version: 1.17.6
+    date: 2025-06-10
+    fixed:
+      - removed useless code (ServiceMetricConsume)
+      - Dbaas instance allocated storage now use value in config and don't use value computed by resource component
+      - Crashed  vm state management
+
+  - version: 1.17.5
+    date: 2025-05-22
+    added:
+      - Staas v2 replica rpo update  and replica policy
+      - Staas V2 snaplock and replica policies
+      - Staas v2 multiple grants deletion
+
+  - version: 1.17.4
+    date: 2025-04-17
+    added: []
+    fixed:
+      - logging instance: check database instance version before creating (ComputeStack not suppported)
+      - backup fast load instance and add plugintype, restore point for databaseservice
+      - keypair, efs mount list filter accounts
+      - security group delete vm must have al least one security group
+
+  - version: 1.17.3
+    date: 2025-03-28
+    added: []
+    changed:
+      - staas improved grant rule creation and deletion
+      - type hints
+      - ssh key GET request during creation now done as admin user
+    fixed:
+      - NSP-3823 add variable part to resource volume name to avoid name collisions on resource
+      - fix volumes openapi exposed documentation
+  - version: 1.17.2
+    date: 2025-03-12
+    added: []
+    changed: []
+    fixed:
+      - staas
+      - result validation
+
+  - version: 1.17.2
+    date: 2025-03-6
+    added: []
+    changed: []
+    fixed:
+      - staas share_data filesystem type when service definition not passed
+      - staas bugfix... disable openstack service definition
+      - bugfix staas cont.d
+      - staas updatefilesystem disable request view validation
+      - view cpaas vm InstanceState
+      - avoid ssh key length security check
+      - describekeys response Schema
+      - Remove 15m from staas replica rpo values
+      - some result schemas used in openapi descriptions and result validation
+
+  - version: 1.17.0
+    date: 2025-02-24
+    desc: rilascio funzionalità
+    added:
+      - staas new on_tap managment v2
+      - some optimizations
+      - some dbaas creation parameter
+      - capability add application_date
+      - new encription logic and key managment (rsa 4096) ssh key is now mandatory on Linux
+      - type hints
+    fixed:
+      - some feature and logic when cloning
+      - openapi response schema
+      - many minor
+    removed:
+      - no longer useful data from srv instance config
+      - pricelist added deprecation
+      - unused code
+
+  - version: 1.16.9
+    date: 2025-01-08
+    added:
+      - parameters for oracle starter pack when provisioning oracle dbaas
+    changed:
+      - logging instance also for db, add/delete space dashboard
+    fixed:
+      - fix errore cancellazione volume se None (NSP-3617)
+      - fix UpdateServiceConfigParamRequestSchema (before useless)
+  - version: 1.16.8
+    date: 2024-11-25
+    added:
+    changed:
+      - close account: expire roles, set expire date
+    fixed:
+      - monitoring: disable dashboard
+      - alert: fix len user group name
+      - logging_instance with triplet, site
   - version: 1.16.7
     date: 2024-10-03
     added:
@@ -111,7 +292,7 @@ changelog:
     fixed:
       - minor fixies
   - version: 1.14.0
-    date:  2023-06-22
+    date: 2023-06-22
     desc: rilascio di funzionalità
     added:
       - method to get avz by site
@@ -124,7 +305,7 @@ changelog:
       - refactoring backup
       - check specified volume is at least as big as that of the template whe crating servrs
   - version: 1.13.0
-    date:  2023-02-24
+    date: 2023-02-24
     desc: rilascio di funzionalità
     added:
     fixed:

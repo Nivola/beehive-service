@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from sqlalchemy import Column, Integer, String
 
@@ -15,7 +15,7 @@ class ServiceStatus(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(20), unique=True)
-    desc = Column(String(250, convert_unicode=True), default="")
+    desc = Column(String(250), default="")
 
     def __init__(self, id, name, desc=None):
         self.id = id

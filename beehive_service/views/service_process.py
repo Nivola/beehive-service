@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.data import transaction
 from beehive.common.apimanager import (
@@ -19,7 +19,7 @@ from beehive_service.views import ServiceApiView
 
 class GetServiceProcessParamsResponseSchema(ApiObjectResponseSchema):
     service_type_id = fields.String(Required=True)
-    name = fields.String(Required=True, allow_none=True, example="default name")
+    name = fields.String(Required=True, allow_none=True, metadata={"example": "default name"})
     objid = fields.String(Required=True)
     method_key = fields.String(Required=True)
     process_key = fields.String(Required=True)

@@ -1,33 +1,33 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.task.job import Job, JobTask, task_local, job_task, job
 from beehive.common.task.util import end_task, start_task, join_task
 from beehive_service.controller import ApiAccount, ApiServiceType
 from beehive_service.entity.service_instance import ApiServiceInstance
-from beehive_service.model import ServiceInstantConsume
 
-from beehive.common.task.manager import task_manager
+from beehive.common.task.manager import get_task_manager
 from datetime import datetime, timedelta, date
 from dateutil import relativedelta
 from beecell.simple import id_gen
 from beehive.common.data import operation
 from beehive_service.model import (
     ServiceMetric,
-    AggregateCost,
-    ServiceMetricConsumeView,
-    AggregateCostType,
+    #AggregateCost,
+    #ServiceMetricConsumeView,
+    #AggregateCostType,
     SrvStatusType,
     ServiceJob as ServiceJobModel,
     ServiceMetricType,
-    ReportCost,
+    #ReportCost,
 )
 from beehive.common.apimanager import ApiManagerWarning, ApiManagerError
-from sqlalchemy.sql.expression import false
+#from sqlalchemy.sql.expression import false
 from beehive_service.service_util import ServiceUtil
 from .common import logger, MAX_CONCURRENT_TASKS_CELERY
 
+task_manager = get_task_manager()
 
 #
 # ServiceJob

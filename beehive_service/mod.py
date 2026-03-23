@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.module.basic.views.status import StatusAPI
 from beehive.common.apimanager import ApiModule
@@ -15,6 +15,7 @@ from beehive_service.views.division import DivisionAPI
 from beehive_service.views.capability import AccountCapabilityAPI
 from beehive_service.views.account import AccountAPI
 from beehive_service.views.service_link import ServiceInstanceLinkAPI
+from beehive_service.views.service_status import ServiceStatusAPI
 from beehive_service.views.service_tag import ServiceTagAPI
 from beehive_service.views.service_type import ServiceTypeAPI
 from beehive_service.views.service_definition import ServiceDefinitionAPI
@@ -33,6 +34,7 @@ from beehive_service.views.nivola import NivolaAPI
 
 class ServiceModule(ApiModule):
     """Beehive Service Module"""
+    controller: 'ServiceController'
 
     def __init__(self, api_manager):
         """ """
@@ -50,6 +52,7 @@ class ServiceModule(ApiModule):
             AccountCapabilityAPI,
             ServiceCatalogAPI,
             ServiceTypeAPI,
+            ServiceStatusAPI,
             ServiceDefinitionAPI,
             ServiceInstanceAPI,
             LegacyServiceInstanceAPI,

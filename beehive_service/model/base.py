@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from sqlalchemy import Column, String
 from sqlalchemy.ext.declarative import declarative_base
@@ -32,6 +32,7 @@ class ServiceCategory(object):
     virtual = "virt"
     logaas = "laas"
     monitaas = "maas"
+    ecaas = "ecaas"
 
 
 class SrvStatusType(object):

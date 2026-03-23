@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
-
-from typing import Dict
+# (C) Copyright 2018-2026 CSI-Piemonte
+from __future__ import annotations
+from typing import Dict, TYPE_CHECKING
 from beehive.common.apimanager import (
     ApiObjectResponseDateSchema,
     ApiView,
@@ -18,7 +18,7 @@ from beehive.common.apimanager import (
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf, Length
 from beecell.swagger import SwaggerHelper
-from beehive_service.controller import ApiOrganization, ServiceController
+from beehive_service.controller import ApiOrganization
 from beehive_service.views import (
     ServiceApiView,
     ApiObjectRequestFiltersSchema,
@@ -26,7 +26,8 @@ from beehive_service.views import (
 )
 from beehive_service.views.account import ContainerInstancesItemResponseSchema
 from .check import validate_org_name
-
+if TYPE_CHECKING :
+    from beehive_service.controller import ServiceController
 
 class ListOrganizationsRequestSchema(
     ApiServiceObjectRequestSchema,
@@ -47,13 +48,13 @@ class ListOrganizationsRequestSchema(
 
 
 class ListOrganizationsParamsResponseSchema(ApiObjectResponseSchema):
-    org_type = fields.String(required=False, default="Public")
-    service_status_id = fields.Integer(required=False, default=6)
-    version = fields.String(required=False, default="1.0")
+    org_type = fields.String(required=False, dump_default="Public")
+    service_status_id = fields.Integer(required=False, dump_default=6)
+    version = fields.String(required=False, dump_default="1.0")
     ext_anag_id = fields.String(required=False, allow_none=True)
     attributes = fields.String(required=False, allow_none=True)
-    hasvat = fields.Boolean(required=False, default=False)
-    partner = fields.Boolean(required=False, default=False)
+    hasvat = fields.Boolean(required=False, dump_default=False)
+    partner = fields.Boolean(required=False, dump_default=False)
     referent = fields.String(required=False, allow_none=True)
     email = fields.String(required=False, allow_none=True)
     legalemail = fields.String(required=False, allow_none=True)
@@ -71,6 +72,7 @@ class ListOrganizations(ServiceApiView):
     description = "List organizations"
     tags = ["authority"]
     definitions = {
+        "ListOrganizationsRequestSchema": ListOrganizationsRequestSchema,
         "ListOrganizationsResponseSchema": ListOrganizationsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListOrganizationsRequestSchema)
@@ -80,7 +82,7 @@ class ListOrganizations(ServiceApiView):
     )
     response_schema = ListOrganizationsResponseSchema
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: ServiceController, data, *args, **kwargs):
         organizations, total = controller.get_organizations(**data)
         res = [r.info() for r in organizations]
         return self.format_paginated_response(res, "organizations", total, **data)
@@ -91,17 +93,19 @@ class GetOrganizationParamsServicesResponseSchema(Schema):
 
 
 class GetOrganizationParamsResponseSchema(ApiObjectResponseSchema):
-    org_type = fields.String(required=True, example="Public")
-    service_status_id = fields.Integer(required=False, default=6)
-    version = fields.String(required=False, default="1.0")
+    org_type = fields.String(required=True, metadata={"example": "Public"})
+    service_status_id = fields.Integer(required=False, dump_default=6)
+    version = fields.String(required=False, dump_default="1.0")
     ext_anag_id = fields.String(required=False, allow_none=True)
     attributes = fields.String(required=False, allow_none=True)
-    hasvat = fields.Boolean(required=False, default=False)
-    partner = fields.Boolean(required=False, default=False)
+    hasvat = fields.Boolean(required=False, dump_default=False)
+    partner = fields.Boolean(required=False, dump_default=False)
     referent = fields.String(required=False, allow_none=True)
     email = fields.String(required=False, allow_none=True)
     legalemail = fields.String(required=False, allow_none=True)
     postaladdress = fields.String(required=False, allow_none=True)
+    status = fields.String(required=False, allow_none=True)
+    divisions = fields.Integer(required=False, allow_none=True)
 
 
 class GetOrganizationResponseSchema(Schema):
@@ -119,7 +123,7 @@ class GetOrganization(ServiceApiView):
     responses = ServiceApiView.setResponses({200: {"description": "success", "schema": GetOrganizationResponseSchema}})
     response_schema = GetOrganizationResponseSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ServiceController, data, oid, *args, **kwargs):
         organization = controller.get_organization(oid)
         return {"organization": organization.detail()}
 
@@ -137,7 +141,7 @@ class GetOrganizationPerms(ServiceApiView):
     responses = ServiceApiView.setResponses({200: {"description": "success", "schema": ApiObjectPermsResponseSchema}})
     response_schema = ApiObjectPermsResponseSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ServiceController, data, oid, *args, **kwargs):
         organization = controller.get_organization(oid)
         res, total = organization.authorization(**data)
         return self.format_paginated_response(res, "perms", total, **data)
@@ -149,8 +153,8 @@ class CreateOrganizationParamRequestSchema(Schema):
     org_type = fields.String(required=True)
     ext_anag_id = fields.String(required=False, allow_none=True)
     attributes = fields.String(required=False, allow_none=True)
-    hasvat = fields.Boolean(required=False, default=False)
-    partner = fields.Boolean(required=False, default=False)
+    hasvat = fields.Boolean(required=False, dump_default=False)
+    partner = fields.Boolean(required=False, dump_default=False)
     referent = fields.String(required=False, allow_none=True)
     email = fields.String(required=False, allow_none=True)
     legalemail = fields.String(required=False, allow_none=True)
@@ -178,24 +182,28 @@ class CreateOrganization(ServiceApiView):
     responses = ServiceApiView.setResponses({201: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
-    def post(self, controller, data, *args, **kwargs):
+    def post(self, controller: ServiceController, data, *args, **kwargs):
         resp = controller.add_organization(**data.get("organization"))
         return {"uuid": resp}, 201
 
 
 class UpdateOrganizationParamRequestSchema(Schema):
-    name = fields.String(required=False, default="test", description="DEPRECATED renaming is disabled")
-    desc = fields.String(required=False, default="test")
-    org_type = fields.String(required=False, default="Public")
-    ext_anag_id = fields.String(required=False, default="")
-    attributes = fields.String(required=False, default="")
-    hasvat = fields.Boolean(required=False, default=False)
-    partner = fields.Boolean(required=False, default=False)
-    referent = fields.String(required=False, default="")
-    email = fields.String(required=False, default="")
-    legalemail = fields.String(required=False, default="")
-    postaladdress = fields.String(required=False, default="")
-    active = fields.Boolean(required=False, default=False)
+    name = fields.String(
+        required=False,
+        dump_default="test",
+        metadata={"description": "DEPRECATED renaming is disabled"},
+    )
+    desc = fields.String(required=False, dump_default="test")
+    org_type = fields.String(required=False, dump_default="Public")
+    ext_anag_id = fields.String(required=False, dump_default="")
+    attributes = fields.String(required=False, dump_default="")
+    hasvat = fields.Boolean(required=False, dump_default=False)
+    partner = fields.Boolean(required=False, dump_default=False)
+    referent = fields.String(required=False, dump_default="")
+    email = fields.String(required=False, dump_default="")
+    legalemail = fields.String(required=False, dump_default="")
+    postaladdress = fields.String(required=False, dump_default="")
+    active = fields.Boolean(required=False, dump_default=False)
 
 
 class UpdateOrganizationRequestSchema(Schema):
@@ -252,7 +260,7 @@ class PatchOrganization(ServiceApiView):
     responses = ServiceApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
-    def patch(self, controller, data, oid, *args, **kwargs):
+    def patch(self, controller: ServiceController, data, oid, *args, **kwargs):
         organization = controller.get_organization(oid)
         data = data.get("organization")
         organization.patch(**data)
@@ -267,25 +275,20 @@ class DeleteOrganization(ServiceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = ServiceApiView.setResponses({204: {"description": "no response"}})
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller: ServiceController, data, oid, *args, **kwargs):
         organization = controller.get_organization(oid)
         resp = organization.delete(soft=True)
         return resp, 204
 
 
 class GetOrganizationRolesItemResponseSchema(Schema):
-    role = fields.String(required=True, example="OrgAdminRole-123456")
-    name = fields.String(required=True, example="master")
-    desc = fields.String(required=True, example="")
+    role = fields.String(required=True, metadata={"example": "OrgAdminRole-123456"})
+    name = fields.String(required=True, metadata={"example": "master"})
+    desc = fields.String(required=True)
 
 
 class GetOrganizationRolesResponseSchema(Schema):
-    roles = fields.Nested(
-        GetOrganizationRolesItemResponseSchema,
-        required=True,
-        many=True,
-        allow_none=True,
-    )
+    roles = fields.Nested(GetOrganizationRolesItemResponseSchema, required=True, many=True, allow_none=True)
     count = fields.Integer(required=True)
 
 
@@ -303,18 +306,21 @@ class GetOrganizationRoles(ServiceApiView):
     )
     response_schema = GetOrganizationRolesResponseSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ServiceController, data, oid, *args, **kwargs):
         organization = controller.get_organization(oid)
         res = organization.get_role_templates()
         return {"roles": res, "count": len(res)}
 
 
 class GetOrganizationUsersItemDateResponseSchema(ApiObjectResponseDateSchema):
-    last_login = fields.DateTime(required=False, example="1990-12-31T23:59:59Z", description="last login date")
+    last_login = fields.DateTime(
+        required=False,
+        metadata={"example": "1990-12-31T23:59:59Z", "description": "last login date"},
+    )
 
 
 class GetOrganizationUsersItemResponseSchema(ApiObjectResponseSchema):
-    role = fields.String(required=True, example="master")
+    role = fields.String(required=True, metadata={"example": "master"})
     email = fields.String(required=False)
     taxcode = fields.String(required=False, allow_none=True)
     ldap = fields.String(required=False, allow_none=True)
@@ -322,12 +328,7 @@ class GetOrganizationUsersItemResponseSchema(ApiObjectResponseSchema):
 
 
 class GetOrganizationUsersResponseSchema(Schema):
-    users = fields.Nested(
-        GetOrganizationUsersItemResponseSchema,
-        required=True,
-        many=True,
-        allow_none=True,
-    )
+    users = fields.Nested(GetOrganizationUsersItemResponseSchema, required=True, many=True, allow_none=True)
     count = fields.Integer(required=True)
 
 
@@ -345,19 +346,19 @@ class GetOrganizationUsers(ServiceApiView):
     )
     response_schema = GetOrganizationUsersResponseSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ServiceController, data, oid, *args, **kwargs):
         organization = controller.get_organization(oid)
         res = organization.get_users()
         return {"users": res, "count": len(res)}
 
 
 class SetOrganizationUsersParamRequestSchema(Schema):
-    user_id = fields.String(required=False, default="prova", description="User name, id or uuid")
+    user_id = fields.String(required=False, dump_default="prova", metadata={"description": "User name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiOrganization.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -384,26 +385,26 @@ class SetOrganizationUsers(ServiceApiView):
     )
     response_schema = CrudApiObjectSimpleResponseSchema
 
-    def post(self, controller, data, oid, *args, **kwargs):
+    def post(self, controller: ServiceController, data, oid, *args, **kwargs):
         organization = controller.get_organization(oid)
         data = data.get("user")
         resp = organization.set_user(**data)
-        return {"uuid": resp}, 200
+        return {"res": resp}, 200
 
 
 class UnsetOrganizationUsersParamRequestSchema(Schema):
     user_id = fields.String(
         required=True,
-        default="prova",
-        description="User name, id or uuid",
+        dump_default="prova",
         allow_none=False,
         validate=Length(1, error="user_id Must not be Empty"),
+        metadata={"description": "User name, id or uuid"},
     )
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiOrganization.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -430,24 +431,19 @@ class UnsetOrganizationUsers(ServiceApiView):
     )
     response_schema = CrudApiObjectSimpleResponseSchema
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller: ServiceController, data, oid, *args, **kwargs):
         organization = controller.get_organization(oid)
         data = data.get("user")
         resp = organization.unset_user(**data)
-        return {"uuid": resp}, 200
+        return {"res": resp}, 200
 
 
 class GetOrganizationGroupsItemResponseSchema(ApiObjectResponseSchema):
-    role = fields.String(required=True, example="master")
+    role = fields.String(required=True, metadata={"example": "master"})
 
 
 class GetOrganizationGroupsResponseSchema(Schema):
-    groups = fields.Nested(
-        GetOrganizationGroupsItemResponseSchema,
-        required=True,
-        many=True,
-        allow_none=True,
-    )
+    groups = fields.Nested(GetOrganizationGroupsItemResponseSchema, required=True, many=True, allow_none=True)
     count = fields.Integer(required=True)
 
 
@@ -465,19 +461,19 @@ class GetOrganizationGroups(ServiceApiView):
     )
     response_schema = GetOrganizationGroupsResponseSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ServiceController, data, oid, *args, **kwargs):
         organization = controller.get_organization(oid)
         res = organization.get_groups()
         return {"groups": res, "count": len(res)}
 
 
 class SetOrganizationGroupsParamRequestSchema(Schema):
-    group_id = fields.String(required=False, default="prova", description="Group name, id or uuid")
+    group_id = fields.String(required=False, dump_default="prova", metadata={"description": "Group name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiOrganization.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -504,20 +500,20 @@ class SetOrganizationGroups(ServiceApiView):
     )
     response_schema = CrudApiObjectSimpleResponseSchema
 
-    def post(self, controller, data, oid, *args, **kwargs):
+    def post(self, controller: ServiceController, data, oid, *args, **kwargs):
         organization = controller.get_organization(oid)
         data = data.get("group")
         resp = organization.set_group(**data)
-        return {"uuid": resp}, 200
+        return {"res": resp}, 200
 
 
 class UnsetOrganizationGroupsParamRequestSchema(Schema):
-    group_id = fields.String(required=False, default="prova", description="Group name, id or uuid")
+    group_id = fields.String(required=False, dump_default="prova", metadata={"description": "Group name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiOrganization.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -544,15 +540,15 @@ class UnsetOrganizationGroups(ServiceApiView):
     )
     response_schema = CrudApiObjectSimpleResponseSchema
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller: ServiceController, data, oid, *args, **kwargs):
         organization = controller.get_organization(oid)
         data = data.get("group")
         resp = organization.unset_group(**data)
-        return {"uuid": resp}, 200
+        return {"res": resp}, 200
 
 
 class GetActiveServicesByOrganizationApiRequestSchema(Schema):
-    oid = fields.String(required=True, description="id, uuid", context="path")
+    oid = fields.String(required=True, context="path", metadata={"description": "id, uuid"})
 
 
 class GetActiveServicesByOrganitazionResponse1Schema(Schema):
@@ -596,7 +592,7 @@ class GetActiveServicesByOrganization(ServiceApiView):
     )
     response_schema = GetActiveServicesByOrganizationResponseSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ServiceController, data, oid, *args, **kwargs):
         # get division
         organization = controller.get_organization(oid)
         # get related service instant consume

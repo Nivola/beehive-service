@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-
+from __future__ import annotations
 from sqlalchemy import Column, Integer, ForeignKey, String, Boolean
 from sqlalchemy.orm import relationship
 
@@ -13,16 +13,10 @@ from beehive_service.model.base import (
     ConfParamType,
     ApiBusinessObject,
 )
+from beehive_service.model.service_link_def import ServiceLinkDef
 from beehive_service.model.service_type import ServiceType
 from typing import List
 
-
-class ServiceConfig:
-    pass
-
-
-class ServiceLinkDef:
-    pass
 
 
 class ServiceDefinition(ApiBusinessObject, Base):
@@ -32,6 +26,8 @@ class ServiceDefinition(ApiBusinessObject, Base):
 
     __tablename__ = "service_definition"
     __table_args__ = {"mysql_engine": "InnoDB"}
+    __allow_unmapped__ = True # TODO check impact
+
 
     service_type_id = Column("fk_service_type_id", Integer(), ForeignKey("service_type.id"))
     service_type: ServiceType = relationship("ServiceType")
@@ -60,7 +56,7 @@ class ServiceDefinition(ApiBusinessObject, Base):
         lazy="dynamic",
     )
 
-    config_params: List[ServiceConfig] = relationship(
+    config_params: List['ServiceConfig'] = relationship(
         "ServiceConfig",
         back_populates="service_definition",
         primaryjoin="and_(and_((ServiceDefinition.id==ServiceConfig.service_definition_id), "

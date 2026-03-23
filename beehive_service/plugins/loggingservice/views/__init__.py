@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beehive.common.data import operation
@@ -25,33 +25,29 @@ class DescribeLoggingServiceRequestSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
 
 
 class LoggingStateReasonResponseSchema(Schema):
-    code = fields.Integer(
-        required=False,
-        allow_none=True,
-        example="",
-        description="state code",
-        data_key="code",
-    )
+    code = fields.Integer(required=False, allow_none=True, data_key="code", metadata={"description": "state code"})
     message = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="state message",
         data_key="message",
+        metadata={"description": "state message"},
     )
 
 
 class LoggingSetResponseSchema(Schema):
     id = fields.String(required=True)
     name = fields.String(required=True)
-    creationDate = fields.DateTime(required=True, example="2022-01-25T11:20:18Z", description="creation date")
+    creationDate = fields.DateTime(
+        required=True,
+        metadata={"example": "2022-01-25T11:20:18Z", "description": "creation date"},
+    )
     description = fields.String(required=True)
-    state = fields.String(required=False, default=SrvStatusType.DRAFT)
+    state = fields.String(required=False, dump_default=SrvStatusType.DRAFT)
     owner = fields.String(required=True)
     owner_name = fields.String(required=True)
     template = fields.String(required=True)
@@ -60,7 +56,7 @@ class LoggingSetResponseSchema(Schema):
         LoggingStateReasonResponseSchema,
         many=False,
         required=True,
-        description="state description",
+        metadata={"description": "state description"},
     )
     resource_uuid = fields.String(required=False, allow_none=True)
 
@@ -71,9 +67,8 @@ class DescribeLoggingResponseInnerSchema(Schema):
     loggingSet = fields.Nested(LoggingSetResponseSchema, many=True, required=False, allow_none=True)
     loggingTotal = fields.Integer(
         required=False,
-        example="0",
-        descriptiom="total logging",
         data_key="loggingTotal",
+        metadata={"example": "0", "description": "total logging"},
     )
 
 
@@ -122,10 +117,10 @@ class DescribeLoggingService(ServiceApiView):
 
 class CreateLoggingServiceApiRequestSchema(Schema):
     owner_id = fields.String(required=True)
-    name = fields.String(required=False, default="")
-    desc = fields.String(required=False, default="")
-    service_def_id = fields.String(required=True, example="")
-    resource_desc = fields.String(required=False, default="")
+    name = fields.String(required=False, dump_default="")
+    desc = fields.String(required=False, dump_default="")
+    service_def_id = fields.String(required=True)
+    resource_desc = fields.String(required=False, dump_default="")
 
 
 class CreateLoggingServiceApiBodyRequestSchema(Schema):
@@ -177,11 +172,11 @@ class UpdateLoggingServiceApiRequestParamSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
-    name = fields.String(required=False, default="")
-    desc = fields.String(required=False, default="")
-    service_def_id = fields.String(required=False, default="")
+    name = fields.String(required=False, dump_default="")
+    desc = fields.String(required=False, dump_default="")
+    service_def_id = fields.String(required=False, dump_default="")
 
 
 class UpdateLoggingServiceApiRequestSchema(Schema):
@@ -234,12 +229,12 @@ class DescribeAccountAttributesRequestSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
 
 
 class DescribeAccountAttributeSetResponseSchema(Schema):
-    uuid = fields.String(required=True, example="")
+    uuid = fields.String(required=True)
 
 
 class DescribeAccountAttributeResponseSchema(Schema):
@@ -325,8 +320,8 @@ class DescribeAccountAttributes(ServiceApiView):
 
 
 class DeleteLoggingServiceResponseSchema(Schema):
-    uuid = fields.String(required=True, description="Instance id")
-    taskid = fields.String(required=True, description="task id")
+    uuid = fields.String(required=True, metadata={"description": "Instance id"})
+    taskid = fields.String(required=True, metadata={"description": "task id"})
 
 
 class DeleteLoggingServiceRequestSchema(Schema):
@@ -334,7 +329,7 @@ class DeleteLoggingServiceRequestSchema(Schema):
         required=True,
         allow_none=True,
         context="query",
-        description="Instance uuid or name",
+        metadata={"description": "Instance uuid or name"},
     )
 
 

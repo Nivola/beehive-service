@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from beecell.simple import import_class, id_gen
+from beecell.simple import import_class #, id_gen
 from beehive.common.apimanager import ApiObject, ApiManagerWarning
 from beehive.common.assert_util import AssertUtil
 from beehive_service.dao.ServiceDao import ServiceDbManager
@@ -20,11 +20,12 @@ class ServiceApiObject(ApiObject):
     objtype: str = "service"
 
     manager: ServiceDbManager = ServiceDbManager()
+    controller: 'ServiceController'
 
     def __init__(self, *args, **kvargs):
         """ """
         ApiObject.__init__(self, *args, **kvargs)
-        self.controller: ServiceController
+
 
     @property
     def version(self) -> str:
@@ -98,15 +99,18 @@ class ServiceApiObject(ApiObject):
         service_status_id = getattr(self.model, "service_status_id", None)
         status = getattr(self.model, "status", None)
 
+        from beehive.common.model import BaseEntity
+        baseEntity: BaseEntity = self.model
+
         # status for Account, Org and Div
         if (
-            self.model.is_active()
+            baseEntity.is_active()
             and service_status_id is not None
             and (service_status_id == 1 or service_status_id == 14)
         ):
             res = True
         # status for Service**
-        if self.model.is_active() and status is not None and status == SrvStatusType.ACTIVE:
+        if baseEntity.is_active() and status is not None and status == SrvStatusType.ACTIVE:
             res = True
 
         return res

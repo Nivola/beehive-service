@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from datetime import datetime
 import ujson as json
 from sqlalchemy import (
     Table,
@@ -17,6 +18,7 @@ from sqlalchemy.orm import relationship
 # from beehive_service.model import ApiBusinessObject
 from beehive_service.model.base import Base, SrvStatusType, ApiBusinessObject
 from beehive_service.model import logging
+from sqlalchemy import DateTime
 
 # Many-to-Many Relationship among Account and AccountCapability
 account_account_capabilities = Table(
@@ -26,6 +28,7 @@ account_account_capabilities = Table(
     Column("fk_account_id", Integer(), ForeignKey("account.id")),
     Column("fk_account_capabilities", Integer(), ForeignKey("account_capabilities.id")),
     Column("status", String(20), default=SrvStatusType.BUILDING, nullable=False),
+    Column("application_date", DateTime),
     UniqueConstraint(
         "fk_account_id",
         "fk_account_capabilities",
@@ -46,12 +49,14 @@ class AccountCapabilityAssoc(Base):
     fk_account_id = __table__.c.fk_account_id
     fk_capability = __table__.c.fk_account_capabilities
     status = __table__.c.status
+    application_date = __table__.c.application_date
     capability = relationship("AccountCapability")
 
     def __init__(self, account_id, capability_id, status):
         self.fk_account_id = account_id
         self.fk_capability = capability_id
         self.status = status
+        self.application_date = datetime.today()
 
     def association_seq(self):
         return (
@@ -71,6 +76,7 @@ class AccountCapabilityAssoc(Base):
             # u"plugin_name": self.capability.plugin_name,
             "description": self.capability.desc,
             "status": self.status,
+            "application_date": self.application_date,
         }
 
     def __repr__(self):

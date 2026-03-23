@@ -1,23 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from typing import Union
-from beehive_service.model.service_definition import ServiceConfig
+from typing import Union, TYPE_CHECKING, Dict
 import ujson as json
 
-from beecell.simple import str2bool, id_gen, dict_get, dict_set
+from beecell.simple import str2bool, dict_get, dict_set
 from beehive.common.apimanager import ApiObject
 from beehive_service.entity import ServiceApiObject, ApiServiceLink
 from beehive_service.model.base import SrvStatusType, ConfParamType
 from beehive_service.service_util import ServiceUtil
-from beehive_service.model import ServiceDefinition, ServiceConfig
-from six import text_type, binary_type
 
-
-class ApiServiceConfig(ServiceApiObject):
-    pass
-
+if TYPE_CHECKING:
+    from beehive_service.model import ServiceDefinition
 
 class ApiServiceDefinition(ServiceApiObject):
     objdef = "ServiceType.ServiceDefinition"
@@ -28,10 +23,10 @@ class ApiServiceDefinition(ServiceApiObject):
     def __init__(self, *args, **kvargs):
         """ """
         ServiceApiObject.__init__(self, *args, **kvargs)
-        self.model: ServiceDefinition
+        self.model: 'ServiceDefinition'
         self.service_type_id = None
         self.status = None
-        self.config_object: ApiServiceConfig = None
+        self.config_object: 'ApiServiceConfig' = None
 
         if self.model is not None:
             self.service_type_id = self.model.service_type_id
@@ -64,7 +59,7 @@ class ApiServiceDefinition(ServiceApiObject):
             return None
         return self.model.service_type.plugintype.name_type
 
-    def info(self) -> dict:
+    def info(self) -> Dict:
         """Get object info
 
         :return: Dictionary with object info.
@@ -81,7 +76,7 @@ class ApiServiceDefinition(ServiceApiObject):
         )
         return info
 
-    def detail(self) -> dict:
+    def detail(self) -> Dict:
         """Get object extended info
 
         :return: Dictionary with object detail.
@@ -120,7 +115,7 @@ class ApiServiceDefinition(ServiceApiObject):
         if self.config_object is not None:
             self.config_object.set_json_property(attr_key, attr_value)
 
-    def get_main_config(self) -> ApiServiceConfig:
+    def get_main_config(self) -> 'ApiServiceConfig':
         """Get ServiceInstance main configuration
 
         :return: ApiServiceInstanceConfig instance
@@ -209,7 +204,7 @@ class ApiServiceConfig(ServiceApiObject):
             if isinstance(self.model.params, dict):
                 self.params.update(self.model.params)
             # elif isinstance(self.model.params, str) or isinstance(self.model.params, unicode):
-            elif isinstance(self.model.params, (text_type, binary_type)):
+            elif isinstance(self.model.params, (str, bytes)):
                 self.params.update(json.loads(self.model.params))
 
             self.params_type = self.model.params_type

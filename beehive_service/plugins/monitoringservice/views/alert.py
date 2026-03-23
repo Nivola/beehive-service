@@ -1,14 +1,14 @@
 # SPDX# SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import re
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf, Length, Range
 from marshmallow.decorators import validates_schema
 from marshmallow.exceptions import ValidationError
-from six import ensure_text
+# from beecell.util import ensure_text
 from beehive_service.controller import ServiceController
 from beehive_service.controller.api_account import ApiAccount
 from beehive_service.model import Division, Organization
@@ -32,28 +32,29 @@ from beehive.common.data import operation
 class CreateAlertApiParamRequestSchema(Schema):
     owner_id = fields.String(
         required=True,
-        example="1",
         data_key="owner-id",
-        description="account id or uuid associated to compute zone",
+        metadata={"example": "1", "description": "account id or uuid associated to compute zone"},
     )
-    AvailabilityZone = fields.String(required=True, example="", description="availability zone")
-    Name = fields.String(required=False, example="test", missing=None, description="alert name")
-    AdditionalInfo = fields.String(required=False, example="test", missing=None, description="alert description")
+    AvailabilityZone = fields.String(required=True, metadata={"description": "availability zone"})
+    Name = fields.String(required=False, load_default=None, metadata={"example": "test", "description": "alert name"})
+    AdditionalInfo = fields.String(
+        required=False,
+        load_default=None,
+        metadata={"example": "test", "description": "alert description"},
+    )
     definition = fields.String(
         required=False,
-        example="monitoring.alert.xxx",
-        description="service definition of the alert",
+        metadata={"example": "monitoring.alert.xxx", "description": "service definition of the alert"},
     )
     norescreate = fields.Boolean(
         required=False,
         allow_none=True,
-        description="don't create physical resource of the alert",
+        metadata={"description": "don't create physical resource of the alert"},
     )
     triplet_desc = fields.String(
         required=False,
-        example="Csi.Flussi-documentali-e-Dematerializz.procedo-preprod",
-        description="account custom triplet_desc",
         allow_none=True,
+        metadata={"example": "Csi.Flussi-documentali-e-Dematerializz.procedo-preprod", "description": "account custom triplet_desc"},
     )
 
 
@@ -67,17 +68,15 @@ class CreateAlertApiBodyRequestSchema(Schema):
 
 class CreateAlertApiResponse1Schema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
-    requestId = fields.String(required=True, example="", allow_none=True)
+    requestId = fields.String(required=True, allow_none=True)
     alertId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="alert id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "alert id"},
     )
     nvl_activeTask = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
         data_key="nvl-activeTask",
-        description="task id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "task id"},
     )
 
 
@@ -175,25 +174,22 @@ class CreateAlert(ServiceApiView):
 class DeleteAlertApiRequestSchema(Schema):
     AlertId = fields.String(
         required=False,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="alert id",
         context="query",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "alert id"},
     )
 
 
 class DeleteAlertApiResponse1Schema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
-    requestId = fields.String(required=True, example="", description="operation id")
+    requestId = fields.String(required=True, metadata={"description": "operation id"})
     alertId = fields.String(
         required=False,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="alert id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "alert id"},
     )
     nvl_activeTask = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
         data_key="nvl-activeTask",
-        description="task id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "task id"},
     )
 
 
@@ -236,77 +232,70 @@ class MonitoringAlertStateReasonResponseSchema(Schema):
     nvl_code = fields.Integer(
         required=False,
         allow_none=True,
-        example="",
-        description="state code",
         data_key="nvl-code",
+        metadata={"description": "state code"},
     )
     nvl_message = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="state message",
         data_key="nvl-message",
+        metadata={"description": "state message"},
     )
 
 
 class MonitoringAlertItemParameterResponseSchema(Schema):
     id = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="id of the alert",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "id of the alert"},
     )
-    name = fields.String(required=True, example="test", description="name of the alert")
-    creationDate = fields.DateTime(required=True, example="2022-01-25T11:20:18Z", description="creation date")
-    description = fields.String(required=True, example="test", description="description of the alert")
+    name = fields.String(required=True, metadata={"example": "test", "description": "name of the alert"})
+    creationDate = fields.DateTime(
+        required=True,
+        metadata={"example": "2022-01-25T11:20:18Z", "description": "creation date"},
+    )
+    description = fields.String(required=True, metadata={"example": "test", "description": "description of the alert"})
     ownerId = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="account id of the owner of the alert",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "account id of the owner of the alert"},
     )
     ownerAlias = fields.String(
         required=True,
         allow_none=True,
-        example="test",
-        description="account name of the owner of the alert",
+        metadata={"example": "test", "description": "account name of the owner of the alert"},
     )
     state = fields.String(
         required=True,
-        example="available",
-        description="state of the alert",
         data_key="state",
+        metadata={"example": "available", "description": "state of the alert"},
     )
     stateReason = fields.Nested(
         MonitoringAlertStateReasonResponseSchema,
         many=False,
         required=True,
-        description="state alert description",
+        metadata={"description": "state alert description"},
     )
     templateId = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="id of the alert template",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "id of the alert template"},
     )
-    templateName = fields.String(required=True, example="test", description="name of the alert template")
-    users_email = fields.List(fields.String)
-    user_severities = fields.List(fields.String)
-    resource_uuid = fields.String(required=False)
+    templateName = fields.String(
+        required=True,
+        metadata={"example": "test", "description": "name of the alert template"},
+    )
+    users_email = fields.List(fields.String, required=False, allow_none=True)
+    user_severities = fields.List(fields.String, required=False, allow_none=True)
+    resource_uuid = fields.String(required=False, allow_none=True)
 
 
 class DescribeMonitoringAlerts1ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="$xmlns")
     next_token = fields.String(required=True, allow_none=True)
     requestId = fields.String(required=True, allow_none=True)
-    alertInfo = fields.Nested(
-        MonitoringAlertItemParameterResponseSchema,
-        many=True,
-        required=False,
-        allow_none=True,
-    )
+    alertInfo = fields.Nested(MonitoringAlertItemParameterResponseSchema, many=True, required=False, allow_none=True)
     alertTotal = fields.Integer(
         required=False,
-        example="0",
-        descriptiom="total monitoring instance",
         data_key="alertTotal",
+        metadata={"example": "0", "description": "total monitoring instance"},
     )
 
 
@@ -322,9 +311,9 @@ class DescribeAlertsRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="owner-id.N",
-        description="account id",
+        metadata={"description": "account id"},
     )
-    AlertName = fields.String(required=False, description="alert name", context="query")
+    AlertName = fields.String(required=False, context="query", metadata={"description": "alert name"})
     alert_id_N = fields.List(
         fields.String(),
         required=False,
@@ -332,21 +321,20 @@ class DescribeAlertsRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="alert-id.N",
-        description="list of alert id",
+        metadata={"description": "list of alert id"},
     )
     MaxItems = fields.Integer(
         required=False,
-        missing=100,
+        load_default=100,
         validation=Range(min=1),
         context="query",
-        description="max number elements to return in the response",
+        metadata={"description": "max number elements to return in the response"},
     )
     Marker = fields.String(
         required=False,
-        missing="0",
-        example="",
-        description="pagination token",
+        load_default="0",
         context="query",
+        metadata={"description": "pagination token"},
     )
 
 
@@ -418,28 +406,39 @@ class UpdateUsersAlertApi1ResponseSchema(Schema):
     xmlns = fields.String(
         required=False,
         data_key="__xmlns",
-        example="https://nivolapiemonte.it/XMLdoc/2022-05-16/alert/",
+        metadata={"example": "https://nivolapiemonte.it/XMLdoc/2022-05-16/alert/"},
     )
-    Return = fields.Boolean(required=True, example=True, allow_none=False, data_key="return")
-    requestId = fields.String(required=True, example="alertXX-3525-4f95-880d-479acdb463a4", allow_none=True)
+    Return = fields.Boolean(required=True, allow_none=False, data_key="return", metadata={"example": True})
+    requestId = fields.String(
+        required=True,
+        allow_none=True,
+        metadata={"example": "alertXX-3525-4f95-880d-479acdb463a4"},
+    )
     nvl_activeTask = fields.String(
         required=True,
         allow_none=True,
         data_key="nvl-activeTask",
-        description="active task id",
+        metadata={"description": "active task id"},
     )
 
 
 class UpdateUsersAlertApiResponseSchema(Schema):
     UpdateAlertUsersResponse = fields.Nested(
-        UpdateUsersAlertApi1ResponseSchema, required=True, many=False, allow_none=False
+        UpdateUsersAlertApi1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
     )
 
 
 class UpdateUsersAlertApiRequestSchema(Schema):
-    AlertId = fields.String(required=True, description="monitoring alert id", context="query")
-    UsersEmail = fields.String(required=True, description="users email of monitoring alert", context="query")
-    Severity = fields.String(required=True, description="severity of monitoring alert", context="query")
+    AlertId = fields.String(required=True, context="query", metadata={"description": "monitoring alert id"})
+    UsersEmail = fields.String(
+        required=True,
+        context="query",
+        metadata={"description": "users email of monitoring alert"},
+    )
+    Severity = fields.String(required=True, context="query", metadata={"description": "severity of monitoring alert"})
 
 
 class UpdateUsersAlertApiBodyRequestSchema(Schema):
@@ -497,12 +496,14 @@ class UpdateUsersAlert(ServiceApiView):
 class DescribeAlertUserSeverityResponse1Schema(Schema):
     xmlns = fields.String(required=False, data_key="$xmlns")
     requestId = fields.String(required=True, allow_none=True)
-    user_severities = fields.List(fields.String(), required=True, description="List of severity")
+    user_severities = fields.List(fields.String(), required=True, metadata={"description": "List of severity"})
 
 
 class DescribeAlertUserSeverityResponseSchema(Schema):
     DescribeAlertUserSeverityResponse = fields.Nested(
-        DescribeAlertUserSeverityResponse1Schema, required=True, many=False
+        DescribeAlertUserSeverityResponse1Schema,
+        required=True,
+        many=False,
     )
 
 

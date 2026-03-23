@@ -1,40 +1,39 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from copy import deepcopy
 from ipaddress import IPv4Network
-
-import beehive_service.model.base
-from beehive.common.data import trace
+from logging import getLogger
+from typing import TYPE_CHECKING, List, Union
+from urllib.parse import urlencode
+from beecell.password import obscure_data
+from beecell.simple import (
+    format_date,
+    truncate,
+    obscure_data,
+    dict_get,
+)
+from beecell.types.type_string import truncate, str2bool
+from beecell.types.type_date import format_date
+from beecell.types.type_dict import dict_get
 from beehive.common.apimanager import ApiManagerError
+from beehive.common.data import trace
 from beehive_service.entity.service_type import (
     ApiServiceTypePlugin,
     AsyncApiServiceTypePlugin,
 )
+from beehive_service.model.base import SrvStatusType
 from beehive_service.plugins.computeservice.controller import (
-    ApiComputeImage,
     ApiComputeSubnet,
     ApiComputeSecurityGroup,
     ApiComputeVPC,
     ApiComputeKeyPairsHelper,
     ApiComputeService,
 )
-from six.moves.urllib.parse import urlencode
-from beehive_service.model.base import SrvStatusType
-from beecell.simple import (
-    format_date,
-    truncate,
-    obscure_data,
-    random_password,
-    dict_get,
-)
-from beecell.types.type_string import truncate, str2bool
-from beecell.types.type_date import format_date
-from beecell.types.type_dict import dict_get
-from beecell.password import obscure_data
 
-from logging import getLogger
+if TYPE_CHECKING:
+    from beehive_service.controller import ServiceController
 
 logger = getLogger(__name__)
 
@@ -59,7 +58,7 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         return ApiServiceTypePlugin.info(self)
 
     @staticmethod
-    def customize_list(controller, entities, *args, **kvargs):
+    def customize_list(controller: 'ServiceController', entities, *args, **kvargs):
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
@@ -116,6 +115,93 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
             api_db_serv_inst = ApiDatabaseServiceInstanceV2(controller)
             resources_list = api_db_serv_inst.list_resources(uuids=resources)
             resources_idx = {r["uuid"]: r for r in resources_list}
+        # assign resources
+        for entity in entities:
+            entity.resource = resources_idx.get(entity.instance.resource_uuid)
+
+        return entities
+
+    @staticmethod
+    def customize_simple_list(controller: 'ServiceController', entities, *args, **kvargs):
+        """Post list function. Extend this function to execute some operation after entity was created. Used only for
+        synchronous creation.
+
+        :param controller: controller instance
+        :param entities: list of entities
+        :param args: custom params
+        :param kvargs: custom params
+        :return: None
+        :raise ApiManagerError:
+        """
+        account_ids = {e.instance.account_id for e in entities}
+        account_idx = controller.get_account_idx(id_list=account_ids)
+
+        # divisions
+        division_ids: List[int] = []
+        from beehive_service.controller.api_account import ApiAccount
+        apiAccounts: List[ApiAccount] = account_idx.values()
+        for apiAccount in apiAccounts:
+            div_oid = apiAccount.model.division.id
+            if div_oid not in division_ids:
+                division_ids.append(div_oid)
+        logger.debug2("fv - customize_simple_list - division_ids: %s" % division_ids)
+        division_idx = controller.get_division_idx(id_list=division_ids)
+        logger.debug2("fv - customize_simple_list - division_idx: %s" % division_idx)
+
+        subnet_idx = controller.get_service_instance_idx(ApiComputeSubnet.plugintype, account_id_list=account_ids)
+        # vpc_idx = controller.get_service_instance_idx(ApiComputeVPC.plugintype, account_id_list=account_ids)
+        # security_group_idx = controller.get_service_instance_idx(
+        #     ApiComputeSecurityGroup.plugintype, account_id_list=account_ids
+        # )
+        # compute_service_idx = controller.get_service_instance_idx(
+        #     ApiComputeService.plugintype, index_key="account_id", account_id_list=account_ids
+        # )
+        # instance_type_idx = controller.get_service_definition_idx(ApiDatabaseServiceInstanceV2.plugintype)
+        # get resources
+        resource_uuids = []
+        # zones = set()
+        for entity in entities:
+            entity_instance = entity.instance
+            account_id_s = "%s" % entity_instance.account_id
+            entity.account = account_idx.get(account_id_s)
+            entity.division = division_idx.get(str(entity.account.model.division.id))
+            # entity.compute_service = compute_service_idx.get(account_id_s)
+
+            subnet = subnet_idx.get("%s" % entity.get_config("dbinstance.DBSubnetGroupName"))
+            entity.subnet = subnet
+            if subnet is not None:
+                # entity.subnet_vpc = vpc_idx.get(subnet.get_parent_id())
+                entity.avzone = subnet.get_config("site")
+            else:
+                entity.subnet_vpc = None
+                entity.avzone = None
+
+            # set security group indexes
+            # entity.security_group_idx = security_group_idx
+            # get instance type
+            # entity.instance_type = instance_type_idx.get("%s" % entity_instance.service_definition_id)
+
+            # zones.add(entity.compute_service.resource_uuid)
+            if entity_instance.resource_uuid is not None:
+                resource_uuids.append(entity_instance.resource_uuid)
+
+        resources_idx = {}
+        if len(resource_uuids) > 0:
+            # sg_info = kvargs.get("sg_info", False)
+            # flavor_info = kvargs.get("flavor_info", False)
+            api_db_serv_inst = ApiDatabaseServiceInstanceV2(controller)
+            resources = []
+
+            block_size = 80
+            blocks = [resource_uuids[i:i + block_size] for i in range(0, len(resource_uuids), block_size)]
+            # logger.debug2(f"fv - customize_simple_list - blocks: {blocks}")
+            for block in blocks:
+                logger.debug2(f"fv - customize_simple_list - block length: {len(block)}")
+                resources += api_db_serv_inst.list_simple_resources(
+                    uuids=block, # sg_info=sg_info, flavor_info=flavor_info
+                )
+            resources_idx = {r["uuid"]: r for r in resources}
+
         # assign resources
         for entity in entities:
             entity.resource = resources_idx.get(entity.instance.resource_uuid)
@@ -217,15 +303,16 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         version = attributes.get("version")
         outputs = attributes.get("outputs")
         hypervisor = attributes.get("hypervisor")
-
+        allocated_storage = int(config.get("AllocatedStorage", -1))
         # select correct resource stack version
         # new resource stack v2
         if outputs is not None:
             # replica = attributes.get('replica')
             address = dict_get(resource, "listener.address")
-            port = dict_get(resource, "listener.port")
-            # get allocated storage
-            allocated_storage = resource.get("allocated_storage", int(config.get("AllocatedStorage", -1)))
+            port = dict_get(resource, "listener.port") or dict_get(resource, "attributes.engine_configs.engine.port")
+            # get allocated storage noly if is not present in service config
+            if allocated_storage == -1:
+                allocated_storage = resource.get("allocated_storage", int(config.get("AllocatedStorage", -1)))
             charset = attributes.get("charset")
             timezone = attributes.get("timezone")
 
@@ -242,7 +329,7 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
                 address, port = avz_main_stack.get("listener", ":").split(":")
 
             # get allocated storage
-            allocated_storage = int(config.get("AllocatedStorage", -1))
+            #  unused value c = int(config.get("AllocatedStorage", -1))
 
             charset = config.get("CharacterSetName")
             timezone = config.get("Timezone")
@@ -289,7 +376,18 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
             instance_item["nvl-resourceId"] = instance.resource_uuid
             instance_item["StorageType"] = attributes.get("volume_flavor")
             instance_item["LicenseModel"] = attributes.get("license", "general-public-license")
-            instance_item["MasterUsername"] = attributes.get("admin_user", config.get("MasterUsername"))
+            
+            admin_user = attributes.get("admin_user")
+            if admin_user is None:
+                admin_user = config.get("MasterUsername")
+            else:
+                # fix structure dict MasterUsername of some old ComputeStack
+                if "pwd" not in admin_user:
+                    new_admin_user = {}
+                    new_admin_user["pwd"] = admin_user
+                    admin_user = new_admin_user
+            instance_item["MasterUsername"] = admin_user
+
             instance_item["StatusInfos"] = []
             # instance_item['nvl_keyName'] = config.get('Nvl_KeyName')
             instance_item["nvl-stateReason"] = []
@@ -369,8 +467,242 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         instance_item["monitoring_enabled"] = monitoring_enabled
 
         return instance_item
+    
+    def aws_simple_info(self):
+        instance_item = {}
 
-    def pre_create(self, **params) -> dict:
+        # get config
+        config = self.get_config("dbinstance")
+        if config is None:
+            config = {}
+
+        avzone = self.avzone
+
+        if self.resource is None:
+            self.resource = {}
+
+        resource = self.resource
+        attributes = resource.get("attributes", {})
+        engine = attributes.get("engine")
+        version = attributes.get("version")
+        outputs = attributes.get("outputs")
+        # hypervisor = attributes.get("hypervisor")
+        # allocated_storage = int(config.get("AllocatedStorage", -1))
+        # select correct resource stack version
+        # new resource stack v2
+        # self.logger.info(f"fv - aws_simple_info - outputs: {outputs}")
+        if outputs is not None:
+            # replica = attributes.get('replica')
+            address = dict_get(resource, "listener.address")
+            port = dict_get(resource, "listener.port")
+
+        # old resource stack v1
+        else:
+            stacks = resource.get("stacks", [])
+            # self.logger.info(f"fv - aws_simple_info - stacks: {stacks}")
+            # replica = config.get('MultiAZ')
+            # resource stack ref
+            avz_main_stack = {}
+            if len(stacks) > 0:
+                avz_main_stack = stacks[0]
+            address, port = None, None
+            if avz_main_stack.get("listener", ":") is not None:
+                address, port = avz_main_stack.get("listener", ":").split(":")
+        
+        dbname = ""
+        if engine == "mysql":
+            dbname = "%s:%s" % (address, port)
+        elif engine == "mariadb":
+            dbname = "%s:%s" % (address, port)
+        elif engine == "postgresql":
+            dbname = dict_get(attributes, "postgres:database")
+        elif engine == "oracle":
+            dbname = dict_get(attributes, "oracle:sid")
+
+        port_number = None
+        if port is not None and port != "":
+            port_number = port
+
+        # get instance and resource status
+        instance = self.instance
+        status = instance.status
+        if resource.get("state") == "ERROR":
+            status = "ERROR"
+
+        instance_item["DBInstanceIdentifier"] = instance.name
+        instance_item["DbiResourceId"] = instance.uuid
+        # instance_item["nvl-resourceId"] = instance.resource_uuid
+
+        admin_user = attributes.get("admin_user")
+        if admin_user is None:
+            admin_user = config.get("MasterUsername")
+        else:
+            # fix structure dict MasterUsername of some old ComputeStack
+            if "pwd" not in admin_user:
+                new_admin_user = {}
+                new_admin_user["pwd"] = admin_user
+                admin_user = new_admin_user
+        instance_item["MasterUsername"] = admin_user
+
+        instance_item["AvailabilityZone"] = avzone
+
+        instance_item["DbInstancePort"] = port_number
+        # instance_item["DBInstanceStatus"] = self.state_mapping(status, resource.get("runstate"))
+        instance_item["DBInstanceStatus"] = self.state_mapping(status, attributes.get("last_runstate"))
+        instance_item["DBName"] = dbname
+        instance_item["Endpoint"] = {"Address": address, "Port": port_number}
+
+        instance_item["Engine"] = engine
+        instance_item["EngineVersion"] = version
+        instance_item["InstanceCreateTime"] = format_date(instance.model.creation_date)
+        instance_item["TagList"] = []
+
+        # custom params
+        account = self.account
+        instance_item["nvl-ownerAlias"] = account.name
+        instance_item["nvl-ownerId"] = account.uuid
+
+        from beehive_service.controller.api_division import ApiDivision
+        division: ApiDivision = self.division
+        if division:
+            instance_item["nvl-divisionAlias"] = division.name
+            instance_item["nvl-divisionId"] = division.uuid
+
+        return instance_item
+
+    def _get_postgresql_parameters(self, data_instance: dict) -> dict:
+        """Get Optional postgrsql parameters
+
+        Args:
+            data_instance (dict): _description_
+
+        Returns:
+            dict: _description_
+        """
+        postgresql_db_options = data_instance.get("Nvl_Postgresql_Options", {})
+        geo_extension = postgresql_db_options.get("Postgresql_GeoExtension", True)
+        encoding = postgresql_db_options.get("pg_encoding", "UTF-8")
+        lc_collate = postgresql_db_options.get("pg_lc_collate", "en_US.UTF-8")
+        lc_ctype = postgresql_db_options.get("pg_lc_ctype", "en_US.UTF-8")
+        db_name = postgresql_db_options.get("pg_db_name", None)
+        role_name = postgresql_db_options.get("pg_role_name", None)
+        password = postgresql_db_options.get("pg_password", None)
+        schema_name = postgresql_db_options.get("pg_schema_name", None)
+        extensions = ",".join(postgresql_db_options.get("pg_extensions", []))
+        pg_starter_pack = "N"
+        if role_name is not None:
+            pg_starter_pack = "Y"
+        else:
+            if password is not None:
+                raise ApiManagerError("schema password is required for schema creation")
+        return {
+            "postgresql_params": {
+                "geo_extension": geo_extension,
+                "encoding": encoding,
+                "lc_collate": lc_collate,
+                "lc_ctype": lc_ctype,
+                "db_name": db_name,
+                "role_name": role_name,
+                "password": password,
+                "schema_name": schema_name,
+                "extensions": extensions,
+                # "starter_pack": pg_starter_pack,
+            }
+        }
+
+    def _get_oracle_parameters(self, data_instance: dict, engine_params: dict) -> dict:
+        """Get Optional Oracle paramenters
+
+        Args:
+            data_instance (dict): _description_
+
+        Returns:
+            dict: _description_
+        """
+        oracle_db_options = data_instance.get("Nvl_Oracle_Options", {})
+
+        ora_dbname = oracle_db_options.get("ora_dbname", "ORCL0")
+        ora_dbnatcharset = oracle_db_options.get("ora_natcharset", "AL16UTF16")
+        ora_dbarchmode = oracle_db_options.get("ora_archmode", "Y")
+        ora_dbpartopt = oracle_db_options.get("ora_partopt", "Y")
+        ora_charset = oracle_db_options.get("ora_charset", "WE8ISO8859P1")
+        ora_dblistenerport = oracle_db_options.get("ora_lsnport", 1521)
+
+        # ora_dbdbfdisksize: nessun default, eredita default di AllocatedStorage,
+        # definito come missing=30 in resource 'data_disk_size'
+        ora_dbdbfdisksize = oracle_db_options.get("ora_dbfdisksize")
+
+        ora_dbrecoverydisksize = oracle_db_options.get("ora_recodisksize", 30)
+
+        # get oracle os user
+        ora_os_user = dict_get(engine_params, "os_dbuser")
+
+        # Oracle constants
+        # ora_dbfpath = data_instance.get('OracleDBDatafilePath')
+        # ora_dbbckbasepath = data_instance.get('OracleDBRecoveryBaseFilePath')
+        # collect starter pack info
+        ora_user_name = oracle_db_options.get("ora_user_name", "--")
+        ora_user_pwd = oracle_db_options.get("ora_user_pwd", "--")
+        ora_data_tbs_name = oracle_db_options.get("ora_data_tbs_name", "--")
+        ora_data_tbs_next = oracle_db_options.get("ora_data_tbs_next", "--")
+        ora_data_tbs_size = oracle_db_options.get("ora_data_tbs_size", "--")
+        ora_idx_tbs_name = oracle_db_options.get("ora_idx_tbs_name", "--")
+        ora_idx_tbs_next = oracle_db_options.get("ora_idx_tbs_next", "--")
+        ora_idx_tbs_size = oracle_db_options.get("ora_idx_tbs_size", "--")
+        ora_lob_tbs_name = oracle_db_options.get("ora_lob_tbs_name", "--")
+        ora_lob_tbs_next = oracle_db_options.get("ora_lob_tbs_next", "--")
+        ora_lob_tbs_size = oracle_db_options.get("ora_lob_tbs_size", "--")
+
+        try:
+            ## check there is still room for tablespaces
+            tsize = 0
+            if ora_data_tbs_size != "--":
+                tsize += int(ora_data_tbs_size[:-1])
+            if ora_idx_tbs_size != "--":
+                tsize += int(ora_idx_tbs_size[:-1])
+            if ora_lob_tbs_size != "--":
+                tsize += int(ora_lob_tbs_size[:-1])
+            tsize = tsize / 1024
+
+            if tsize > int(data_instance.get("AllocatedStorage")):
+                raise ApiManagerError("no room for tablespace in alocated storage")
+        except Exception:
+            pass
+
+        ora_starter_pack = "Y"
+        if ora_user_name == "--":
+            ora_starter_pack = "N"
+        else:
+            if ora_user_pwd == "--":
+                raise ApiManagerError("schema password is required for schema creation")
+
+        return {
+            "oracle_params": {
+                "oracle_db_name": ora_dbname,
+                "oracle_charset": ora_charset,
+                "oracle_natcharset": ora_dbnatcharset,
+                "oracle_archivelog_mode": ora_dbarchmode,
+                "oracle_partitioning_option": ora_dbpartopt,
+                "oracle_listener_port": ora_dblistenerport,
+                "oracle_data_disk_size": ora_dbdbfdisksize,
+                "oracle_bck_disk_size": ora_dbrecoverydisksize,
+                "oracle_os_user": ora_os_user,
+                "oracle_starter_pack": ora_starter_pack,
+                "oracle_user_name": ora_user_name,
+                "oracle_user_pwd": ora_user_pwd,
+                "oracle_data_tbs_name": ora_data_tbs_name,
+                "oracle_data_tbs_next": ora_data_tbs_next,
+                "oracle_data_tbs_size": ora_data_tbs_size,
+                "oracle_idx_tbs_name": ora_idx_tbs_name,
+                "oracle_idx_tbs_next": ora_idx_tbs_next,
+                "oracle_idx_tbs_size": ora_idx_tbs_size,
+                "oracle_lob_tbs_name": ora_lob_tbs_name,
+                "oracle_lob_tbs_next": ora_lob_tbs_next,
+                "oracle_lob_tbs_size": ora_lob_tbs_size,
+            }
+        }
+
+    def pre_create(self, **params):
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -393,12 +725,22 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         compute_zone = self.get_config("computeZone")
         data_instance = self.get_config("dbinstance")
         engine_params = self.get_config("engine")
+        hypervisor = engine_params.get("hypervisor")
         if engine_params is None:
             engine_params = {}
         self.logger.debug("+++++ engine_params: %s", engine_params)
         image_engine = engine_params.get("image")
         self.logger.debug("+++++ image_engine: %s", image_engine)
 
+        # check all parameters are present
+        keys_check: Union[None, List[str]] =  engine_params.get("check")
+        if isinstance(keys_check, list):
+            for key in keys_check:
+                if isinstance(key, str) :
+                    if dict_get(engine_params, key) is None:
+                        raise ApiManagerError (f"parmeter {key} not set")
+                    
+        
         # get resource image
         image_resource = self.get_image(image_engine)
         image_configs = image_resource.get("attributes", {}).get("configs", {})
@@ -434,6 +776,7 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
             raise ApiManagerError("Subnet is not defined")
 
         subnet_inst = self.controller.check_service_instance(subnet_id, ApiComputeSubnet, account=account_id)
+        subnet_name = subnet_inst.name
         if av_zone is None:
             subnet_inst.get_main_config()
             av_zone = subnet_inst.get_config("site")
@@ -467,6 +810,21 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         vpc_resource_uuid = self.controller.get_service_instance(
             subnet_inst.model.linkParent[0].start_service_id
         ).resource_uuid
+        uri = f"/v2.0/nrs/provider/vpcs/{vpc_resource_uuid}/available-ips"
+        data = {"orchestrator_type": hypervisor, "site": av_zone}
+        res = self.controller.api_client.admin_request("resource", uri, "get", data=data)
+        available_ips = res.get("available_ips")
+        if available_ips is not None:
+            available_ips = int(available_ips)
+            if available_ips <= 0:
+                msg = f"""\
+No more available ips on subnet {subnet_name} for hypervisor {hypervisor} due to full allocation; \
+consider requesting a new subnet or selecting another one.
+        """
+                raise ApiManagerError(msg)
+        else:
+            msg = "Failed to retrieve available IP count for %s on %s. Attempting to proceed."
+            self.logger.warning(msg, subnet_name, hypervisor)
 
         # get engine name and version
         engine = data_instance.get("Engine")
@@ -479,7 +837,6 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
 
         # get params for given engine and version
         host_group = engine_params.get("host_group")
-        hypervisor = engine_params.get("hypervisor")
         volume_flavor = engine_params.get("volume_flavor")
         image = engine_params.get("image")
         customization = engine_params.get("customization")
@@ -512,36 +869,14 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         data_dir = dict_get(engine_params, "mount_point.data")
         backup_dir = dict_get(engine_params, "mount_point.backup")
 
-        # data_instance.get('AvailabilityZone', None)
-        # data_instance.get('BackupRetentionPeriod', 1)
-        # data_instance.get('CharacterSetName', None)
-        # data_instance.get('LicenseModel')
-        # data_instance('Port')
-        # data_instance('PreferredBackupWindow', '2018-01-22T20:54Z')
-        # data_instance('PreferredMaintenanceWindow', '2018-01-22T20:54Z')
-        # data_instance('PubliclyAccessible', False)
-        # data_instance('StorageEncrypted', False)
-        # data_instance('StorageType', None)
-        # data_instance('Tag_N', [])
-
-        # check quotas
-        # self.check_quotas(compute_zone, quotas)
-
         # name = '%s-%s' % (self.instance.name, id_gen(length=8))
         name = self.instance.name
         hostname = name
         if engine == "sqlserver" and len(hostname) > 15:
             hostname = name[0:15]
 
-        # dbname = data_instance.get('DBName', 'test')
-        # if dbname is not None:
-        #     dbname = dbname.lower()
-
-        # get db users and password
-        # db_root_name = data_instance.get('MasterUsername', 'root')
         db_root_password = data_instance.get("MasterUserPassword", None)
-        # db_appuser_name = self.get_config('db_appuser_name')
-        # db_appuser_password = self.get_config('db_appuser_password')
+
         if db_root_password is not None:
             pass
             # todo: check password complexity
@@ -599,74 +934,9 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         }
 
         if engine == "postgresql":
-            postgresql_db_options = data_instance.get("Nvl_Postgresql_Options", {})
-            geo_extension = postgresql_db_options.get("Postgresql_GeoExtension", True)
-            encoding = postgresql_db_options.get("pg_encoding", "UTF-8")
-            lc_collate = postgresql_db_options.get("pg_lc_collate", "en_US.UTF-8")
-            lc_ctype = postgresql_db_options.get("pg_lc_ctype", "en_US.UTF-8")
-            db_name = postgresql_db_options.get("pg_db_name", None)
-            role_name = postgresql_db_options.get("pg_role_name", None)
-            password = postgresql_db_options.get("pg_password", None)
-            schema_name = postgresql_db_options.get("pg_schema_name", None)
-            extensions = ",".join(postgresql_db_options.get("pg_extensions", []))
-
-            data.update(
-                {
-                    "postgresql_params": {
-                        "geo_extension": geo_extension,
-                        "encoding": encoding,
-                        "lc_collate": lc_collate,
-                        "lc_ctype": lc_ctype,
-                        "db_name": db_name,
-                        "role_name": role_name,
-                        "password": password,
-                        "schema_name": schema_name,
-                        "extensions": extensions,
-                    }
-                }
-            )
-
+            data.update(self._get_postgresql_parameters(data_instance=data_instance))
         elif engine == "oracle":
-            #
-            # Get Optional Oracle paramenters
-            #
-            oracle_db_options = data_instance.get("Nvl_Oracle_Options", {})
-
-            ora_dbname = oracle_db_options.get("ora_dbname", "ORCL0")
-            ora_dbnatcharset = oracle_db_options.get("ora_natcharset", "AL16UTF16")
-            ora_dbarchmode = oracle_db_options.get("ora_archmode", "Y")
-            ora_dbpartopt = oracle_db_options.get("ora_partopt", "Y")
-            ora_charset = oracle_db_options.get("ora_charset", "WE8ISO8859P1")
-            ora_dblistenerport = oracle_db_options.get("ora_lsnport", 1521)
-
-            # ora_dbdbfdisksize: nessun default, eredita default di AllocatedStorage,
-            # definito come missing=30 in resource 'data_disk_size'
-            ora_dbdbfdisksize = oracle_db_options.get("ora_dbfdisksize")
-
-            ora_dbrecoverydisksize = oracle_db_options.get("ora_recodisksize", 30)
-
-            # get oracle os user
-            ora_os_user = dict_get(engine_params, "os_dbuser")
-
-            # Oracle constants
-            # ora_dbfpath = data_instance.get('OracleDBDatafilePath')
-            # ora_dbbckbasepath = data_instance.get('OracleDBRecoveryBaseFilePath')
-
-            data.update(
-                {
-                    "oracle_params": {
-                        "oracle_db_name": ora_dbname,
-                        "oracle_charset": ora_charset,
-                        "oracle_natcharset": ora_dbnatcharset,
-                        "oracle_archivelog_mode": ora_dbarchmode,
-                        "oracle_partitioning_option": ora_dbpartopt,
-                        "oracle_listener_port": ora_dblistenerport,
-                        "oracle_data_disk_size": ora_dbdbfdisksize,
-                        "oracle_bck_disk_size": ora_dbrecoverydisksize,
-                        "oracle_os_user": ora_os_user,
-                    }
-                }
-            )
+            data.update(self._get_oracle_parameters(data_instance=data_instance, engine_params=engine_params))
 
         params["resource_params"] = data
         self.logger.debug("Pre create params: %s" % obscure_data(deepcopy(params)))
@@ -907,11 +1177,16 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
             security_group, plugin_class=ApiComputeSecurityGroup, details=False
         )
 
+        action_param = None
+
         # get active security groups
         sgs = [sg["uuid"] for sg in self.resource.get("security_groups", [])]
         attached = security_group.resource_uuid in sgs
 
         if attached is True and action == "DEL":
+            if len(sgs) == 1:
+                raise ApiManagerError("Can't delete security group. Database %s must have al least one security group" % (self.instance.uuid))
+
             action_param = {
                 "name": "del_security_group",
                 "args": {"security_group": security_group.resource_uuid},
@@ -1085,6 +1360,9 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
     def disable_resource_monitoring(self, task):
         """Disable resource monitoring. Invoked by delete_resource()
 
+        Warning!
+        This method call a wait_for_task and must be run only by an asyncronus worker!
+
         :param task: celery task reference
         :return:
         """
@@ -1139,6 +1417,9 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
     def register_on_haproxy(self, task):
         """Register db instance on haproxy
 
+        Warning!
+        This method call a wait_for_task and must be run only by an asyncronus worker!
+
         :param task: celery task reference
         """
         uuid = self.instance.resource_uuid
@@ -1153,6 +1434,8 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
 
     def deregister_from_haproxy(self, task):
         """Deregister db instance from haproxy
+        Warning!
+        This method call a wait_for_task and must be run only by an asyncronus worker!
 
         :param task: celery task reference
         """
@@ -1377,151 +1660,6 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         self.logger.info("Change password to user %s for db instance %s" % (user, self.instance.uuid))
         return res
 
-    # def get_snapshots(self):
-    #     """Get snapshots
-    #
-    #     :return: object instance
-    #     :raises ApiManagerError: raise :class:`.ApiManagerError`
-    #     """
-    #     res = [{
-    #         'snapshotId': s['id'],
-    #         'snapshotStatus': s['status'],
-    #         'snapshotName': s['name'],
-    #         'createTime': s['created_at'],
-    #     } for s in self.get_resource_snapshot()]
-    #     return res
-    #
-    # def add_snapshot(self, snapshot):
-    #     """Add snapshot
-    #
-    #     :param snapshot: snapshot name
-    #     :return: object instance
-    #     :raises ApiManagerError: raise :class:`.ApiManagerError`
-    #     """
-    #     # check quotas
-    #     # self.check_quotas(compute_zone, quotas)
-    #
-    #     params = {
-    #         'resource_params': {
-    #             'action': {'name': 'add_snapshot', 'args': {'snapshot': snapshot}}
-    #         }
-    #     }
-    #     res = self.update(**params)
-    #     self.logger.info('Add snapshot %s to instance %s' % (snapshot, self.instance.uuid))
-    #     return res
-    #
-    # def del_snapshot(self, snapshot):
-    #     """Delete snapshot
-    #
-    #     :param snapshot: snapshot id
-    #     :return: object instance
-    #     :raises ApiManagerError: raise :class:`.ApiManagerError`
-    #     """
-    #     if self.exists_snapshot(snapshot) is False:
-    #         raise ApiManagerError('snapshot %s does not exist' % snapshot)
-    #
-    #     params = {
-    #         'resource_params': {
-    #             'action': {'name': 'del_snapshot', 'args': {'snapshot': snapshot}}
-    #         }
-    #     }
-    #     res = self.update(**params)
-    #     self.logger.info('Delete snapshot %s from instance %s' % (snapshot, self.instance.uuid))
-    #     return res
-    #
-    # def revert_snapshot(self, snapshot):
-    #     """Revert snapshot
-    #
-    #     :param snapshot: snapshot id
-    #     :return: object instance
-    #     :raises ApiManagerError: raise :class:`.ApiManagerError`
-    #     """
-    #     if self.exists_snapshot(snapshot) is False:
-    #         raise ApiManagerError('snapshot %s does not exist' % snapshot)
-    #
-    #     params = {
-    #         'resource_params': {
-    #             'action': {'name': 'revert_snapshot', 'args': {'snapshot': snapshot}}
-    #         }
-    #     }
-    #     res = self.update(**params)
-    #     self.logger.info('Revert snapshot %s to instance %s' % (snapshot, self.instance.uuid))
-    #     return res
-    #
-    # def enable_monitoring(self, templates):
-    #     """enable monitoring
-    #
-    #     :param templates: templates
-    #     :return: object instance
-    #     :raises ApiManagerError: raise :class:`.ApiManagerError`
-    #     """
-    #     params = {
-    #         'resource_params': {
-    #             'action': {'name': 'enable_monitoring', 'args': {}}
-    #         }
-    #     }
-    #     res = self.update(**params)
-    #     self.logger.info('enable monitoring to instance %s' % self.instance.uuid)
-    #     return res
-    #
-    # def enable_logging(self, files):
-    #     """enable logging
-    #
-    #     :param files: files
-    #     :return: object instance
-    #     :raises ApiManagerError: raise :class:`.ApiManagerError`
-    #     """
-    #     params = {
-    #         'resource_params': {
-    #             'action': {'name': 'enable_logging', 'args': {}}
-    #         }
-    #     }
-    #     res = self.update(**params)
-    #     self.logger.info('enable logging to instance %s' % self.instance.uuid)
-    #     return res
-    #
-    # def manage_user(self, user_params):
-    #     """Manage user. Add, delete, change password
-    #
-    #     :param user_params: dict with action params
-    #     :param user_params.Nvl_Action: Instance user action. Can be add, delete or set-password
-    #     :param user_params.Nvl_Name: The instance user name
-    #     :param user_params.Nvl_Password: he instance user password. Required with action add and set-password
-    #     :param user_params.Nvl_SshKey: The instance user ssh key id. Required with action add
-    #     :return: update params
-    #     """
-    #     # check instance status
-    #     if self.get_runstate() == 'poweredOn':
-    #         action = user_params.get('Nvl_Action')
-    #         user_name = user_params.get('Nvl_Name')
-    #         if action == 'add':
-    #             user_pwd = user_params.get('Nvl_Password')
-    #             user_ssh_key = user_params.get('Nvl_SshKey')
-    #             params = {
-    #                 'action': {
-    #                     'name': 'add_user',
-    #                     'args': {'user_name': user_name, 'user_pwd': user_pwd, 'user_ssh_key': user_ssh_key}
-    #                 }
-    #             }
-    #             self.logger.info('Add user %s in instance %s' % (user_name, self.instance.uuid))
-    #         elif action == 'delete':
-    #             params = {
-    #                 'action': {'name': 'del_user', 'args': {'user_name': user_name}}
-    #             }
-    #             self.logger.info('Delete user %s in instance %s' % (user_name, self.instance.uuid))
-    #         elif action == 'set-password':
-    #             user_pwd = user_params.get('Nvl_Password')
-    #             params = {
-    #                 'action': {'name': 'set_user_pwd', 'args': {'user_name': user_name, 'user_pwd': user_pwd}}
-    #             }
-    #             self.logger.info('Delete user %s in instance %s' % (user_name, self.instance.uuid))
-    #     else:
-    #         raise ApiManagerError('Instance %s is not in a correct state' % self.instance.uuid)
-    #     return {'resource_params': params}
-
-    #
-    # resource client method
-    #
     def get_runstate(self):
         """Get resource runstate
 
@@ -1598,6 +1736,34 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
 
         self.controller.logger.debug("Get sql stack resources: %s" % truncate(instances))
         return instances
+    
+    @trace(op="view")
+    def list_simple_resources(self, uuids=None, page=0, size=-1, **kvargs):
+        """Get resources info
+
+        :return: Dictionary with resources info.
+        :rtype: dict
+        :raises ApiManagerError: raise :class:`.ApiManagerError`
+        """
+        data = {
+            "size": size,
+            "page": page,
+            # "sg_info": kvargs.get("sg_info"),
+            # "flavor_info": kvargs.get("flavor_info"),
+        }
+        if uuids is not None:
+            data["uuids"] = ",".join(uuids)
+        self.logger.debug("list_simple_resources %s" % data)
+
+        resources = self.controller.api_client.admin_request(
+            "resource",
+            "/v1.0/nrs/simple_entities",
+            "get",
+            data=urlencode(data),
+            timeout=600,
+        ).get("resources", [])
+        self.logger.debug("Get database instance simple resources: %s" % truncate(resources))
+        return resources
 
     @trace(op="view")
     def list_engines(self):
@@ -1648,6 +1814,8 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
     @trace(op="insert")
     def create_resource(self, task, *args, **kvargs):
         """Create resource
+        Warning!
+        This method call a wait_for_task and must be run only by an asyncronus worker!
 
         :param task: celery task reference
         :param args: custom positional args
@@ -1657,6 +1825,8 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
         """
         options = args[0].pop("options", {})
         data = {"sql_stack": args[0]}
+        ## add engine configuration from definition as resurce parameter
+        data["sql_stack"]["engine_configs"] = self.get_config("engine")
         import json
 
         self.logger.debug("+++++++++++++ %s ", json.dumps(data, indent=4))
@@ -1697,6 +1867,9 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
     def update_resource(self, task, *args, **kvargs):
         """Update resource
 
+        Warning!
+        This method call a wait_for_task and must be run only by an asyncronus worker!
+
         :param task: celery task reference
         :param args: custom positional args
         :param kvargs: custom key=value args
@@ -1709,6 +1882,7 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
             # multi actions
             actions = kvargs.pop("actions", [])
             for action in actions:
+                data = None
                 if action is not None:
                     data = {"action": {action.get("name"): action.get("args")}}
                 uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % self.instance.resource_uuid
@@ -1752,6 +1926,9 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
     def delete_resource(self, task, *args, **kvargs):
         """Delete resource
 
+        Warning!
+        This method call a wait_for_task and must be run only by an asyncronus worker!
+
         :param task: celery task reference
         :param args: custom positional args
         :param kvargs: custom key=value args
@@ -1774,10 +1951,84 @@ class ApiDatabaseServiceInstanceV2(AsyncApiServiceTypePlugin):
             self.disable_resource_monitoring(task)
 
         # call superclass method
-        ApiServiceTypePlugin.delete_resource(self, task, *args, **kvargs)
+        if self.check_resource() is None:
+            return False
+
+        try:
+            uuid = self.instance.resource_uuid
+            if uuid is not None:
+                uri = "/v2.0/nrs/provider/sql_stacks/%s" % uuid
+            else:
+                return False
+            res = self.controller.api_client.admin_request("resource", uri, "delete", data="")
+            taskid = res.get("taskid", None)
+        except ApiManagerError as ex:
+            self.logger.error(ex, exc_info=1)
+            self.instance.update_status(SrvStatusType.ERROR, error=ex.value)
+            raise
+        except Exception as ex:
+            self.logger.error(ex, exc_info=1)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
+
+        if taskid is not None:
+            self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
+        self.logger.debug("Delete sql stack resources: %s" % res)
+
+        return True
+
+        # ApiServiceTypePlugin.delete_resource(self, task, *args, **kvargs)
 
     def check_supported(self, action=""):
         engine = self.get_config("dbinstance.Engine")
         version = self.get_config("dbinstance.EngineVersion")
         if engine == "postgresql" and action == "install_extensions":
             raise ApiManagerError("Action %s not supported on %s %s" % (action, engine, version))
+
+    def get_job_restore_points(self, data_search):
+        """Get backup job restore points
+
+        :return: backup resource points
+        :raises ApiManagerError: raise :class:`.ApiManagerError`
+        """
+        self.instance.verify_permisssions("view")
+
+        restore_points, restore_point_total = self.get_resource_backup_job_restore_points(data_search)
+        restore_points = [self.aws_restore_point_info(item) for item in restore_points]
+        self.logger.debug(
+            "get database instance %s backup resource points: %s" % (self.instance.uuid, truncate(restore_points))
+        )
+        return restore_points, restore_point_total
+
+    @trace(op="view")
+    def get_resource_backup_job_restore_points(self, data_search):
+        """Get resource backup
+
+        :return: backup restore points
+        :raises ApiManagerError: raise :class:`.ApiManagerError`
+        """
+        restore_points = None
+        restore_point_total = 0
+        if self.instance.resource_uuid is not None and data_search is not None:
+            data = {
+                "size": data_search.get("size", -1),
+                "page": data_search.get("page", 0),
+            }
+            # uri = "/v1.0/nrs/provider/instances/%s/backup/restore_points" % self.instance.resource_uuid
+            uri = "/v2.0/nrs/provider/sql_stacks/%s/backup/restore_points" % self.instance.resource_uuid
+            res = self.controller.api_client.admin_request("resource", uri, "get", data=data)
+            restore_points = res.get("restore_points", [])
+            restore_point_total = res.get("restore_point_total", 0)
+        self.logger.debug("Get database instance resource backup restore points: %s" % truncate(restore_points))
+        return restore_points, restore_point_total
+
+    def aws_restore_point_info(self, restore_point):
+        """Get info as required by aws api
+
+        :param restore_point: restore_point dict with data
+        :return: restore point data
+        """
+        restore_point_item = restore_point
+        restore_point_item.pop("metadata", None)
+        restore_point_item.pop("instances", None)
+        return restore_point_item

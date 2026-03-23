@@ -1,29 +1,37 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.assert_util import AssertUtil
 from beehive_service.model.base import SrvStatusType
 
-__SITE_NAMES__ = ["SiteTorino01", "SiteTorino02", "SiteVercelli03", "SiteTorino05", "SiteGenova06"]
-
+__SITE_NAMES__ = ["SiteTorino01","SiteTorino02","SiteVercelli01","SiteTorino05","SiteGenova06"]
+__NIVOLA_NETWORKS__ = ["10.138.0.0/16", "10.139.0.0/16"]
+__MAP_SITE_NAME_SHORT_SUFFIX__ = { # to determine short suffix corresponding to specific site name
+    "SiteTorino01": "to1",
+    "SiteTorino02": "to2",
+    "SiteVercelli01": "vc1",
+    "SiteTorino05": "to5",
+    "SiteGenova06": "ge6"
+}
 __PLATFORM_NAME__ = ["OpenStack", "VMWare"]
 __PLATFORM_ID__ = ["10", "20"]
 __PRICE_TIME_UNIT__ = ["YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND"]
 __PRICE_TYPE__ = ["SIMPLE", "SLICE", "THRESHOLD"]
 __ARCHITECTURE__ = ["i386", "x86_64"]
 __SCHEDULE_TYPE__ = ["crontab", "timedelta"]
-__REGEX_AWS_SG_NAME_AND_DESC__ = "^[a-zA-Z0-9 ._\-:\/\(\)#,@+=&;{}!$\*]{1,255}$"
+__REGEX_AWS_SG_NAME_AND_DESC__ = r"^[a-zA-Z0-9 ._\-:\/\(\)#,@+=&;{}!$\*]{1,255}$"
 __REGEX_PORT_RANGE__ = (
     "^((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|"
     "([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4})|(-1))$"
 )
 __RULE_GROUP_INGRESS__ = "RULE_GROUP_INGRESS"
 __RULE_GROUP_EGRESS__ = "RULE_GROUP_EGRESS"
+__SRV_STORAGE_QUERY_MAX_SIZE__ = 50
 __SRV_STORAGE_PROTOCOL_TYPE__ = ["NFS", "CIFS"]
-__SRV_STORAGE_PROTOCOL_TYPE_NFS__ = "NFS"
-__SRV_STORAGE_PROTOCOL_TYPE_CIFS__ = "CIFS"
-# __SRV_STORAGE_PREFIX_SHARE_PROTOCOL_DEFAULT__ = "netapp" # non usato
+__SRV_STORAGE_PROTOCOL_TYPE_NFS__ = ["NFS", "nfs"]
+__SRV_STORAGE_PROTOCOL_TYPE_CIFS__ = ["CIFS", "cifs"]
+#__SRV_STORAGE_PREFIX_SHARE_PROTOCOL_DEFAULT__ = "netapp" # non usato
 __SRV_STORAGE_PROTOCOL_TYPE_DEFAULT__ = __SRV_STORAGE_PROTOCOL_TYPE_NFS__
 __SRV_STORAGE_PERFORMANCE_MODE__ = ["generalPurpose", "localPurpose"]
 __SRV_STORAGE_PERFORMANCE_MODE_DEFAULT__ = "generalPurpose"
@@ -35,20 +43,36 @@ __SRV_AWS_STORAGE_STATUS__ = [
     "unknown",
     "error",
 ]
+__SRV_STORAGE_SNAPSHOT_POLICY_VALUES__ = [
+    "default",
+    "4h_1d",
+    "4h_7d_2w",
+    "8h_7d_14w",
+    "8h_21d_14w_6m",
+    "8h_21d_14w_12m",
+    "14d"
+]
+__SRV_STORAGE_REPLICA_RPO_VALUES__ = ["30m", "1h", "3h", "6h", "12h", "24h"]
+__SRV_STORAGE_STATUS__ = ["online", "offline"]
 __SRV_DEFAULT_STORAGE_EFS__ = "--DEFAULT--storage-efs--"
-__SRV_STORAGE_GRANT_ACCESS_LEVEL__ = ["RW", "rw", "RO", "ro"]
+__SRV_STORAGE_GRANT_ACCESS_LEVEL__ = ["RW", "rw", "RO", "ro", "NEVER", "never"]
 __SRV_STORAGE_GRANT_ACCESS_LEVEL_RW_UPPER__ = "RW"
 __SRV_STORAGE_GRANT_ACCESS_LEVEL_RO_UPPER__ = "RO"
 __SRV_STORAGE_GRANT_ACCESS_LEVEL_RW_LOWER__ = "rw"
 __SRV_STORAGE_GRANT_ACCESS_LEVEL_RO_LOWER__ = "ro"
-__SRV_STORAGE_GRANT_ACCESS_TYPE__ = ["IP", "ip", "CERT", "cert", "USER", "user"]
-__SRV_STORAGE_GRANT_ACCESS_TYPE_IP_UPPER__ = "IP"
-__SRV_STORAGE_GRANT_ACCESS_TYPE_CERT_UPPER__ = "CERT"
-__SRV_STORAGE_GRANT_ACCESS_TYPE_USER_UPPER__ = "USER"
+__SRV_STORAGE_GRANT_ACCESS_TYPE__ = ["IP", "ip", "CERT", "cert", "USER", "user", "ID", "id", "CIDR", "cidr"]
 __SRV_STORAGE_GRANT_ACCESS_TYPE_IP_LOWER__ = "ip"
+__SRV_STORAGE_GRANT_ACCESS_TYPE_IP_UPPER__ = "IP"
 __SRV_STORAGE_GRANT_ACCESS_TYPE_CERT_LOWER__ = "cert"
+__SRV_STORAGE_GRANT_ACCESS_TYPE_CERT_UPPER__ = "CERT"
 __SRV_STORAGE_GRANT_ACCESS_TYPE_USER_LOWER__ = "user"
-__REGEX_SHARE_GRANT_ACCESS_TO_USER__ = "^[A-Za-z0-9;_\`'\-\.\{\}\[\]]{4,32}$"
+__SRV_STORAGE_GRANT_ACCESS_TYPE_USER_UPPER__ = "USER"
+__SRV_STORAGE_GRANT_ACCESS_TYPE_ID_LOWER__ = "id"
+__SRV_STORAGE_GRANT_ACCESS_TYPE_ID_UPPER__ = "ID"
+__SRV_STORAGE_GRANT_ACCESS_TYPE_CIDR_LOWER__ = "cidr"
+__SRV_STORAGE_GRANT_ACCESS_TYPE_CIDR_UPPER__ = "CIDR"
+__SRV_STORAGE_GRANT_ACCESS_PROTOCOL__ = ["nfs","nfs3","cifs","NFS","NFS3","CIFS"]
+__REGEX_SHARE_GRANT_ACCESS_TO_USER__ = r"^[A-Za-z0-9;_\`'\-\.\{\}\[\]]{4,32}$"
 __REGEX_SHARE_GRANT_ACCESS_TO_CERT__ = "^[a-zA-Z0-9]{1,64}$"
 __SRV_AWS_TAGS_RESOURCE_TYPE__ = [
     "customer-gateway",
@@ -109,6 +133,7 @@ __SRV_SERVICE_CATEGORY__ = [
     "netaas",
     "laas",
     "maas",
+    "ecaas",
 ]
 __SRV_PLUGIN_CATEGORY__ = [
     "CONTAINER",
@@ -140,20 +165,27 @@ __SRV_PLUGIN_TYPE__ = [
     "AppEngineService",
     "AppEngineInstance",
     "ComputeTemplate",
+    "VirtualService",
+    "ComputeCustomization",
+    # netaas
     "NetworkService",
     "NetworkGateway",
     "NetworkHealthMonitor",
     "NetworkTargetGroup",
     "NetworkLoadBalancer",
     "NetworkSshGateway",
-    "VirtualService",
-    "ComputeCustomization",
+    "NetworkLbaasInstance",
+    # logaas
     "LoggingService",
     "LoggingSpace",
     "LoggingInstance",
+    # maas
     "MonitoringService",
     "MonitoringFolder",
     "MonitoringInstance",
+    # ecaas
+    "ContainerService",
+    "NamespaceInstance",
 ]
 
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiView,
@@ -28,8 +28,8 @@ class ListTagsRequestSchema(PaginatedRequestQuerySchema):
 
 
 class ListTagsParamsResponseSchema(ApiObjectResponseSchema):
-    services = fields.Integer(default=0)
-    links = fields.Integer(default=0)
+    services = fields.Integer(dump_default=0)
+    links = fields.Integer(dump_default=0)
     version = fields.String(required=False, allow_none=True)
     ownerAlias = fields.String(required=False, allow_none=True)
 
@@ -79,8 +79,7 @@ class ListTags(SwaggerApiView):
 
 
 class GetTagParamsResponseSchema(ApiObjectResponseSchema):
-    services = fields.List(fields.Dict, required=True)
-    links = fields.List(fields.Dict, required=True)
+    version = fields.String(required=False, allow_none=True)
 
 
 class GetTagResponseSchema(Schema):
@@ -124,7 +123,7 @@ class GetTagPerms(SwaggerApiView):
 
 class CreateTagParamRequestSchema(Schema):
     value = fields.String(required=True)
-    account = fields.String(required=True, description="Account id or uuid related to tag")
+    account = fields.String(required=True, metadata={"description": "Account id or uuid related to tag"})
 
 
 class CreateTagRequestSchema(Schema):

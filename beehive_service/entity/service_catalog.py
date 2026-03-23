@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import copy
 from beecell.simple import truncate
@@ -8,8 +8,6 @@ from beehive.common.apiclient import BeehiveApiClientError
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.data import (
     get_operation_params,
-    set_operation_params,
-    operation,
     trace,
 )
 from beehive_service.entity import ServiceApiObject

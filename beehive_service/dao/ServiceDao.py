@@ -1,12 +1,20 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 
-import inspect
-import logging
-from sqlalchemy import create_engine, exc, asc, text
 from datetime import datetime, timedelta, date
+import inspect
+from re import match
+from typing import List, Type, Tuple, Any, Union, Dict, Optional
+from sqlalchemy import create_engine, exc, asc, text
+from sqlalchemy.orm.session import sessionmaker, Session
+from sqlalchemy.orm.query import Query
+from sqlalchemy.sql.functions import func
+from sqlalchemy.sql.expression import text, and_, or_, case, delete
+from beecell.db import ModelError
+from beecell.simple import truncate, format_date
+from beecell.types.type_id import test_oid
 from beehive.common.data import transaction, query
 from beehive.common.model import (
     AbstractDbManager,
@@ -29,33 +37,12 @@ from beehive_service.model import (
     AppliedBundle,
     AccountServiceDefinition,
 )
-from beehive_service.model.base import Base, SrvPluginTypeCategory, SrvStatusType
-from beehive_service.model.service_link_instance import ServiceLinkInstance
-from beehive_service.model.service_task_interval import ServiceTaskInterval
-from beehive_service.model.service_job_schedule import ServiceJobSchedule
-from beehive_service.model.service_job import ServiceJob
-from beehive_service.model.views import ServiceInstantConsume
-
-from beehive_service.model.aggreagate_cost import AggregateCost, AggregateCostType
-from beehive_service.model.service_instance import (
-    ServiceInstanceConfig,
-    ServiceTypePluginInstance,
-)
-from beehive_service.model.service_link import ServiceLink
-from beehive_service.model.service_tag import (
-    ServiceTag,
-    ServiceTagWithInstance,
-    ServiceTagCount,
-    ServiceTagOccurrences,
-)
-from beehive_service.model.service_catalog import ServiceCatalog
-from beehive_service.model.service_definition import ServiceConfig
-from beehive_service.model.service_link_def import ServiceLinkDef
-from beehive_service.model.service_process import ServiceProcess
 from beehive_service.model.account_capability import (
     AccountCapabilityAssoc,
     AccountCapability,
 )
+from beehive_service.model.aggreagate_cost import AggregateCost, AggregateCostType
+from beehive_service.model.base import Base, SrvPluginTypeCategory, SrvStatusType
 from beehive_service.model.deprecated import (
     Agreement,
     Wallet,
@@ -70,26 +57,31 @@ from beehive_service.model.deprecated import (
     ServicePriceMetric,
 )
 from beehive_service.model.division import Division
-from beehive_service.model.organization import Organization
-from beehive_service.model.service_status import ServiceStatus
 from beehive_service.model.monitoring_message import MonitoringMessage
-from beehive_service.model.monitoring_parameter import MonitoringParameter
-from sqlalchemy.orm.session import sessionmaker, Session
-from sqlalchemy.orm.query import Query
-
-from re import match
-from beecell.db import ModelError
-from beecell.types.type_id import test_oid
-from sqlalchemy.sql.expression import and_, or_, column, distinct, case, delete
-from beecell.simple import truncate, format_date
-from sqlalchemy.sql.functions import func
-from sqlalchemy.sql.expression import text
-from sqlalchemy.orm.util import aliased
-from typing import List, Type, Tuple, Any, Union, Dict
-
+from beehive_service.model.organization import Organization
+from beehive_service.model.service_instance import (
+    ServiceInstanceConfig,
+    ServiceTypePluginInstance,
+)
+from beehive_service.model.service_definition import ServiceConfig
+from beehive_service.model.service_catalog import ServiceCatalog
+from beehive_service.model.service_job_schedule import ServiceJobSchedule
+from beehive_service.model.service_job import ServiceJob
+from beehive_service.model.service_link import ServiceLink
+from beehive_service.model.service_link_def import ServiceLinkDef
+from beehive_service.model.service_link_instance import ServiceLinkInstance
+from beehive_service.model.service_process import ServiceProcess
+from beehive_service.model.service_status import ServiceStatus
+from beehive_service.model.service_task_interval import ServiceTaskInterval
+from beehive_service.model.service_tag import (
+    ServiceTag,
+    ServiceTagWithInstance,
+    ServiceTagCount,
+    ServiceTagOccurrences,
+)
+from beehive_service.model.views import ServiceInstantConsume
 
 serviceBase = Base
-
 
 class ServiceDbManager(AbstractDbManager):
     """ """
@@ -345,21 +337,35 @@ class ServiceDbManager(AbstractDbManager):
             ServicePluginType(
                 id=36,
                 name_type="MonitoringService",
-                objclass="beehive_service.plugins.loggingservice.controller.ApiMonitoringService",
+                objclass="beehive_service.plugins.monitoringservice.controller.ApiMonitoringService",
                 category=SrvPluginTypeCategory.CONTAINER,
             ),
             ServicePluginType(
                 id=37,
-                name_type="MonitoringSpace",
-                objclass="beehive_service.plugins.loggingservice.controller.ApiMonitoringSpace",
+                name_type="MonitoringFolder",
+                objclass="beehive_service.plugins.monitoringservice.controller.ApiMonitoringFolder",
                 category=SrvPluginTypeCategory.INSTANCE,
             ),
             ServicePluginType(
                 id=38,
                 name_type="MonitoringInstance",
-                objclass="beehive_service.plugins.loggingservice.controller.ApiMonitoringInstance",
+                objclass="beehive_service.plugins.monitoringservice.controller.ApiMonitoringInstance",
                 category=SrvPluginTypeCategory.INSTANCE,
             ),
+            # per container
+            ServicePluginType(
+                id=39,
+                name_type="ContainerService",
+                objclass="beehive_service.plugins.containerservice.controller.ApiContainerService",
+                category=SrvPluginTypeCategory.CONTAINER,
+            ),
+            ServicePluginType(
+                id=40,
+                name_type="NamespaceInstance",
+                objclass="beehive_service.plugins.containerservice.controller.ApiNamespaceInstance",
+                category=SrvPluginTypeCategory.INSTANCE,
+            ),
+
             CostType(
                 id=AggregateCostType.CALC_OK_ID,
                 name=AggregateCostType.CALC_OK,
@@ -636,7 +642,7 @@ class ServiceDbManager(AbstractDbManager):
 
         try:
             engine = create_engine(db_uri)
-            engine.execute("SET FOREIGN_KEY_CHECKS=1;")
+            engine.execute(text("SET FOREIGN_KEY_CHECKS=1;"))
             serviceBase.metadata.create_all(engine)
             # logger.info('Create tables on : %s' % db_uri)
             del engine
@@ -651,7 +657,7 @@ class ServiceDbManager(AbstractDbManager):
 
         try:
             engine = create_engine(db_uri)
-            engine.execute("SET FOREIGN_KEY_CHECKS=0;")
+            engine.execute(text("SET FOREIGN_KEY_CHECKS=0;"))
             serviceBase.metadata.drop_all(engine)
             # logger.info('Remove tables from : %s' % db_uri)
             del engine
@@ -745,11 +751,11 @@ class ServiceDbManager(AbstractDbManager):
             self.logger.debug2("Query %s by uuid: %s" % (entityclass.__name__, str(oid)))
             query = self.query_entities(entityclass, session, uuid=str(oid), *args, **kvargs)
         # get obj by id
-        elif match("^\d+$", str(oid)):
+        elif match(r"^\d+$", str(oid)):
             self.logger.debug2("Query %s by id: %s" % (entityclass.__name__, str(oid)))
             query = self.query_entities(entityclass, session, oid=oid, *args, **kvargs)
         # get obj by name
-        elif match("[\-\w\d]+", str(oid)):
+        elif match(r"[\-\w\d]+", str(oid)):
             self.logger.debug2("Query %s by name: %s" % (entityclass.__name__, str(oid)))
             query = self.query_entities(entityclass, session, name=oid, *args, **kvargs)
         else:
@@ -797,13 +803,13 @@ class ServiceDbManager(AbstractDbManager):
         elif is_a == "uuid":
             stmnt = f"select id from {table} where uuid = :oid"
             session = self.get_session()
-            result = session.execute(stmnt, {"oid": oid})
+            result = session.execute(text(stmnt), {"oid": oid})
             resp = result.scalar_one_or_none()
             return resp
         elif is_a == "name" and checkname:
-            stmnt = f"""select id from {table} where "name" = :oid"""
+            stmnt = f"select id from {table} where name = :oid"
             session = self.get_session()
-            result = session.execute(stmnt, {"oid": oid})
+            result = session.execute(text(stmnt), {"oid": oid})
             resp = result.scalar_one_or_none()
             return resp
         if checkname:
@@ -834,6 +840,7 @@ class ServiceDbManager(AbstractDbManager):
         category: str = None,
         only_container: bool = False,
         name: str = None,
+        namelike: bool = False,
         *args,
         **kvargs,
     ) -> Tuple[List[AccountServiceDefinition], int]:
@@ -882,11 +889,12 @@ class ServiceDbManager(AbstractDbManager):
         filters = ApiBusinessObject.get_base_entity_sqlfilters(*args, **kvargs)
         filters.append(PaginatedQueryGenerator.create_sqlfilter("def_active", column="active", alias="t4"))
         if name is not None:
-            # filters.append(PaginatedQueryGenerator.create_sqlfilter("name", column="name", op_comparison="like", alias="t4"))
-            # kvargs["name"] = f"{name}%"
-
-            filters.append(PaginatedQueryGenerator.create_sqlfilter("t4name", column="name", alias="t4"))
-            kvargs["t4name"] = name
+            if namelike:
+                filters.append(PaginatedQueryGenerator.create_sqlfilter("t4name", column="name", op_comparison=" like ", alias="t4"))
+                kvargs["t4name"] = name
+            else:
+                filters.append(PaginatedQueryGenerator.create_sqlfilter("t4name", column="name", alias="t4"))
+                kvargs["t4name"] = name
 
         if account_id is not None:
             filters.append(PaginatedQueryGenerator.create_sqlfilter("account_id", column="fk_account_id"))
@@ -1097,6 +1105,32 @@ class ServiceDbManager(AbstractDbManager):
         res: ServiceType = self.update_entity(ServiceType, *args, **kvargs)
         return res
 
+
+    #############################
+    ###    ServiceStatus      ###
+    #############################
+
+    @query
+    def get_paginated_service_statuses(
+        self,
+        *args,
+        **kvargs,
+    ) -> Tuple[List[ServiceType], int]:
+        """Get paginated ServiceStatus.
+
+        :param page: entities list page to show [default=0]
+        :param size: number of entities to show in list per page [default=0]
+        :param order: sort order [default=DESC]
+        :param field: sort field [default=id]
+        :return: list of ServiceStatus
+        :raises TransactionError: raise :class:`TransactionError`
+        """
+        res: List[ServiceStatus]
+        total: int
+        res, total = self.get_paginated_entities(ServiceStatus, with_perm_tag=False, *args, **kvargs)
+        return res, total
+
+
     #############################
     ###    ServiceCostParam   ###
     #############################
@@ -1219,13 +1253,18 @@ class ServiceDbManager(AbstractDbManager):
     # @transaction
     def call_smsmpopulate(self, transactlimit=10000):
         """
-        call  stored procedure smsmpopulate .
+        Call stored procedure smsmpopulate.
 
+        :param transactlimit: int
         :return: None
         """
         session = self.get_session()
-        self.logger.debug2("Calling  smsmpopulate( %d ) " % transactlimit)
-        session.execute(text("call smsmpopulate(:param)"), {"param": transactlimit})
+        self.logger.debug2("Calling smsmpopulate(%d)", transactlimit)
+
+        session.execute(
+            text("CALL smsmpopulate(:param)"),
+            {"param": transactlimit}
+        )
 
     # @transaction
     def call_dailyconsumes_by_account(self, account_id, period, jobid):
@@ -1479,6 +1518,7 @@ class ServiceDbManager(AbstractDbManager):
         plugintype=None,
         is_default=None,
         name=None,
+        namelike: bool =False,
         *args,
         **kvargs,
     ) -> List[ServiceDefinition]:
@@ -1498,7 +1538,10 @@ class ServiceDbManager(AbstractDbManager):
         query = self.add_base_entity_filters(query, *args, **kvargs)
 
         if name is not None:
-            query = query.filter_by(name=name)
+            if namelike:
+                query = query.filter(ServiceDefinition.name.like(name) )
+            else:
+                query = query.filter_by(name=name)
 
         if service_type_id is not None:
             query = query.filter_by(service_type_id=service_type_id)
@@ -2383,12 +2426,14 @@ class ServiceDbManager(AbstractDbManager):
         :param service_name_list: list of services instances name [optional]
         :param service_uuid_list: list of services instances uuid [optional]
         :param service_id_list: list of services instances id [optional]
+        :param service_list_filter_mode: specifies how to combine service_x_list filters (AND or OR) [optional,default=AND]
         :param account_id_list: list of accounts id related to services instances [optional]
         :param service_definition_id_list: list of service definitions id related to services instances [optional]
         :param resource_uuid_list: list of resources uuid related to services instances [optional]
         :param service_status_name_list: list of status names related to services instances [optional]
         :param servicetags: comma separated list of service tags [optional]. Search exactly the list of tags.
         :param servicetags_in: comma separated list of service tags [optional]. Search in the tag list.
+        :param instance_version: service instance version [optional]
         :param page: entities list page to show [default=0]
         :param size: number of entities to show in list per page [default=0]
         :param order: sort order [default=DESC]
@@ -2408,6 +2453,7 @@ class ServiceDbManager(AbstractDbManager):
         status = kvargs.get("status", None)
         bpmn_process_id = kvargs.get("bpmn_process_id", None)
         resource_uuid = kvargs.get("resource_uuid", None)
+        instance_version = kvargs.get("instance_version", None)
 
         filters = ApiBusinessObject.get_base_entity_sqlfilters(*args, **kvargs)
 
@@ -2417,12 +2463,18 @@ class ServiceDbManager(AbstractDbManager):
         if period_val_stop is not None:
             filters.append(" AND t3.creation_date<= :period_val_stop")
 
+        service_list_filter_mode = kvargs.get("service_list_filter_mode","AND")
+        if service_list_filter_mode!='AND' and service_list_filter_mode!="OR":
+            service_list_filter_mode="AND"
+        service_list_filters = []
+
         if (
             kvargs.get("uuid", None) is None
             and kvargs.get("service_uuid_list") is not None
             and len(kvargs.get("service_uuid_list")) > 0
         ):
-            filters.append(" AND t3.uuid IN :listServiceUUID ")
+            service_list_filters.append(" t3.uuid IN :listServiceUUID ")
+            #filters.append(" AND t3.uuid IN :listServiceUUID ")
             kvargs.update(listServiceUUID=tuple(kvargs.pop("service_uuid_list")))
 
         if (
@@ -2430,7 +2482,8 @@ class ServiceDbManager(AbstractDbManager):
             and kvargs.get("service_name_list") is not None
             and len(kvargs.get("service_name_list")) > 0
         ):
-            filters.append(" AND t3.name IN :listServiceName ")
+            service_list_filters.append(" t3.name IN :listServiceName ")
+            #filters.append(" AND t3.name IN :listServiceName ")
             kvargs.update(listServiceName=tuple(kvargs.pop("service_name_list")))
 
         if (
@@ -2438,8 +2491,17 @@ class ServiceDbManager(AbstractDbManager):
             and kvargs.get("service_id_list") is not None
             and len(kvargs.get("service_id_list")) > 0
         ):
-            filters.append(" AND t3.id IN :listServiceID ")
+            service_list_filters.append(" t3.id IN :listServiceID ")
+            #filters.append(" AND t3.id IN :listServiceID ")
             kvargs.update(listServiceID=tuple(kvargs.pop("service_id_list")))
+
+        service_list_filter=service_list_filter_mode.join(service_list_filters)
+        if service_list_filter!='':
+            filters.append(f" AND ({service_list_filter})")
+
+        if instance_version:
+            filters.append(f" AND t3.version=:instance_version")
+            kvargs.update(instance_version=instance_version)
 
         if account_id is not None:
             filters.append(PaginatedQueryGenerator.create_sqlfilter("account_id", "fk_account_id"))
@@ -2628,6 +2690,7 @@ class ServiceDbManager(AbstractDbManager):
         :param service_status_name_list: list of status names related to services instances [optional]
         :param servicetags: comma separated list of service tags [optional]. Search exactly the list of tags.
         :param servicetags_in: comma separated list of service tags [optional]. Search in the tag list.
+        :param instance_version: service instance version [optional]
         :param page: entities list page to show [default=0]
         :param size: number of entities to show in list per page [default=0]
         :param order: sort order [default=DESC]
@@ -2708,6 +2771,132 @@ class ServiceDbManager(AbstractDbManager):
             **kvargs,
         )
         return res, total
+    
+
+    @query
+    def get_paginated_service_type_plugins_optimized(self, *args, **kvargs) -> Tuple[List[ServiceTypePluginInstance], int]:
+        """Get paginated ServiceInstance.
+        """
+        self.logger.info("fv - get_paginated_service_type_plugins_optimized")
+        (
+            tables_useless,
+            custom_select_useless,
+            filters,
+            kvargs,
+        ) = self.get_paginated_service_instance_filter(*args, **kvargs)
+
+        select_fields = [
+            # "t3.type_id",
+            # "t3.objclass",
+            # "t3.tags as inst_tags",
+            # "t3.definition_name",
+        ]
+
+        # filters.append(" AND t3.fk_service_definition_id=t6.id")
+        # filters.append(" AND t6.fk_service_type_id=t4.id")
+        # filters.append(" AND t4.objclass=t5.objclass")
+        tables = [
+            # ("service_type", "t4"),
+            # ("service_plugin_type", "t5"),
+            # ("service_definition", "t6"),
+        ]
+
+        filter_plugintype = ""
+        plugintype = kvargs.get("plugintype", None)
+        if plugintype is not None:
+            filter_plugintype = " AND t5.name_type = :plugintype "
+
+        filter_flag_container = ""
+        flag_container = kvargs.get("flag_container", None)
+        if flag_container is not None:
+            filter_flag_container = " AND t4.flag_container = :flag_container "
+
+        filter_expiry_date = ""
+        if "filter_expired" in kvargs and kvargs.get("filter_expired") is not None:
+            kvargs.update(filter_expiry_date=datetime.today())
+            if kvargs.get("filter_expired") is True:
+                filter_expiry_date = " AND t3.expiry_date<=:filter_expiry_date "
+            else:
+                filter_expiry_date = " AND (t1.expiry_date>:filter_expiry_date OR t1.expiry_date is null) "
+            kvargs.pop("filter_expired")
+
+        # manage tags
+        servicetags_or = kvargs.get("servicetags_or", None)
+        servicetags_and = kvargs.get("servicetags_and", None)
+        if servicetags_or is not None or servicetags_and is not None:
+            ## TODO FIX GROUP BY
+            custom_select = (
+                "("
+                " SELECT "
+                "   t1.*, "
+                "   t6.name as definition_name, "
+			    "   t4.id as type_id, "
+			    "   t4.objclass as objclass, "
+                "   GROUP_CONCAT(DISTINCT t2.name ORDER BY t2.name) as tags "
+                " FROM service_instance t1 "
+                " inner join tag_instance t3 on t3.fk_service_instance_id = t1.id "
+		        " inner join service_tag t2 on t3.fk_service_tag_id = t2.id "
+                " inner join service_definition t6 on t1.fk_service_definition_id = t6.id "
+			    " inner join service_type t4 on t6.fk_service_type_id = t4.id "
+                " WHERE "
+                "    (t2.name in :servicetag_list) "
+                f"   {filter_expiry_date} "
+                f"   {filter_flag_container} "
+                " AND EXISTS ( "
+                "   select * "
+                "   from service_plugin_type t5 "
+                "   where t4.objclass = t5.objclass "
+                f"   {filter_plugintype} "
+                " ) "
+                " GROUP BY t1.id )"
+            )
+            if servicetags_and is not None:
+                servicetags_and.sort()
+                kvargs["servicetag_list"] = servicetags_and
+                kvargs["servicetags"] = ",".join(servicetags_and)
+                filters.append("AND t3.tags=:servicetags")
+            elif servicetags_or is not None:
+                kvargs["servicetag_list"] = servicetags_or
+        else:
+            ## TODO FIX GROUP BY
+            custom_select = (
+                "("
+                " SELECT "
+                "   t1.*, "
+                "   t6.name as definition_name, "
+			    "   t4.id as type_id, "
+			    "   t4.objclass as objclass, "
+                "   GROUP_CONCAT(DISTINCT t2.name ORDER BY t2.name) as tags "
+                " FROM service_instance t1 "
+                " inner join service_definition t6 on t1.fk_service_definition_id = t6.id "
+			    " inner join service_type t4 on t6.fk_service_type_id = t4.id "
+                " left outer join tag_instance t3 ON t3.fk_service_instance_id=t1.id "
+                " left outer join service_tag t2 ON t3.fk_service_tag_id=t2.id "
+                " WHERE 1=1 "
+		        f"   {filter_expiry_date} "
+                f"   {filter_flag_container} "
+                " AND EXISTS ( "
+                "   select * "
+                "   from service_plugin_type t5 "
+                "   where t4.objclass = t5.objclass "
+                f"   {filter_plugintype} "
+                " ) "
+                " GROUP BY t1.id)"
+            )
+
+        res: List[ServiceTypePluginInstance]
+        total: int
+        res, total = self.get_api_bo_paginated_entities(
+            ServiceTypePluginInstance,
+            filters=filters,
+            tables=tables,
+            select_fields=select_fields,
+            custom_select=custom_select,
+            *args,
+            **kvargs,
+        )
+        return res, total
+    
 
     # @transaction
     def update_service_instance(self, *args, **kvargs):
@@ -5719,7 +5908,6 @@ class ServiceDbManager(AbstractDbManager):
         :raises TransactionError: raise :class:`TransactionError`
         """
         filters = ApiBusinessObject.get_base_entity_sqlfilters(*args, **kvargs)
-        self.logger.warn(kvargs)
         if job is not None:
             filters.append(PaginatedQueryGenerator.create_sqlfilter("job"))
 
@@ -5732,7 +5920,7 @@ class ServiceDbManager(AbstractDbManager):
         self.logger.debug2("Get service job: %s" % truncate(res))
         return res, total
 
-    def get_service_job_by_task_id(self, task_id):
+    def get_service_job_by_task_id(self, task_id) -> Optional[ServiceJob]:
         session = self.get_session()
         query = session.query(ServiceJob).filter(ServiceJob.task_id == task_id)
 
@@ -5803,7 +5991,7 @@ class ServiceDbManager(AbstractDbManager):
         return res
 
     @query
-    def get_task_intervals(self, execution_date=None, metric_num=None, task=None, *args, **kvargs):
+    def get_task_intervals(self, execution_date=None, metric_num=None, task=None, *args, **kvargs) -> List[ServiceTaskInterval]:
         session = self.get_session()
         query = session.query(ServiceTaskInterval)
 
@@ -6014,7 +6202,7 @@ class ServiceDbManager(AbstractDbManager):
         :raises TransactionError: raise :class:`TransactionError`
         """
         session = self.get_session()
-        res = session.query(ServiceLink).filter_by(start_service_id=start_service).filter_by(end_service_id=end_service)
+        res = session.query(ServiceLink).filter_by(and_(start_service_id=start_service, end_service_id=end_service))
         res = res.all()
 
         if len(res) == 0:

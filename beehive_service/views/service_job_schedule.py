@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.data import transaction
 from beehive.common.apimanager import (
@@ -74,12 +74,7 @@ class ListServiceScheduleRequestSchema(
 
 
 class ListServiceScheduleResponseSchema(PaginatedResponseSchema):
-    job_schedule = fields.Nested(
-        GetServiceScheduleParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
+    job_schedule = fields.Nested(GetServiceScheduleParamsResponseSchema, many=True, required=True, allow_none=True)
 
 
 class ListServiceSchedule(ServiceApiView):
@@ -104,18 +99,18 @@ class ListServiceSchedule(ServiceApiView):
 
 class ServiceScheduleParamRequestSchema(Schema):
     # crontab params
-    minute = fields.String(required=False, allow_none=True, default="*")
-    hour = fields.String(required=False, allow_none=True, default="*")
-    day_of_week = fields.String(required=False, allow_none=True, default="*")
-    day_of_month = fields.String(required=False, allow_none=True, default="*")
-    month_of_year = fields.String(required=False, allow_none=True, default="*")
+    minute = fields.String(required=False, allow_none=True, dump_default="*")
+    hour = fields.String(required=False, allow_none=True, dump_default="*")
+    day_of_week = fields.String(required=False, allow_none=True, dump_default="*")
+    day_of_month = fields.String(required=False, allow_none=True, dump_default="*")
+    month_of_year = fields.String(required=False, allow_none=True, dump_default="*")
 
     # timedelta params
-    days = fields.Float(required=False, allow_none=True, default="0")
-    seconds = fields.Float(required=False, allow_none=True, default="0")
-    minutes = fields.Float(required=False, allow_none=True, default="0")
-    hours = fields.Float(required=False, allow_none=True, default="0")
-    weeks = fields.Float(required=False, allow_none=True, default="0")
+    days = fields.Float(required=False, allow_none=True, dump_default="0")
+    seconds = fields.Float(required=False, allow_none=True, dump_default="0")
+    minutes = fields.Float(required=False, allow_none=True, dump_default="0")
+    hours = fields.Float(required=False, allow_none=True, dump_default="0")
+    weeks = fields.Float(required=False, allow_none=True, dump_default="0")
 
     @validates_schema
     def validate_parameters(self, data, **kwargs):
@@ -143,10 +138,10 @@ class ServiceScheduleParamRequestSchema(Schema):
 
 
 class ServiceScheduleRetryRequestSchema(Schema):
-    max_retries = fields.Integer(required=False, allow_none=True, default=3)
-    interval_start = fields.Float(required=False, allow_none=True, default=0)
-    interval_step = fields.Float(required=False, allow_none=True, default=0.2)
-    interval_max = fields.Float(required=False, allow_none=True, default=0.2)
+    max_retries = fields.Integer(required=False, allow_none=True, dump_default=3)
+    interval_start = fields.Float(required=False, allow_none=True, dump_default=0)
+    interval_step = fields.Float(required=False, allow_none=True, dump_default=0.2)
+    interval_max = fields.Float(required=False, allow_none=True, dump_default=0.2)
 
 
 ## create
@@ -155,11 +150,11 @@ class CreateServiceScheduleParamRequestSchema(ApiBaseServiceObjectCreateRequestS
     job_options = fields.Dict(required=False, allow_none=True)  # option
     schedule_type = fields.String(required=True, validate=OneOf(__SCHEDULE_TYPE__))
     schedule_params = fields.Nested(ServiceScheduleParamRequestSchema, required=True)
-    relative = fields.Boolean(required=False, allow_none=True, default=False)
-    retry = fields.Boolean(required=False, allow_none=True, default=False)
+    relative = fields.Boolean(required=False, allow_none=True, dump_default=False)
+    retry = fields.Boolean(required=False, allow_none=True, dump_default=False)
     retry_policy = fields.Nested(ServiceScheduleRetryRequestSchema, required=False)
     job_args = fields.Raw(required=False)  # args
-    job_kvargs = fields.Dict(required=False, allow_none=True, missing={})  # kvargs
+    job_kvargs = fields.Dict(required=False, allow_none=True, load_default={})  # kvargs
 
 
 class CreateServiceScheduleRequestSchema(Schema):
@@ -203,7 +198,7 @@ class UpdateServiceScheduleParamRequestSchema(Schema):
     retry = fields.Boolean(required=False, allow_none=True)
     retry_policy = fields.Nested(ServiceScheduleRetryRequestSchema, many=False, allow_none=True)
     job_args = fields.Raw(required=False, allow_none=True)  # args
-    job_kvargs = fields.Dict(required=False, allow_none=True, missing={})  # kvargs
+    job_kvargs = fields.Dict(required=False, allow_none=True, load_default={})  # kvargs
 
 
 class UpdateServiceScheduleRequestSchema(Schema):

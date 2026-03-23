@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.data import transaction
 from beehive.common.apimanager import (
@@ -62,12 +62,7 @@ class ListServicePriceListRequestSchema(
 
 
 class ListServicePriceListResponseSchema(PaginatedResponseSchema):
-    price_list = fields.Nested(
-        GetServicePriceListParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
+    price_list = fields.Nested(GetServicePriceListParamsResponseSchema, many=True, required=True, allow_none=True)
 
 
 class ListServicePriceList(ServiceApiView):

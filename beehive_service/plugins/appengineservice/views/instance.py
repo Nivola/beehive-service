@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_service.model.account import Account
 from beehive_service.controller.api_account import ApiAccount
@@ -28,8 +28,9 @@ from beehive.common.data import operation
 
 
 class DescribeAppInstancesRequestSchema(Schema):
-    MaxResults = fields.Integer(required=False, default=10, description="", context="query")
-    NextToken = fields.String(required=False, default="0", description="", context="query")
+    MaxResults = fields.Integer(required=False, dump_default=10, context="query")
+    NextToken = fields.String(required=False, dump_default="0", context="query")
+
     owner_id_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -37,18 +38,19 @@ class DescribeAppInstancesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="owner-id.N",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
+
     name_N = fields.List(
         fields.String(),
         required=False,
-        example="",
-        description="name of the instance",
         allow_none=True,
         context="query",
         collection_format="multi",
         data_key="name.N",
+        metadata={"description": "name of the instance"},
     )
+
     availability_zone_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -56,8 +58,9 @@ class DescribeAppInstancesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="availability-zone.N",
-        description="availability zone of the instance",
+        metadata={"description": "availability zone of the instance"},
     )
+
     InstanceId_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -65,8 +68,9 @@ class DescribeAppInstancesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="InstanceId.N",
-        description="instance id",
+        metadata={"description": "instance id"},
     )
+
     instance_id_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -74,8 +78,9 @@ class DescribeAppInstancesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="instance-id.N",
-        description="instance id",
+        metadata={"description": "instance id"},
     )
+
     launch_time_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -83,8 +88,9 @@ class DescribeAppInstancesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="launch-time.N",
-        description="time when the instance was created",
+        metadata={"description": "time when the instance was created"},
     )
+
     tag_key_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -92,116 +98,120 @@ class DescribeAppInstancesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="tag-key.N",
-        descriptiom="value of a tag assigned to the resource",
+        metadata={"description": "value of a tag assigned to the resource"},
     )
 
 
 class InstanceConfigsRequestSchema(Schema):
-    documentRoot = fields.String(required=False, example="/var/www", description="[apache-php] document root")
+    documentRoot = fields.String(
+        required=False,
+        metadata={"example": "/var/www", "description": "[apache-php] document root"},
+    )
+
     ftpServer = fields.Boolean(
         required=False,
-        example=True,
-        default=True,
-        description="[apache-php] if true install ftp server",
+        dump_default=True,
+        metadata={"example": True, "description": "[apache-php] if true install ftp server"},
     )
+
     smbServer = fields.Boolean(
         required=False,
-        example=False,
-        default=False,
-        description="[apache-php] if true install samba server",
+        dump_default=False,
+        metadata={"example": False, "description": "[apache-php] if true install samba server"},
     )
+
     shareDimension = fields.Integer(
         required=False,
-        example=10,
-        default=10,
-        description="[apache-php] share dimension in GB",
+        dump_default=10,
+        metadata={"example": 10, "description": "[apache-php] share dimension in GB"},
     )
+
     shareCfgDimension = fields.Boolean(
         required=False,
-        example=2,
-        default=2,
-        description="[apache-php] share config dimension in GB",
+        dump_default=2,
+        metadata={"example": 2, "description": "[apache-php] share config dimension in GB"},
     )
+
     appPort = fields.Integer(
         required=False,
-        example=80,
-        default=80,
-        description="[apache-php] internal application prot",
+        dump_default=80,
+        metadata={"example": 80, "description": "[apache-php] internal application prot"},
     )
+
     farmName = fields.String(
         required=True,
-        example="tst-portali",
-        description="[apache-php] parent compute zone id or uuid",
+        metadata={"example": "tst-portali", "description": "[apache-php] parent compute zone id or uuid"},
     )
 
 
 class InstancePlacementsResponseSchema(Schema):
-    availabilityZone = fields.String(required=False, example="", description="availability zone of the instance id")
+    availabilityZone = fields.String(required=False, metadata={"description": "availability zone of the instance id"})
 
 
 class InstanceTagSetResponseSchema(Schema):
-    key = fields.String(required=False, description="tag key")
-    value = fields.String(required=False, description="tag value")
+    key = fields.String(required=False, metadata={"description": "tag key"})
+    value = fields.String(required=False, metadata={"description": "tag value"})
 
 
 class InstanceGroupSetResponseSchema(Schema):
-    groupName = fields.String(required=False, example="", description="security group name")
-    groupId = fields.String(required=False, example="", description="security group id")
+    groupName = fields.String(required=False, metadata={"description": "security group name"})
+    groupId = fields.String(required=False, metadata={"description": "security group id"})
 
 
 class InstanceMonitoringResponseSchema(Schema):
-    state = fields.String(required=False, example="", description="status of monitoring")
+    state = fields.String(required=False, metadata={"description": "status of monitoring"})
 
 
 class InstanceStateResponseSchema(Schema):
-    code = fields.Integer(required=False, example="0", description="code of instance state")
+    code = fields.Integer(required=False, metadata={"example": "0", "description": "code of instance state"})
+
     name = fields.String(
         required=False,
-        example="pending | running | ....",
-        description="name of instance state",
         validate=OneOf(["pending", "running", "shutting-down", "terminated", "stopping", "stopped"]),
+        metadata={"example": "pending | running | ....", "description": "name of instance state"},
     )
 
 
 class InstanceAppEngineSetResponseSchema(Schema):
-    ownerId = fields.String(required=False, description="")
-    instanceId = fields.String(required=False, example="", description="instance id")
+    ownerId = fields.String(required=False, metadata={"description": ""})
+    instanceId = fields.String(required=False, metadata={"description": "instance id"})
     instanceState = fields.Nested(InstanceStateResponseSchema, many=False, required=False)
+
     name = fields.String(
         required=False,
         allow_none=True,
-        missing="default istance name",
-        description="instance name",
+        metadata={"example": "default istance name", "description": "instance name"},
     )
-    additionalInfo = fields.String(required=False, allow_none=True, description="instance description")
-    launchTime = fields.DateTime(
-        required=False,
-        example="",
-        description="the timestamp the instance was launched",
-    )
+
+    additionalInfo = fields.String(required=False, allow_none=True, metadata={"description": "instance description"})
+    launchTime = fields.DateTime(required=False, metadata={"description": "the timestamp the instance was launched"})
     placements = fields.Nested(InstancePlacementsResponseSchema, many=False, required=False)
     monitoring = fields.Nested(InstanceMonitoringResponseSchema, many=False, required=False)
-    subnetId = fields.String(required=False, example="", description="subnet id ")
-    vpcId = fields.String(required=False, example="", description="vpc id ")
+    subnetId = fields.String(required=False, metadata={"description": "subnet id "})
+    vpcId = fields.String(required=False, metadata={"description": "vpc id "})
+
     privateIpAddresses = fields.List(
         fields.String(example="###.###.###.###"),
         required=True,
-        description="List of internal server ip adresses",
+        metadata={"description": "List of internal server ip adresses"},
     )
+
     uris = fields.List(
         fields.String(example="https://###.###.###.###:443"),
-        description="list of app engine uris",
         required=True,
+        metadata={"description": "list of app engine uris"},
     )
+
     groupSet = fields.Nested(InstanceGroupSetResponseSchema, many=True, required=False)
     tagSet = fields.Nested(InstanceTagSetResponseSchema, many=True, required=False)
-    keyName = fields.String(required=False, example="1ffd", description="The name of the key pair")
-    engine = fields.String(required=False, example="apache-php", description="The name of the engine")
-    version = fields.String(required=False, example="5.9", description="The versione of the engine")
+    keyName = fields.String(required=False, metadata={"example": "1ffd", "description": "The name of the key pair"})
+    engine = fields.String(required=False, metadata={"example": "apache-php", "description": "The name of the engine"})
+    version = fields.String(required=False, metadata={"example": "5.9", "description": "The versione of the engine"})
+
     engineConfigs = fields.Nested(
         InstanceConfigsRequestSchema,
         required=True,
-        description="App engine specific params",
+        metadata={"description": "App engine specific params"},
     )
 
 
@@ -223,19 +233,21 @@ class DescribeAppInstancesResponseSchema(Schema):
 
 class DescribeAppInstances(ServiceApiView):
     tags = ["appengineservice"]
+
     definitions = {
         "DescribeAppInstancesRequestSchema": DescribeAppInstancesRequestSchema,
         "DescribeAppInstancesResponseSchema": DescribeAppInstancesResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(DescribeAppInstancesRequestSchema)
     parameters_schema = DescribeAppInstancesRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": DescribeAppInstancesResponseSchema}}
     )
 
     def get(self, controller, data, *args, **kwargs):
         """
-        Appengine Instances list
         Appengine Instances list
         """
         data_search = {}
@@ -290,41 +302,44 @@ class DescribeAppInstances(ServiceApiView):
 
 
 class CreateAppInstancesApiParamConfigsRequestSchema(Schema):
-    DocumentRoot = fields.String(required=False, example="/var/www", description="[apache-php] document root")
+    DocumentRoot = fields.String(
+        required=False,
+        metadata={"example": "/var/www", "description": "[apache-php] document root"},
+    )
+
     FtpServer = fields.Boolean(
         required=False,
-        example=True,
-        default=True,
-        description="[apache-php] if true install ftp server",
+        dump_default=True,
+        metadata={"example": True, "description": "[apache-php] if true install ftp server"},
     )
+
     SmbServer = fields.Boolean(
         required=False,
-        example=False,
-        default=False,
-        description="[apache-php] if true install samba server",
+        dump_default=False,
+        metadata={"example": False, "description": "[apache-php] if true install samba server"},
     )
+
     ShareDimension = fields.Integer(
         required=False,
-        example=10,
-        missing=10,
-        description="[apache-php] share dimension in GB",
+        load_default=10,
+        metadata={"example": 10, "description": "[apache-php] share dimension in GB"},
     )
+
     ShareCfgDimension = fields.Boolean(
         required=False,
-        example=2,
-        default=2,
-        description="[apache-php] share config dimension in GB",
+        dump_default=2,
+        metadata={"example": 2, "description": "[apache-php] share config dimension in GB"},
     )
+
     AppPort = fields.Integer(
         required=False,
-        example=80,
-        default=80,
-        description="[apache-php] internal application prot",
+        dump_default=80,
+        metadata={"example": 80, "description": "[apache-php] internal application prot"},
     )
+
     FarmName = fields.String(
         required=True,
-        example="tst-portali",
-        description="[apache-php] parent compute zone id or uuid",
+        metadata={"example": "tst-portali", "description": "[apache-php] parent compute zone id or uuid"},
     )
 
 
@@ -332,44 +347,52 @@ class CreateAppInstancesApiParamRequestSchema(Schema):
     Name = fields.String(
         required=False,
         allow_none=True,
-        missing="default istance name",
-        description="instance name",
+        load_default="default istance name",
+        metadata={"description": "instance name"},
     )
+
     InstanceType = fields.String(
         required=True,
-        example="small2",
-        description="service definition of the instance",
+        metadata={"example": "small2", "description": "service definition of the instance"},
     )
-    AdditionalInfo = fields.String(required=False, allow_none=True, description="instance description")
-    SubnetId = fields.String(required=False, example="12", description="instance id or uuid of the subnet")
+
+    AdditionalInfo = fields.String(required=False, allow_none=True, metadata={"description": "instance description"})
+
+    SubnetId = fields.String(
+        required=False,
+        metadata={"example": "12", "description": "instance id or uuid of the subnet"},
+    )
+
     PublicSubnetId = fields.String(
         required=False,
-        example="12",
-        description="instance id or uuid of the public subnet",
+        metadata={"example": "12", "description": "instance id or uuid of the public subnet"},
     )
+
     IsPublic = fields.Boolean(
         required=False,
-        example=False,
-        missing=False,
-        description="if True app engine is exposed with a public ip",
+        load_default=False,
+        metadata={"example": False, "description": "if True app engine is exposed with a public ip"},
     )
+
     SecurityGroupId_N = fields.List(
         fields.String(example="12"),
         required=False,
         allow_none=False,
         data_key="SecurityGroupId.N",
-        description="list of instance security group ids",
+        metadata={"description": "list of instance security group ids"},
     )
-    KeyName = fields.String(required=False, example="1ffd", description="The name of the key pair")
+
+    KeyName = fields.String(required=False, metadata={"example": "1ffd", "description": "The name of the key pair"})
+
     owner_id = fields.String(
         required=False,
-        example="1",
-        description="account id or uuid associated to compute zone",
+        metadata={"example": "1", "description": "account id or uuid associated to compute zone"},
     )
+
     EngineConfigs = fields.Nested(
         CreateAppInstancesApiParamConfigsRequestSchema,
         required=False,
-        description="App engine specific params",
+        metadata={"description": "App engine specific params"},
     )
 
 
@@ -382,8 +405,8 @@ class CreateAppInstancesApiBodyRequestSchema(Schema):
 
 
 class CreateAppInstancesApi3ResponseSchema(Schema):
-    code = fields.Integer(required=False, default=0)
-    name = fields.String(required=True, example="PENDING")
+    code = fields.Integer(required=False, dump_default=0)
+    name = fields.String(required=True, metadata={"example": "PENDING"})
 
 
 class CreateAppInstancesApi2ResponseSchema(Schema):
@@ -402,19 +425,21 @@ class CreateAppInstancesResponseSchema(Schema):
 
 class CreateAppInstances(ServiceApiView):
     tags = ["appengineservice"]
+
     definitions = {
         "CreateAppInstancesRequestSchema": CreateAppInstancesRequestSchema,
         "CreateAppInstancesResponseSchema": CreateAppInstancesResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateAppInstancesApiBodyRequestSchema)
     parameters_schema = CreateAppInstancesRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CreateAppInstancesResponseSchema}}
     )
 
     def post(self, controller: ServiceController, data: dict, *args, **kwargs):
         """
-        Create app engine instance
         Create app engine instance
         """
         inner_data = data.get("instance")
@@ -457,8 +482,8 @@ class CreateAppInstances(ServiceApiView):
 
 
 class DeleteAppInstancesResponseItemSchema(Schema):
-    requestId = fields.String(required=True, example="")
-    Return = fields.Boolean(required=True, example=True)
+    requestId = fields.String(required=True)
+    Return = fields.Boolean(required=True, metadata={"example": True})
 
 
 class DeleteAppInstancesResponseSchema(Schema):
@@ -478,7 +503,7 @@ class DeleteAppInstancesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="InstanceId.N",
-        description="instance uuid",
+        metadata={"description": "instance uuid"},
     )
 
 
@@ -496,7 +521,6 @@ class DeleteAppInstances(ServiceApiView):
 
     def delete(self, controller: ServiceController, data, *args, **kwargs):
         """
-        Terminate an instance
         Terminate an instance
         """
         instance_ids = data.pop("InstanceId_N")

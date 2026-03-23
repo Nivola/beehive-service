@@ -1,20 +1,24 @@
 # SPDX# SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+import json
 import re
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf, Length, Range
 from marshmallow.decorators import validates_schema
 from marshmallow.exceptions import ValidationError
-from six import ensure_text
+from beecell.util import ensure_text
+from beecell.simple import jsonDumps
 from beehive_service.controller import ServiceController
 from beehive_service.controller.api_account import ApiAccount
+from beehive_service.entity.service_instance import ApiServiceInstance
 from beehive_service.plugins.computeservice.controller import (
     ApiComputeService,
     ApiComputeInstance,
 )
+from beehive_service.plugins.databaseservice.entity.instance_v2 import ApiDatabaseServiceInstanceV2
 from beehive_service.views import NotEmptyString, ServiceApiView
 from beecell.swagger import SwaggerHelper
 from beehive.common.apimanager import (
@@ -47,15 +51,18 @@ from beecell.types.type_string import validate_string
 
 
 class CreateLoggingInstanceApiParamRequestSchema(Schema):
-    ComputeInstanceId = fields.String(required=True, description="compute instance id")
+    ComputeInstanceId = fields.String(required=True, metadata={"description": "compute instance id"})
     owner_id = fields.String(
         required=True,
-        example="1",
         data_key="owner-id",
-        description="account id or uuid associated to compute zone",
+        metadata={"example": "1", "description": "account id or uuid associated to compute zone"},
     )
     InstanceType = NotEmptyString(required=False, description="service definition of the instance")
-    norescreate = fields.Boolean(required=False, allow_none=True, description="don't create physical resource")
+    norescreate = fields.Boolean(
+        required=False,
+        allow_none=True,
+        metadata={"description": "don't create physical resource"},
+    )
 
 
 class CreateLoggingInstanceApiRequestSchema(Schema):
@@ -70,19 +77,16 @@ class CreateLoggingInstanceApiResponse1Schema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
     requestId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="api request id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "api request id"},
     )
     instanceId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="instance id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "instance id"},
     )
     nvl_activeTask = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
         data_key="nvl-activeTask",
-        description="task id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "task id"},
     )
 
 
@@ -122,18 +126,6 @@ class CreateLoggingInstance(ServiceApiView):
         compute_instance_id = inner_data.get("ComputeInstanceId")
         norescreate = inner_data.get("norescreate")
 
-        # # check parent service exists
-        # res, tot = controller.get_service_type_plugins(account_id_list=[account_id],
-        #                                                plugintype=ApiLoggingService.plugintype)
-        # self.logger.debug('CreateLoggingInstance post - res {}'.format(res))
-        # if tot > 0:
-        #     attribute_set = res[0].aws_get_attributes()
-        # else:
-        #     raise ApiManagerError('Account %s has no logging service core' % account_id)
-        #
-        # # check instance with the same name already exists
-        # # self.service_exist(controller, name, ApiComputeInstance.plugintype)
-
         # check account
         account: ApiAccount
         parent_plugin: ApiLoggingService
@@ -143,21 +135,38 @@ class CreateLoggingInstance(ServiceApiView):
         data["computeZone"] = parent_plugin.resource_uuid
 
         # check compute instance
-        compute_service_instance = controller.check_service_instance(
-            compute_instance_id, ApiComputeInstance, account=account.oid
+        # compute_service_instance = controller.check_service_instance(
+        #     compute_instance_id, ApiComputeInstance, account=account.oid
+        # )
+        apiServiceInstance: ApiServiceInstance = controller.get_service_instance(compute_instance_id)
+        self.logger.debug("+++++ aaa apiServiceInstance: %s - %s" % (type(apiServiceInstance), apiServiceInstance))
+        if account is not None and apiServiceInstance.account_id != account.oid:
+            raise ApiManagerWarning("Service %s is not in the account %s" % (apiServiceInstance.uuid, account))
+
+        plugintype = None
+        self.logger.debug(
+            "+++++ aaa apiServiceInstance.getPluginTypeName(): %s" % apiServiceInstance.getPluginTypeName()
         )
-        data["ComputeInstanceId"] = compute_service_instance.uuid
+        if apiServiceInstance.getPluginTypeName() == ApiComputeInstance.plugintype:
+            plugintype = ApiComputeInstance.plugintype
+        elif apiServiceInstance.getPluginTypeName() == ApiDatabaseServiceInstanceV2.plugintype:
+            plugintype = ApiDatabaseServiceInstanceV2.plugintype
+        else:
+            raise ApiManagerWarning("pluginTypeName not managed: %s" % apiServiceInstance.getPluginTypeName())
+        data["plugintype"] = plugintype
+
+        data["ComputeInstanceId"] = apiServiceInstance.uuid
 
         # fix compute instance name
         name_instance: str = ""
-        for element in compute_service_instance.name:
+        for element in apiServiceInstance.name:
             if validate_string(element, validation_string=r"[^a-zA-Z0-9\-]") is False:  # without dot!
                 name_instance += "-"
             else:
                 name_instance += element
 
         name = "LoggingInstance-%s" % name_instance
-        desc = "LoggingInstance of %s" % compute_service_instance.name
+        desc = "LoggingInstance of %s" % apiServiceInstance.name
 
         data["norescreate"] = norescreate
 
@@ -192,9 +201,8 @@ class CreateLoggingInstance(ServiceApiView):
 class DeleteLoggingInstanceApiRequestSchema(Schema):
     InstanceId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="instance id",
         context="query",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "instance id"},
     )
 
 
@@ -202,19 +210,16 @@ class DeleteLoggingInstanceApiResponse1Schema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
     requestId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="api request id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "api request id"},
     )
     instanceId = fields.String(
         required=False,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="instance id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "instance id"},
     )
     nvl_activeTask = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
         data_key="nvl-activeTask",
-        description="task id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "task id"},
     )
 
 
@@ -265,50 +270,57 @@ class DeleteLoggingInstance(ServiceApiView):
 
 
 class LoggingInstanceStateReasonResponseSchema(Schema):
-    nvl_code = fields.Integer(required=False, allow_none=True, description="state code", data_key="nvl-code")
+    nvl_code = fields.Integer(
+        required=False,
+        allow_none=True,
+        data_key="nvl-code",
+        metadata={"description": "state code"},
+    )
     nvl_message = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="state message",
         data_key="nvl-message",
+        metadata={"description": "state message"},
     )
 
 
 class LoggingInstanceItemParameterResponseSchema(Schema):
     id = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="id of the instance",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "id of the instance"},
     )
-    name = fields.String(required=True, example="test", description="name of the instance")
-    creationDate = fields.DateTime(required=True, example="2022-01-25T11:20:18Z", description="creation date")
-    description = fields.String(required=True, example="test", description="description of the instance")
+    name = fields.String(required=True, metadata={"example": "test", "description": "name of the instance"})
+    creationDate = fields.DateTime(
+        required=True,
+        metadata={"example": "2022-01-25T11:20:18Z", "description": "creation date"},
+    )
+    description = fields.String(
+        required=True,
+        metadata={"example": "test", "description": "description of the instance"},
+    )
     ownerId = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="account id of the owner of the instance",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "account id of the owner of the instance"},
     )
     ownerAlias = fields.String(
         required=True,
         allow_none=True,
-        example="test",
-        description="account name of the owner of the instance",
+        metadata={"example": "test", "description": "account name of the owner of the instance"},
     )
     state = fields.String(
         required=True,
-        example="available",
-        description="state of the instance",
         data_key="state",
+        metadata={"example": "available", "description": "state of the instance"},
     )
     stateReason = fields.Nested(
         LoggingInstanceStateReasonResponseSchema,
         many=False,
         required=True,
-        description="state description",
+        metadata={"description": "state description"},
     )
     computeInstanceId = fields.String(required=False, allow_none=True)
-    modules = fields.Dict(required=False, default={}, allow_none=True)
+    plugintype = fields.String(required=False, allow_none=True)
+    modules = fields.Dict(required=False, dump_default={}, allow_none=True)
 
 
 class DescribeLoggingInstances1ResponseSchema(Schema):
@@ -316,19 +328,13 @@ class DescribeLoggingInstances1ResponseSchema(Schema):
     next_token = fields.String(required=True, allow_none=True)
     requestId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="api request id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "api request id"},
     )
-    instanceInfo = fields.Nested(
-        LoggingInstanceItemParameterResponseSchema,
-        many=True,
-        required=False,
-    )
+    instanceInfo = fields.Nested(LoggingInstanceItemParameterResponseSchema, many=True, required=False)
     nvl_instanceTotal = fields.Integer(
         required=False,
-        example="0",
-        descriptiom="total logging instance",
         data_key="nvl-instanceTotal",
+        metadata={"example": "0", "description": "total logging instance"},
     )
 
 
@@ -349,9 +355,9 @@ class DescribeLoggingInstancesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="owner-id.N",
-        description="account id",
+        metadata={"description": "account id"},
     )
-    InstanceName = fields.String(required=False, description="logging instance name", context="query")
+    InstanceName = fields.String(required=False, context="query", metadata={"description": "logging instance name"})
     instance_id_N = fields.List(
         fields.String(),
         required=False,
@@ -359,26 +365,26 @@ class DescribeLoggingInstancesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="instance-id.N",
-        description="list of logging instance id",
+        metadata={"description": "list of logging instance id"},
     )
     MaxItems = fields.Integer(
         required=False,
-        missing=100,
+        load_default=100,
         validation=Range(min=1),
         context="query",
-        description="max number elements to return in the response",
+        metadata={"description": "max number elements to return in the response"},
     )
     Marker = fields.String(
         required=False,
-        missing="0",
-        example="",
-        description="pagination token",
+        load_default="0",
         context="query",
+        metadata={"description": "pagination token"},
     )
     Detail = fields.Boolean(
         required=False,
         allow_none=True,
-        description="details in list",
+        context="query",
+        metadata={"description": "details in list"},
     )
 
 
@@ -453,29 +459,34 @@ class DescribeLoggingInstances(ServiceApiView):
 
 class EnableLogConfigApi1ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
-    Return = fields.Boolean(required=True, example=True, allow_none=False, data_key="return")
+    Return = fields.Boolean(required=True, allow_none=False, data_key="return", metadata={"example": True})
     requestId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="api request id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "api request id"},
     )
     nvl_activeTask = fields.String(
         required=True,
         allow_none=True,
         data_key="nvl-activeTask",
-        description="active task id",
+        metadata={"description": "active task id"},
     )
 
 
 class EnableLogConfigApiResponseSchema(Schema):
     EnableLogConfigResponse = fields.Nested(
-        EnableLogConfigApi1ResponseSchema, required=True, many=False, allow_none=False
+        EnableLogConfigApi1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
     )
 
 
 class EnableLogConfigApiRequestSchema(Schema):
-    InstanceId = fields.String(required=False, description="logging instance id", context="query")
-    Config = fields.String(required=False, example="tomcat", description="name of logging configuration")
+    InstanceId = fields.String(required=False, context="query", metadata={"description": "logging instance id"})
+    Config = fields.String(
+        required=False,
+        metadata={"example": "tomcat", "description": "name of logging configuration"},
+    )
 
 
 class EnableLogConfigApiBodyRequestSchema(Schema):
@@ -497,18 +508,32 @@ class EnableLogConfig(ServiceApiView):
     )
     response_schema = EnableLogConfigApiResponseSchema
 
-    def put(self, controller, data, *args, **kwargs):
+    def put(self, controller: ServiceController, data, *args, **kwargs):
         # get service definition with engine configuration
         conf = data.get("Config")
         oid = data.get("InstanceId")
+
+        module_params = None
         conf_def_name = "log-conf.%s" % conf
         conf_defs, tot = controller.get_paginated_service_defs(name=conf_def_name)
-        if len(conf_defs) < 1 or len(conf_defs) > 1:
-            raise ApiManagerError("Conf %s was not found" % conf)
+        if len(conf_defs) == 1:
+            # add engine config
+            conf_def_config = conf_defs[0].get_main_config().params
+            module_params = conf_def_config.get("module_params")
+        else:
+            conf_generic = controller.get_service_def("log-conf.generic")
+            conf_def_config = conf_generic.get_main_config().params
+            modules = conf_def_config.get("modules")
+            for module in modules:
+                name = module["name"]
+                if name == conf:
+                    module_params = conf_def_config.get("module_params")
+                    str_json = jsonDumps(module_params)
+                    str_json = str_json.replace("<module name>", conf)
+                    module_params = json.loads(str_json)
 
-        # add engine config
-        conf_def_config = conf_defs[0].get_main_config().params
-        module_params = conf_def_config.get("module_params")
+        if module_params is None:
+            raise ApiManagerError("Conf %s was not found" % conf)
 
         type_plugin: ApiLoggingInstance = controller.get_service_type_plugin(oid, plugin_class=ApiLoggingInstance)
         return_value = type_plugin.enable_log_config(module_params)
@@ -526,29 +551,34 @@ class EnableLogConfig(ServiceApiView):
 
 class DisableLogConfigApi1ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
-    Return = fields.Boolean(required=True, example=True, allow_none=False, data_key="return")
+    Return = fields.Boolean(required=True, allow_none=False, data_key="return", metadata={"example": True})
     requestId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="api request id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "api request id"},
     )
     nvl_activeTask = fields.String(
         required=True,
         allow_none=True,
         data_key="nvl-activeTask",
-        description="active task id",
+        metadata={"description": "active task id"},
     )
 
 
 class DisableLogConfigApiResponseSchema(Schema):
     DisableLogConfigResponse = fields.Nested(
-        DisableLogConfigApi1ResponseSchema, required=True, many=False, allow_none=False
+        DisableLogConfigApi1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
     )
 
 
 class DisableLogConfigApiRequestSchema(Schema):
-    InstanceId = fields.String(required=False, description="logging instance id", context="query")
-    Config = fields.String(required=False, example="tomcat", description="name of logging configuration")
+    InstanceId = fields.String(required=False, context="query", metadata={"description": "logging instance id"})
+    Config = fields.String(
+        required=False,
+        metadata={"example": "tomcat", "description": "name of logging configuration"},
+    )
 
 
 class DisableLogConfigApiBodyRequestSchema(Schema):
@@ -574,14 +604,28 @@ class DisableLogConfig(ServiceApiView):
         # get service definition with engine configuration
         conf = data.get("Config")
         oid = data.get("InstanceId")
+
+        module_params = None
         conf_def_name = "log-conf.%s" % conf
         conf_defs, tot = controller.get_paginated_service_defs(name=conf_def_name)
-        if len(conf_defs) < 1 or len(conf_defs) > 1:
-            raise ApiManagerError("Conf %s was not found" % conf)
+        if len(conf_defs) == 1:
+            # add engine config
+            conf_def_config = conf_defs[0].get_main_config().params
+            module_params = conf_def_config.get("module_params")
+        else:
+            conf_generic = controller.get_service_def("log-conf.generic")
+            conf_def_config = conf_generic.get_main_config().params
+            modules = conf_def_config.get("modules")
+            for module in modules:
+                name = module["name"]
+                if name == conf:
+                    module_params = conf_def_config.get("module_params")
+                    str_json = jsonDumps(module_params)
+                    str_json = str_json.replace("<module name>", conf)
+                    module_params = json.loads(str_json)
 
-        # add engine config
-        conf_def_config = conf_defs[0].get_main_config().params
-        module_params = conf_def_config.get("module_params")
+        if module_params is None:
+            raise ApiManagerError("Conf %s was not found" % conf)
 
         type_plugin: ApiLoggingInstance = controller.get_service_type_plugin(oid, plugin_class=ApiLoggingInstance)
         return_value = type_plugin.disable_log_config(module_params)
@@ -599,27 +643,30 @@ class DisableLogConfig(ServiceApiView):
 
 class DescribeLoggingInstanceLogConfigApiV2RequestSchema(Schema):
     owner_id = fields.String(
-        example="d35d19b3-d6b8-4208-b690-a51da2525497",
         required=True,
         context="query",
         data_key="owner-id",
-        description="account id of the instance type owner",
+        metadata={"example": "d35d19b3-d6b8-4208-b690-a51da2525497", "description": "account id of the instance type owner"},
     )
 
 
 class DescribeLoggingInstanceLogConfigParamsApiV2ResponseSchema(Schema):
-    name = fields.String(required=True, example="tomcat", description="name of the logging configuration")
+    name = fields.String(
+        required=True,
+        metadata={"example": "tomcat", "description": "name of the logging configuration"},
+    )
+    title = fields.String(required=True, metadata={"example": "Tomcat", "description": "title"})
+    type = fields.String(required=True, metadata={"example": "custom", "description": "type"})
 
 
 class DescribeLoggingInstanceLogConfigApi1V2ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="$xmlns")
-    requestId = fields.String(required=True, description="api request id")
-    logConfigSet = fields.Nested(
-        DescribeLoggingInstanceLogConfigParamsApiV2ResponseSchema,
-        many=True,
-        allow_none=False,
+    requestId = fields.String(required=True, metadata={"description": "api request id"})
+    logConfigSet = fields.Nested(DescribeLoggingInstanceLogConfigParamsApiV2ResponseSchema, many=True, allow_none=False)
+    logConfigTotal = fields.Integer(
+        required=True,
+        metadata={"example": 10, "description": "Total number of configuration available"},
     )
-    logConfigTotal = fields.Integer(required=True, example=10, description="Total number of configuration available")
 
 
 class DescribeLoggingInstanceLogConfigApiV2ResponseSchema(Schema):
@@ -658,17 +705,33 @@ class DescribeLoggingInstanceLogConfig(ServiceApiView):
 
         res_type_set = []
         log_confs_total = 0
-        for r in instance_confs_set:
-            name = r.name
+        for definition in instance_confs_set:
+            name = definition.name
+            self.logger.debug("+++++ definition.name: %s" % definition.name)
 
             if name.find("log-conf") != 0:
                 continue
-            esplit = name.split(".")
 
-            item = {"name": esplit[1]}
-            res_type_set.append(item)
-            log_confs_total += 1
+            if name == "log-conf.generic":
+                conf_def_config = definition.get_main_config().params
+                modules = conf_def_config.get("modules")
+                for module in modules:
+                    item = {"title": module["title"], "name": module["name"], "type": "generic"}
+                    res_type_set.append(item)
+                    log_confs_total += 1
 
+            else:
+                esplit = name.split(".")
+
+                item = {
+                    "title": esplit[1].capitalize(),
+                    "name": esplit[1],
+                    "type": "custom"
+                }
+                res_type_set.append(item)
+                log_confs_total += 1
+
+        res_type_set.sort(key=lambda x: x.get("name"))
         res = {
             "DescribeLoggingInstanceLogConfigResponse": {
                 "$xmlns": self.xmlns,

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from sqlalchemy import (
     Column,
@@ -234,9 +234,9 @@ class ServiceCostParam(BaseApiBusinessObject, Base):
     __table_args__ = {"mysql_engine": "InnoDB"}
 
     # Measure unit (Ex: Gb, Mb, Processor N., etc.)
-    param_unit = Column(String(20, convert_unicode=True), nullable=True, default="")
+    param_unit = Column(String(20), nullable=True, default="")
     # Parameter regexp format
-    param_definition = Column(String(250, convert_unicode=True), nullable=False, default="")
+    param_definition = Column(String(250), nullable=False, default="")
     service_type_id = Column("fk_service_type_id", Integer(), ForeignKey("service_type.id"))
     service_type = relationship("ServiceType", back_populates="costParams")
 

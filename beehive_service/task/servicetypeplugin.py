@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.task.job import Job, JobTask, task_local, job_task, job
-from beehive.common.task.manager import task_manager
-from beecell.simple import id_gen, import_func
+from beehive.common.task.manager import get_task_manager
+from beecell.simple import import_func
 from ..model.base import SrvStatusType
 from beehive.common.apimanager import ApiManagerError
 from beehive_service.entity.service_instance import ApiServiceInstance
 from .common import logger
 
+task_manager = get_task_manager()
 
 #
 # ServiceTypePluginJob
@@ -176,27 +177,6 @@ def job_type_plugin_instance_update(self, objid, params):
 @job(entity_class=ApiServiceInstance, name="patch.update", delta=4)
 def job_type_plugin_instance_patch(self, objid, params):
     """Patch type plugin instance
-
-    :param objid: objid of the service instance. Ex. 110//2222//334//*
-    :param params: input params {u'cid':.., u'id':.., u'etx_id':..}
-    :param params.id: service instance id
-    :param params.uuid: service instance uuid
-    :param params.objid: service instance objid
-    :param params.name: service instance name
-    :param params.resource_uuid: instance uuid
-    :param params.resource_params: params used to create resource
-    :param params.tasks: list of task to execute. Set full module path for task. Task can be a string with task name or
-            a dict like {u'task':<task name>, u'args':..}
-    :return: True
-    """
-    res = job_helper(self, objid, params)
-    return res
-
-
-@task_manager.task(bind=True, base=ServiceTypePluginJob)
-@job(entity_class=ApiServiceInstance, name="action.update", delta=4)
-def job_type_plugin_instance_action(self, objid, params):
-    """Send action to type plugin instance
 
     :param objid: objid of the service instance. Ex. 110//2222//334//*
     :param params: input params {u'cid':.., u'id':.., u'etx_id':..}

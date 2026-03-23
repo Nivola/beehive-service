@@ -1,30 +1,28 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-import ujson as json
+from datetime import datetime, timedelta
+import json
 from urllib.parse import urlencode
-from typing import List, Union, Tuple, TYPE_CHECKING
-from six import text_type, binary_type
+from typing import List, Union, Tuple, TYPE_CHECKING, Optional
 from Crypto.Hash import SHA256
 from beecell.db.util import TransactionError
+from beecell.types.type_date import format_date
 from beecell.types.type_string import is_not_blank
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.data import transaction, trace
 from beehive.common.task_v2 import prepare_or_run_task
-from beehive_service.controller.api_account_capability import ApiAccountCapability
 from beehive_service.controller.authority_api_object import AuthorityApiObject
 from beehive_service.controller.api_service_tag import ApiServiceTag
 from beehive_service.entity import ServiceApiObject
-from beehive_service.model import ServiceDefinition
 from beehive_service.model.account_capability import AccountCapabilityAssoc
 from beehive_service.model.base import SrvStatusType
-from beehive_service.entity.service_definition import ApiServiceDefinition
 from beehive_service.entity.service_instance import ApiServiceInstance, ApiServiceInstanceLink
-from datetime import datetime, timedelta
-
 if TYPE_CHECKING:
+    from beehive_service.entity.service_definition import ApiServiceDefinition
     from beehive_service.model.account import Account
+    from beehive_service.controller.api_account_capability import ApiAccountCapability
 
 
 class ApiAccount(AuthorityApiObject):
@@ -777,7 +775,7 @@ class ApiAccount(AuthorityApiObject):
             self.service_status_id = self.model.service_status_id
             self.status = self.model.status.name
             # if isinstance(self.model.params, str) or isinstance(self.model.params, unicode):
-            if isinstance(self.model.params, (text_type, binary_type)):
+            if isinstance(self.model.params, (str, bytes)):
                 self.params = json.loads(self.model.params)
             elif isinstance(self.model.params, dict):
                 self.params = self.model.params
@@ -1173,7 +1171,7 @@ class ApiAccount(AuthorityApiObject):
     #
     def can_instantiate(
         self,
-        definition: ApiServiceDefinition = None,
+        definition: 'ApiServiceDefinition' = None,
         definition_id: Union[int, str] = None,
     ) -> Tuple[bool, str]:
         """Verify that a service of type definition is instantiable in the account
@@ -1211,12 +1209,13 @@ class ApiAccount(AuthorityApiObject):
         active: bool = True,
         service_definition_id: Union[str, int, None] = None,
         name: str = None,
+        namelike: bool = False,
         page: int = 0,
         size: int = 50,
         order: str = "DESC",
         field: int = "id",
         **kwargs,
-    ) -> Tuple[List[ApiServiceDefinition], int]:
+    ) -> Tuple[List['ApiServiceDefinition'], int]:
         """Get service definitions available for the account
 
         :param str plugintype: plugin type,
@@ -1228,13 +1227,16 @@ class ApiAccount(AuthorityApiObject):
         :param int size: number of users to show in list per page [default=0]
         :param int order: sort order [default=DESC]
         :param int field: sort field [default=id]
-        :returns: List[ApiServiceDefinition]: [description]
+        :returns: List['ApiServiceDefinition']: [description]
         """
         # verify permissions
         self.verify_permisssions("view")
 
-        if service_definition_id is not None:  # and not isinstance(service_definition_id, int ):
-            service_definition_id = self.manager.get_definition_id(service_definition_id)
+        if service_definition_id is not None:
+            if not isinstance(service_definition_id, int):
+                service_definition_id = self.manager.get_definition_id(service_definition_id)
+            elif name:
+                service_definition_id = self.manager.get_definition_id(name)
 
         accsdlist, tot = self.controller.get_account_service_defintions(
             account_id=self.model.id,
@@ -1244,6 +1246,7 @@ class ApiAccount(AuthorityApiObject):
             active=active,
             service_definition_id=service_definition_id,
             name=name,
+            namelike=namelike,
             page=page,
             size=size,
             order=order,
@@ -1256,7 +1259,7 @@ class ApiAccount(AuthorityApiObject):
     #
     # Capabilities
     #
-    def has_capability(self, capability_id):
+    def has_capability(self, capability_id) -> Tuple[bool, Optional[AccountCapabilityAssoc]]:
         """Check if the account has capability
 
         :return: association
@@ -1320,17 +1323,20 @@ class ApiAccount(AuthorityApiObject):
         :param capabilityoid: cpability oid
         :param status: Unicode status
         """
-        # check if self has capability
-        # capabilities  = []
-
+        # check if account already has capability
         has, assoc = self.has_capability(capabilityoid)
         if has:
-            #
+            # already associated
+            # update status and application date
             assoc.status = status
+            assoc.application_date = datetime.today()
             self.controller.manager.update(assoc)
         else:
+            # account doesn't have capability yet
+            # associate it
             capability = self.controller.get_capability(capabilityoid)
             self.model.capabilities.append(AccountCapabilityAssoc(self.model.id, capability.model.id, status))
+            # TODO is this enough? maybe it's needed to call the update again
 
     def add_capability(self, capability: str = None):
         """Add capability to account
@@ -1414,7 +1420,9 @@ class ApiAccount(AuthorityApiObject):
         return {"taskid": task["taskid"]}, status
 
     def get_default_services_description(self):
-        """gets le services described by all capabilities"""
+        """get a list of all account services that are specified
+        by every capability associated to the account
+        """
         self.logger.info("get_default_services_description")
 
         services_list = []
@@ -1435,15 +1443,18 @@ class ApiAccount(AuthorityApiObject):
             for capability in self.model.capabilities:
                 services = getattr(capability, "params", {}).get("services", [])
                 for service in services:
+                    # add to list if not already present
                     if notin(services_list, service):
                         services_list.append(service)
         return services_list
 
     def get_capability(self, name):
-        """get the capabilities associated with this account
+        """get the capability associated to this account,
+        with the specified name
 
         :param name: capability name
         :return: Capability object
+        :raises ApiManagerError: on capability not found
         """
         if self.model:
             for c in self.model.capabilities:
@@ -1452,7 +1463,7 @@ class ApiAccount(AuthorityApiObject):
         raise ApiManagerError("no capability %s found" % name)
 
     def get_capabilities(self):
-        """get the capabilities associated with this account
+        """get the capabilities associated to this account
 
         :return: a list of Capability objects
         """
@@ -1462,10 +1473,11 @@ class ApiAccount(AuthorityApiObject):
             return []
 
     def get_capabilities_list(self):
-        """Get a list of capabilities associated with this account an the plugin_name which is the type of service
-        enabled and the status of the association
+        """Get the list of capabilities associated with this account,
+        and the status of the association
 
-        :return: a list of dict with shape{"name", "plugin_name", "status"}
+        :return: a list of dict with shape {"name", "status", "application_date",
+        "services", "definitions", "report"}
         """
         res = []
         if self.model:
@@ -1473,9 +1485,9 @@ class ApiAccount(AuthorityApiObject):
             account_services = self.get_services()
             account_definitions, tot = self.get_definitions(size=-1)
             account_service_idx = {a.instance.name: a for a in account_services}
-            for c in capabilities:
+            for capa_item in capabilities:
                 # check services
-                capability_services = c.get("params", {}).get("services", [])
+                capability_services = capa_item.get("params", {}).get("services", [])
                 service_required = len(capability_services)
                 service_created = 0
                 service_error = 0
@@ -1491,12 +1503,13 @@ class ApiAccount(AuthorityApiObject):
                             service_error += 1
 
                 # check definitions
-                capability_definitions = c.get("params", {}).get("definitions", [])
+                capability_definitions = capa_item.get("params", {}).get("definitions", [])
                 definitions_required = len(capability_definitions)
                 definitions_created = len(account_definitions)
                 definitions_missed = []
 
-                status = c.get("status")
+                status = capa_item.get("status")
+                application_date = capa_item.get("application_date")
                 if service_created != service_required and status in [
                     SrvStatusType.ACTIVE,
                     SrvStatusType.ERROR,
@@ -1512,8 +1525,9 @@ class ApiAccount(AuthorityApiObject):
                 #     definitions_missed = []
 
                 item = {
-                    "name": c.get("name"),
+                    "name": capa_item.get("name"),
                     "status": status,
+                    "application_date": format_date(application_date),
                     "services": capability_services,
                     "definitions": [d.small_info() for d in account_definitions],
                     "report": {
@@ -1524,7 +1538,7 @@ class ApiAccount(AuthorityApiObject):
                         },
                         "definitions": {
                             "required": definitions_required,
-                            "created": definitions_required,
+                            "created": definitions_required, # TODO check whether this is desired behavior
                             "missed": definitions_missed,
                         },
                     },
@@ -1536,7 +1550,7 @@ class ApiAccount(AuthorityApiObject):
     def get_capability_status(self, capability_id):
         """get capability status based on required and created services
 
-        :return: a list of dict with shape{"name", "plugin_name", "status"}
+        :return: True if required==created else False
         """
         res = False
         required = None
@@ -1608,15 +1622,16 @@ class ApiAccount(AuthorityApiObject):
 
     def check_valid_capability(self, capability_id):
         """Check capability is valid for account: type, pods"""
-        capability: ApiAccountCapability = self.controller.get_capability(capability_id)
+        capability: 'ApiAccountCapability' = self.controller.get_capability(capability_id)
         params = capability.get_params()
         capability_account_type: str = params.get("account_type", None)
         capability_pods: str = params.get("pods", None)
 
         # account_type
         if is_not_blank(self.account_type):
+            # account already has a valid account type
             if is_not_blank(capability_account_type):
-                # check valid account_type
+                # check whether account type and capability account type match
                 if capability_account_type != self.account_type:
                     msg = "account_type %s of capability %s not match with account type %s" % (
                         capability_account_type,
@@ -1625,9 +1640,9 @@ class ApiAccount(AuthorityApiObject):
                     )
                     self.logger.error(msg)
                     raise Exception(msg)
-
         elif is_not_blank(capability_account_type):
-            # set account_type
+            # account doesn't have a valid account type
+            # set account type from capability account type
             self.account_type = capability_account_type
             self.update(account_type=self.account_type)
 
@@ -1643,7 +1658,6 @@ class ApiAccount(AuthorityApiObject):
                     )
                     self.logger.error(msg)
                     raise Exception(msg)
-
         elif is_not_blank(capability_pods):
             # set pods
             self.pods = capability_pods

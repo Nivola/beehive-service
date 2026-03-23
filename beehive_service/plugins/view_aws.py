@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import re
 import logging
@@ -8,7 +8,7 @@ from beehive.common.apimanager import ApiView, ApiManagerWarning
 from beehive_service.views import ServiceApiView
 from flasgger import Schema, fields
 from flask import request
-from six.moves.urllib.parse import urlencode
+from urllib.parse import urlencode
 
 base = "/v1.0/nws"
 
@@ -147,7 +147,7 @@ class Ec2ParserGet:
         lst_params = sorted(self.aws_params.keys())
         for key in lst_params:
             record = key + "=" + self.aws_params.get(key)
-            for campi in re.split("Filter.[\d]+.", record):
+            for campi in re.split(r"Filter.[\d]+.", record):
                 if len(campi) > 0:
                     n = re.split("=", campi)
                     self.filter.append(n)

@@ -1,14 +1,14 @@
 # SPDX# SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import re
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf, Length, Range
 from marshmallow.decorators import validates_schema
 from marshmallow.exceptions import ValidationError
-from six import ensure_text
+# from beecell.util import ensure_text
 from beehive_service.controller import ServiceController
 from beehive_service.controller.api_account import ApiAccount
 from beehive_service.model import Division, Organization
@@ -46,21 +46,23 @@ from beehive.common.data import operation
 class CreateSpaceApiParamRequestSchema(Schema):
     owner_id = fields.String(
         required=True,
-        example="1",
         data_key="owner-id",
-        description="account id or uuid associated to compute zone",
+        metadata={"example": "1", "description": "account id or uuid associated to compute zone"},
     )
-    Name = fields.String(required=False, example="test", missing=None, description="space name")
-    AdditionalInfo = fields.String(required=False, example="test", missing=None, description="space description")
+    Name = fields.String(required=False, load_default=None, metadata={"example": "test", "description": "space name"})
+    AdditionalInfo = fields.String(
+        required=False,
+        load_default=None,
+        metadata={"example": "test", "description": "space description"},
+    )
     definition = fields.String(
         required=False,
-        example="logging.space.xxx",
-        description="service definition of the space",
+        metadata={"example": "logging.space.xxx", "description": "service definition of the space"},
     )
     norescreate = fields.Boolean(
         required=False,
         allow_none=True,
-        description="don't create physical resource of the folder",
+        metadata={"description": "don't create physical resource of the space"},
     )
 
 
@@ -74,17 +76,15 @@ class CreateSpaceApiBodyRequestSchema(Schema):
 
 class CreateSpaceApiResponse1Schema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
-    requestId = fields.String(required=True, example="", allow_none=True)
+    requestId = fields.String(required=True, allow_none=True)
     spaceId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="space id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "space id"},
     )
     nvl_activeTask = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
         data_key="nvl-activeTask",
-        description="task id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "task id"},
     )
 
 
@@ -168,25 +168,22 @@ class CreateSpace(ServiceApiView):
 class DeleteSpaceApiRequestSchema(Schema):
     SpaceId = fields.String(
         required=False,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="space id",
         context="query",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "space id"},
     )
 
 
 class DeleteSpaceApiResponse1Schema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
-    requestId = fields.String(required=True, example="", description="operation id")
+    requestId = fields.String(required=True, metadata={"description": "operation id"})
     spaceId = fields.String(
         required=False,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="space id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "space id"},
     )
     nvl_activeTask = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
         data_key="nvl-activeTask",
-        description="task id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "task id"},
     )
 
 
@@ -236,95 +233,91 @@ class LoggingSpaceStateReasonResponseSchema(Schema):
     nvl_code = fields.Integer(
         required=False,
         allow_none=True,
-        example="",
-        description="state code",
         data_key="nvl-code",
+        metadata={"description": "state code"},
     )
     nvl_message = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="state message",
         data_key="nvl-message",
+        metadata={"description": "state message"},
     )
 
 
 class LoggingSpaceEndpointResponseSchema(Schema):
     home = fields.String(
         required=True,
-        example="https://localhost/s/prova/app/home#/",
-        description="space home endpoint",
+        metadata={"example": "https://localhost/s/prova/app/home#/", "description": "space home endpoint"},
     )
     discover = fields.String(
         required=True,
-        example="https://localhost/s/prova/app/discover#/",
-        description="space discover view endpoint",
+        metadata={"example": "https://localhost/s/prova/app/discover#/", "description": "space discover view endpoint"},
     )
 
 
 class LoggingSpaceDashboardResponseSchema(Schema):
     dashboardId = fields.String(
         required=True,
-        example="c6772ba4-0fc2-493b-86a3-6edf717cb2ff",
-        description="id of the dashboard",
+        metadata={"example": "c6772ba4-0fc2-493b-86a3-6edf717cb2ff", "description": "id of the dashboard"},
     )
-    dashboardName = fields.String(
+    dashboardTitle = fields.String(
         required=True,
-        example="[Filebeat MySQL] Overview ECS",
-        description="name of the dashboard",
+        metadata={"example": "[Filebeat MySQL] Overview ECS", "description": "name of the dashboard"},
     )
-    dashboardVersion = fields.String(required=True, example="WzE3Mjk0MTksMTRd", description="dashboard version")
-    dashboardScore = fields.Int(required=True, example=1, description="dashboard score")
+    dashboardVersion = fields.String(
+        required=True,
+        metadata={"example": "WzE3Mjk0MTksMTRd", "description": "dashboard version"},
+    )
+    dashboardScore = fields.Int(required=True, metadata={"example": 1, "description": "dashboard score"})
     modificationDate = fields.String(
         required=True,
-        example="2022-01-25T10:21:26.772Z",
-        description="dashboard modification date",
+        metadata={"example": "2022-01-25T10:21:26.772Z", "description": "dashboard modification date"},
     )
     endpoint = fields.String(
         required=True,
-        description="space dashboard endpoint",
-        example="https://localhost/s/prova/app/dashboards#/view/dusnawiu7cnsdiu",
+        metadata={"description": "space dashboard endpoint", "example": "https://localhost/s/prova/app/dashboards#/view/dusnawiu7cnsdiu"},
     )
 
 
 class LoggingSpaceItemParameterResponseSchema(Schema):
     id = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="id of the space",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "id of the space"},
     )
-    name = fields.String(required=True, example="test", description="name of the space")
-    creationDate = fields.DateTime(required=True, example="2022-01-25T11:20:18Z", description="creation date")
-    description = fields.String(required=True, example="test", description="description of the space")
+    name = fields.String(required=True, metadata={"example": "test", "description": "name of the space"})
+    creationDate = fields.DateTime(
+        required=True,
+        metadata={"example": "2022-01-25T11:20:18Z", "description": "creation date"},
+    )
+    description = fields.String(required=True, metadata={"example": "test", "description": "description of the space"})
     ownerId = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="account id of the owner of the space",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "account id of the owner of the space"},
     )
     ownerAlias = fields.String(
         required=True,
         allow_none=True,
-        example="test",
-        description="account name of the owner of the space",
+        metadata={"example": "test", "description": "account name of the owner of the space"},
     )
     state = fields.String(
         required=True,
-        example="available",
-        description="state of the space",
         data_key="state",
+        metadata={"example": "available", "description": "state of the space"},
     )
     stateReason = fields.Nested(
         LoggingSpaceStateReasonResponseSchema,
         many=False,
         required=True,
-        description="state description",
+        metadata={"description": "state description"},
     )
     templateId = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="id of the space template",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "id of the space template"},
     )
-    templateName = fields.String(required=True, example="test", description="name of the space template")
+    templateName = fields.String(
+        required=True,
+        metadata={"example": "test", "description": "name of the space template"},
+    )
     endpoints = fields.Nested(LoggingSpaceEndpointResponseSchema, many=False, required=True)
     dashboards = fields.Nested(LoggingSpaceDashboardResponseSchema, many=True, required=True)
 
@@ -333,17 +326,12 @@ class DescribeLoggingSpaces1ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="$xmlns")
     next_token = fields.String(required=True, allow_none=True)
     requestId = fields.String(required=True, allow_none=True)
-    spaceInfo = fields.Nested(
-        LoggingSpaceItemParameterResponseSchema,
-        many=True,
-        required=False,
-        allow_none=True,
-    )
+    spaceInfo = fields.Nested(LoggingSpaceItemParameterResponseSchema, many=True, required=False, allow_none=True)
+
     spaceTotal = fields.Integer(
         required=False,
-        example="0",
-        descriptiom="total logging instance",
         data_key="spaceTotal",
+        metadata={"example": "0", "description": "total logging instance"},
     )
 
 
@@ -359,9 +347,11 @@ class DescribeSpacesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="owner-id.N",
-        description="account id",
+        metadata={"description": "account id"},
     )
-    SpaceName = fields.String(required=False, description="space name", context="query")
+
+    SpaceName = fields.String(required=False, context="query", metadata={"description": "space name"})
+
     space_id_N = fields.List(
         fields.String(),
         required=False,
@@ -369,21 +359,22 @@ class DescribeSpacesRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="space-id.N",
-        description="list of space id",
+        metadata={"description": "list of space id"},
     )
+
     MaxItems = fields.Integer(
         required=False,
-        missing=100,
+        load_default=100,
         validation=Range(min=1),
         context="query",
-        description="max number elements to return in the response",
+        metadata={"description": "max number elements to return in the response"},
     )
+
     Marker = fields.String(
         required=False,
-        missing="0",
-        example="",
-        description="pagination token",
+        load_default="0",
         context="query",
+        metadata={"description": "pagination token"},
     )
 
 
@@ -454,24 +445,27 @@ class DescribeSpaces(ServiceApiView):
 
 class SyncUsersSpaceApi1ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
-    Return = fields.Boolean(required=True, example=True, allow_none=False, data_key="return")
-    requestId = fields.String(required=True, example="", allow_none=True)
+    Return = fields.Boolean(required=True, allow_none=False, data_key="return", metadata={"example": True})
+    requestId = fields.String(required=True, allow_none=True)
     nvl_activeTask = fields.String(
         required=True,
         allow_none=True,
         data_key="nvl-activeTask",
-        description="active task id",
+        metadata={"description": "active task id"},
     )
 
 
 class SyncUsersSpaceApiResponseSchema(Schema):
     SyncSpaceUsersResponse = fields.Nested(
-        SyncUsersSpaceApi1ResponseSchema, required=True, many=False, allow_none=False
+        SyncUsersSpaceApi1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
     )
 
 
 class SyncUsersSpaceApiRequestSchema(Schema):
-    SpaceId = fields.String(required=False, description="logging space id", context="query")
+    SpaceId = fields.String(required=False, context="query", metadata={"description": "logging space id"})
 
 
 class SyncUsersSpaceApiBodyRequestSchema(Schema):
@@ -509,6 +503,345 @@ class SyncUsersSpace(ServiceApiView):
         return res, 202
 
 
+class DescribeSpaceConfigApiV2RequestSchema(Schema):
+    owner_id = fields.String(
+        required=True,
+        context="query",
+        data_key="owner-id",
+        metadata={"example": "d35d19b3-d6b8-4208-b690-a51da2525497", "description": "account id of the instance type owner"},
+    )
+
+
+class DescribeSpaceConfigParamsApiV2ResponseSchema(Schema):
+    name = fields.String(
+        required=True,
+        metadata={"example": "filebeat-aws", "description": "name of the monitoring configuration"},
+    )
+    title = fields.String(
+        required=True,
+        metadata={"example": "Filebeat AWS", "description": "title of the monitoring configuration"},
+    )
+    default = fields.Boolean(required=False, metadata={"description": "dashboard created at space creation"})
+
+
+class DescribeSpaceConfigApi1V2ResponseSchema(Schema):
+    xmlns = fields.String(required=False, data_key="$xmlns")
+    requestId = fields.String(required=True, metadata={"description": "api request id"})
+    logConfigSet = fields.Nested(DescribeSpaceConfigParamsApiV2ResponseSchema, many=True, allow_none=False)
+    logConfigTotal = fields.Integer(
+        required=True,
+        metadata={"example": 10, "description": "Total number of configuration available"},
+    )
+
+
+class DescribeSpaceConfigApiV2ResponseSchema(Schema):
+    DescribeSpaceConfigResponse = fields.Nested(
+        DescribeSpaceConfigApi1V2ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
+    )
+
+
+class DescribeSpaceConfig(ServiceApiView):
+    summary = "List of monitoring instance confs"
+    description = "List of monitoring instance confs"
+    tags = ["loggingservice"]
+    definitions = {
+        "DescribeSpaceConfigApiV2RequestSchema": DescribeSpaceConfigApiV2RequestSchema,
+        "DescribeSpaceConfigApiV2ResponseSchema": DescribeSpaceConfigApiV2ResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(DescribeSpaceConfigApiV2RequestSchema)
+    parameters_schema = DescribeSpaceConfigApiV2RequestSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": DescribeSpaceConfigApiV2ResponseSchema,
+            }
+        }
+    )
+    response_schema = DescribeSpaceConfigApiV2ResponseSchema
+
+    def get(self, controller: ServiceController, data, *args, **kwargs):
+        # account_id = data.pop("owner_id")
+        # account = controller.get_account(account_id)
+        service_definition = controller.get_default_service_def(ApiLoggingSpace.plugintype)
+        self.logger.debug("+++++ DescribeSpaceConfig - service_definition: %s" % service_definition)
+
+        dashboard = service_definition.get_config("dashboard")
+        self.logger.debug("+++++ DescribeSpaceConfig - dashboard: %s" % dashboard)
+
+        res_type_set = []
+        log_confs_total = 0
+        for dashboard_item in dashboard:
+            name = None
+            if "name" in dashboard_item:
+                name = dashboard_item["name"]
+            title = dashboard_item["title"]
+
+            default = False
+            if "default" in dashboard_item:
+                default = dashboard_item["default"]
+            item = {"name": name, "title": title, "default": default}
+            res_type_set.append(item)
+            log_confs_total += 1
+
+        res_type_set.sort(key=lambda x: x.get("title"))
+
+        res = {
+            "DescribeSpaceConfigResponse": {
+                "$xmlns": self.xmlns,
+                "requestId": operation.id,
+                "logConfigSet": res_type_set,
+                "logConfigTotal": log_confs_total,
+            }
+        }
+        return res
+
+
+class EnableDashConfigApi1ResponseSchema(Schema):
+    xmlns = fields.String(required=False, data_key="__xmlns")
+    Return = fields.Boolean(required=True, allow_none=False, data_key="return", metadata={"example": True})
+    requestId = fields.String(
+        required=True,
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "api request id"},
+    )
+    nvl_activeTask = fields.String(
+        required=True,
+        allow_none=True,
+        data_key="nvl-activeTask",
+        metadata={"description": "active task id"},
+    )
+
+
+class EnableDashConfigApiResponseSchema(Schema):
+    EnableDashConfigResponse = fields.Nested(
+        EnableDashConfigApi1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
+    )
+
+
+class EnableDashConfigApiRequestSchema(Schema):
+    SpaceId = fields.String(required=False, context="query", metadata={"description": "logging space id"})
+    Config = fields.String(required=False, metadata={"example": "Filebeat Apache", "description": "name of dashboard"})
+
+
+class EnableDashConfigApiBodyRequestSchema(Schema):
+    body = fields.Nested(EnableDashConfigApiRequestSchema, context="body")
+
+
+class EnableDashConfig(ServiceApiView):
+    summary = "Enable logging config in a space"
+    description = "Enable logging config in a space"
+    tags = ["loggingservice"]
+    definitions = {
+        "EnableDashConfigApiRequestSchema": EnableDashConfigApiRequestSchema,
+        "EnableDashConfigApiResponseSchema": EnableDashConfigApiResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(EnableDashConfigApiBodyRequestSchema)
+    parameters_schema = EnableDashConfigApiRequestSchema
+    responses = SwaggerApiView.setResponses(
+        {202: {"description": "success", "schema": EnableDashConfigApiResponseSchema}}
+    )
+    response_schema = EnableDashConfigApiResponseSchema
+
+    def put(self, controller, data, *args, **kwargs):
+        # get service definition with engine configuration
+        conf = data.get("Config")
+        oid = data.get("SpaceId")
+
+        service_definition = controller.get_default_service_def(ApiLoggingSpace.plugintype)
+        self.logger.debug("+++++ EnableDashConfig - service_definition: %s" % service_definition)
+
+        dashboard = service_definition.get_config("dashboard")
+        self.logger.debug("+++++ EnableDashConfig - dashboard: %s" % dashboard)
+        def_config = service_definition.get_main_config().params
+        self.logger.debug("+++++ EnableDashConfig - def_config: %s" % def_config)
+
+        dashboard_item_selected = None
+        for dashboard_item in dashboard:
+            name = dashboard_item["name"]
+            if name == conf:
+                dashboard_item_selected = dashboard_item
+
+        if dashboard_item_selected is None:
+            raise ApiManagerError("Conf %s was not found" % conf)
+
+        type_plugin: ApiLoggingSpace = controller.get_service_type_plugin(oid, plugin_class=ApiLoggingSpace)
+        account_id = type_plugin.instance.account_id
+
+        # check account
+        account: ApiAccount
+        parent_plugin: ApiLoggingService
+        account, parent_plugin = self.check_parent_service(
+            controller, account_id, plugintype=ApiLoggingService.plugintype
+        )
+        data["computeZone"] = parent_plugin.resource_uuid
+
+        # get parent division
+        div: Division = controller.manager.get_entity(Division, account.division_id)
+        # get parent organization
+        org: Organization = controller.manager.get_entity(Organization, div.organization_id)
+        triplet = "%s.%s.%s" % (org.name, div.name, account.name)
+        self.logger.debug("+++++ EnableDashConfig - triplet: %s" % triplet)
+
+        data = {}
+        data.update({"resource_space_id": type_plugin.resource_uuid})
+        data.update({"triplet": triplet})
+        # data.update({"organization": org.name})
+        # data.update({"division": div.name})
+        # data.update({"account": account.name})
+
+        return_value = type_plugin.enable_dash_config(def_config, dashboard_item_selected, data)
+
+        res = {
+            "EnableDashConfigResponse": {
+                "__xmlns": self.xmlns,
+                "requestId": operation.id,
+                "return": return_value,
+                "nvl-activeTask": type_plugin.active_task,
+            }
+        }
+        return res, 202
+
+
+class DisableDashConfigApi1ResponseSchema(Schema):
+    xmlns = fields.String(required=False, data_key="__xmlns")
+    Return = fields.Boolean(required=True, allow_none=False, data_key="return", metadata={"example": True})
+    requestId = fields.String(
+        required=True,
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "api request id"},
+    )
+    nvl_activeTask = fields.String(
+        required=True,
+        allow_none=True,
+        data_key="nvl-activeTask",
+        metadata={"description": "active task id"},
+    )
+
+
+class DisableDashConfigApiResponseSchema(Schema):
+    DisableDashConfigResponse = fields.Nested(
+        DisableDashConfigApi1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
+    )
+
+
+class DisableDashConfigApiRequestSchema(Schema):
+    SpaceId = fields.String(required=False, context="query", metadata={"description": "logging space id"})
+    Config = fields.String(required=False, metadata={"example": "LinResource", "description": "name of dashboard"})
+
+
+class DisableDashConfigApiBodyRequestSchema(Schema):
+    body = fields.Nested(DisableDashConfigApiRequestSchema, context="body")
+
+
+class DisableDashConfig(ServiceApiView):
+    summary = "Disable logging config in a space"
+    description = "Disable logging config in a space"
+    tags = ["loggingservice"]
+    definitions = {
+        "DisableDashConfigApiRequestSchema": DisableDashConfigApiRequestSchema,
+        "DisableDashConfigApiResponseSchema": DisableDashConfigApiResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(DisableDashConfigApiBodyRequestSchema)
+    parameters_schema = DisableDashConfigApiRequestSchema
+    responses = SwaggerApiView.setResponses(
+        {202: {"description": "success", "schema": DisableDashConfigApiResponseSchema}}
+    )
+    response_schema = DisableDashConfigApiResponseSchema
+
+    def put(self, controller: ServiceController, data, *args, **kwargs):
+        # get service definition with engine configuration
+        conf = data.get("Config")
+        oid_space = data.get("SpaceId")
+
+        service_definition = controller.get_default_service_def(ApiLoggingSpace.plugintype)
+        self.logger.debug("+++++ DisableDashConfig - service_definition: %s" % service_definition)
+
+        dashboard = service_definition.get_config("dashboard")
+        self.logger.debug("+++++ DisableDashConfig - dashboard: %s" % dashboard)
+        def_config = service_definition.get_main_config().params
+        self.logger.debug("+++++ DisableDashConfig - def_config: %s" % def_config)
+
+        dashboard_item_selected = None
+        for dashboard_item in dashboard:
+            name = dashboard_item["name"]
+            if name == conf:
+                dashboard_item_selected = dashboard_item
+
+        if dashboard_item_selected is None:
+            raise ApiManagerError("Conf %s was not found" % conf)
+
+        # get instances list
+        data_search = {}
+        res, total = controller.get_service_type_plugins(
+            service_uuid_list=[oid_space],
+            service_name_list=[],
+            service_id_list=[],
+            account_id_list=[],
+            plugintype=ApiLoggingSpace.plugintype,
+            **data_search,
+        )
+        instances_set = None
+        for r in res:
+            r: ApiLoggingSpace
+            instances_set = r.aws_info()
+
+        # check space has dashboard
+        b_dashboard_present = False
+        dashboards = instances_set["dashboards"]
+        for dashboard in dashboards:
+            dashboardTitle: str = dashboard["dashboardTitle"]
+            if dashboardTitle.find(dashboard_item_selected["title"]) != -1:
+                b_dashboard_present = True
+
+        if not b_dashboard_present:
+            raise ApiManagerError("Space haven't dashboard %s" % dashboard_item_selected["title"])
+
+        type_plugin_space: ApiLoggingSpace = controller.get_service_type_plugin(oid_space, plugin_class=ApiLoggingSpace)
+        account_id = type_plugin_space.instance.account_id
+
+        # check account
+        account: ApiAccount
+        parent_plugin: ApiLoggingService
+        account, parent_plugin = self.check_parent_service(
+            controller, account_id, plugintype=ApiLoggingService.plugintype
+        )
+        data["computeZone"] = parent_plugin.resource_uuid
+
+        # # get parent division
+        # div: Division = controller.manager.get_entity(Division, account.division_id)
+        # # get parent organization
+        # org: Organization = controller.manager.get_entity(Organization, div.organization_id)
+        # triplet = "%s.%s.%s" % (org.name, div.name, account.name)
+        # self.logger.debug("+++++ DisableDashConfig - triplet: %s" % triplet)
+
+        data = {}
+        data.update({"resource_space_id": type_plugin_space.resource_uuid})
+        # data.update({"triplet": triplet})
+        # data.update({"organization": org.name})
+        # data.update({"division": div.name})
+        # data.update({"account": account.name})
+
+        return_value = type_plugin_space.disable_dash_config(def_config, dashboard_item_selected, data)
+
+        res = {
+            "DisableDashConfigResponse": {
+                "__xmlns": self.xmlns,
+                "requestId": operation.id,
+                "return": return_value,
+                "nvl-activeTask": type_plugin_space.active_task,
+            }
+        }
+        return res, 202
+
+
 class LoggingSpaceServiceAPI(ApiView):
     @staticmethod
     def register_api(module, dummyrules=None, **kwargs):
@@ -518,6 +851,9 @@ class LoggingSpaceServiceAPI(ApiView):
             ("%s/deletespace" % base, "DELETE", DeleteSpace, {}),
             ("%s/describespaces" % base, "GET", DescribeSpaces, {}),
             ("%s/syncspaceusers" % base, "PUT", SyncUsersSpace, {}),
+            ("%s/describespaceconfig" % base, "GET", DescribeSpaceConfig, {}),
+            ("%s/enabledashconfig" % base, "PUT", EnableDashConfig, {}),
+            ("%s/disabledashconfig" % base, "PUT", DisableDashConfig, {}),
         ]
 
         ApiView.register_api(module, rules, **kwargs)

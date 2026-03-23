@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     SwaggerApiView,
@@ -18,22 +18,19 @@ from beehive_service.controller import ApiAccount, ApiDivision, ApiOrganization
 class GetPortalDescRoleResponseSchema(Schema):
     generic_name = fields.String(
         required=True,
-        example="AdminAccountRole",
-        description="generic name entity role",
+        metadata={"example": "AdminAccountRole", "description": "generic name entity role"},
     )
     desc_sp = fields.String(
         required=True,
-        example="Master di Account",
-        description="generic descripion of entity role",
+        metadata={"example": "Master di Account", "description": "generic descripion of entity role"},
     )
 
 
 class GetPortalDescRoleRequestSchema(Schema):
     role_name = fields.String(
         required=False,
-        example="AdminAccountRole-9",
-        description="name entity role",
         context="query",
+        metadata={"example": "AdminAccountRole-9", "description": "name entity role"},
     )
 
 
@@ -67,11 +64,10 @@ class GetPortalDescRole(ServiceApiView):
 
 
 class ListPortalRolesParamResponseSchema(Schema):
-    name = fields.String(required=True, example="AdminAccountRole-1", description="name entity role")
+    name = fields.String(required=True, metadata={"example": "AdminAccountRole-1", "description": "name entity role"})
     desc_sp = fields.String(
         required=True,
-        example="Master di Account",
-        description="generic description of entity role",
+        metadata={"example": "Master di Account", "description": "generic description of entity role"},
     )
 
 
@@ -112,80 +108,6 @@ class ListPortalDescRole(ServiceApiView):
         if resp is not None:
             roles.update({"roles": resp})
         return roles
-
-
-class GetServiceInstantConsumeRequestSchema(Schema):
-    id = fields.Integer(required=True, description="id", context="path")
-
-
-class GetServiceInstantConsumeParamsResponseSchema(ApiObjectResponseDateSchema):
-    id = fields.Integer(required=True)
-    account_id = fields.String(required=True)
-    service_definition_id = fields.String(required=True)
-    plugin_name_type = fields.String(required=True)
-    metric_group_name = fields.String(required=True)
-    metric_instant_value = fields.Float(required=True)
-    metric_unit = fields.String(required=True)
-    metric_value = fields.Float(required=True)
-    job_id = fields.Integer(required=True)
-
-
-class GetServiceInstantConsumeResponseSchema(Schema):
-    serviceinst = fields.Nested(GetServiceInstantConsumeParamsResponseSchema, required=True, allow_none=True)
-
-
-class GetServiceInstantConsume(ServiceApiView):
-    tags = ["service"]
-    definitions = {
-        "GetServiceInstantConsumeResponseSchema": GetServiceInstantConsumeResponseSchema,
-    }
-    parameters = SwaggerHelper().get_parameters(GetServiceInstantConsumeRequestSchema)
-    responses = SwaggerApiView.setResponses(
-        {
-            200: {
-                "description": "success",
-                "schema": GetServiceInstantConsumeResponseSchema,
-            }
-        }
-    )
-
-    def get(self, controller, data, oid, *args, **kvargs):
-        pass
-
-
-class ListServiceInstantConsumeRequestSchema(PaginatedRequestQuerySchema):
-    account_id = fields.String(required=False, context="query")
-    service_instance_id = fields.String(required=False, context="query")
-    plugin_name = fields.String(required=False, context="query")
-
-
-class ListServiceInstantConsumeResponseSchema(PaginatedResponseSchema):
-    service_instant_consumes = fields.Nested(
-        GetServiceInstantConsumeParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
-
-
-class ListServiceInstantConsume(ServiceApiView):
-    tags = ["service"]
-    definitions = {
-        "ListServiceInstantConsumeResponseSchema": ListServiceInstantConsumeResponseSchema,
-    }
-    parameters = SwaggerHelper().get_parameters(ListServiceInstantConsumeRequestSchema)
-    parameters_schema = ListServiceInstantConsumeRequestSchema
-    responses = SwaggerApiView.setResponses(
-        {
-            200: {
-                "description": "success",
-                "schema": ListServiceInstantConsumeResponseSchema,
-            }
-        }
-    )
-
-    def get(self, controller, data, *args, **kvargs):
-        pass
 
 
 class ServicePortalAPI(ApiView):

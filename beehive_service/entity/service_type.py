@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
-
-import json
-from six.moves.urllib.parse import urlencode
+# (C) Copyright 2018-2026 CSI-Piemonte
+from __future__ import annotations
 from time import sleep
+from typing import List, TYPE_CHECKING, Dict, Optional
+from urllib.parse import urlencode
 from beecell.remote import NotFoundException
 from beecell.simple import str2bool, truncate, dict_get, format_date
 from beecell.types.type_id import is_name
@@ -15,12 +15,13 @@ from beehive_service.entity import ServiceApiObject
 from beehive_service.entity.service_definition import ApiServiceDefinition
 from beehive_service.entity.service_instance import (
     ApiServiceInstance,
-    ApiServiceInstanceConfig,
 )
 from beehive_service.model import SrvStatusType, ServiceInstance
 from beehive_service.service_util import __SRV_MODULE_BASE_PREFIX__
-from typing import List, Type, Tuple, Any, Union, Dict
-
+if TYPE_CHECKING:
+    from beehive_service.model import ServiceType as ModelServiceType
+    from beehive_service.controller import ApiAccount    
+    from beehive_service.entity.service_instance import ApiServiceInstanceConfig
 
 class ApiServiceType(ServiceApiObject):
     objdef = "ServiceType"
@@ -35,13 +36,15 @@ class ApiServiceType(ServiceApiObject):
     PROCESS_KEY_UPDATE = "instanceUpdate"
     PROCESS_ADD_RULE = "addRule"
 
+    model: 'ModelServiceType'
+
     def __init__(self, *args, **kvargs):
         """ """
         ServiceApiObject.__init__(self, *args, **kvargs)
-        self.status = None
-        self.objclass = None
-        self.flag_container = False
-        self.plugintype = None
+        self.status :str = None
+        self.objclass :str = None
+        self.flag_container :bool = False
+        self.plugintype :str= None
         self.template_cfg = None
 
         # use this attribute in plugin to point service instance
@@ -128,140 +131,10 @@ class ApiServiceType(ServiceApiObject):
         :rtype dict
         :raise ApiManagerWarning: raise :class:`.ApiManagerWarning`
         """
-        # metric_type_nums = [1, 2, 3, 7]
-        # metric_type = random.randint(1, 8)
-        # if metric_type in metric_type_nums:
-        #     value = (random.randint(1, 100))
-        # else:
-        #     value = (random.randint(0, 1))
-        #
-        # metrics = [{'metric_type': '%s' % metric_type,
-        #             'metric_value': '%s' % value,
-        #             'resource_type': '%s' % self.__class__.__name__}]
-
         metrics = []
         return metrics
 
-    # def validateParams(self, oid):
-    #     """Validation params pre-create instance
-    #
-    #     :return: Dictionary with object detail.
-    #     :rtype: dict
-    #     :raises ApiManagerWarning: raise :class:`.ApiManagerWarning`
-    #     """
-    #     self.logger.info('validateParams oid=%s' % oid)
-
-    # def transformParamResource(self, oid):
-    #     """Transformation params post-create instance
-    #
-    #     :return: Dictionary with normalized params.
-    #     :rtype: dict
-    #     :raises ApiManagerWarning: raise :class:`.ApiManagerWarning`
-    #     """
-    #     self.logger.info('transformParamResource oid=%s' % oid)
-
-    # def createResourceInstance(self, instance):
-    #     """ Make resource :
-    #
-    #         :return: uuid resource if it is a sync plugin, None otherwise
-    #         :return: process_id: if it is an asynchronous plugin invoque Camunda process and return id, None otherwise
-    #         :rtype: string, string
-    #         :raises ApiManagerWarning: raise :class:`.ApiManagerWarning`
-    #     """
-    #     # finta per ora
-    #     uuid = None
-    #     process_id = None
-    #     return uuid, process_id
-
-    # def base_prepare_process_variables(self, instance, template, **kvargs):
-    #     """
-    #     Agnostic prepare of process variables  only extract base info from instance
-    #     :param instance:  (ServiceInstance) the instance for which we want to launch process
-    #     :param template: (string) the jinja2 template for get the json representation of the process variables
-    #     :param kvargs:  arbitrary context
-    #     :return: dictionary containig process variables
-    #     """
-    #     # current environment
-    #     data_context = {
-    #         'instance_uuid': instance.uuid,
-    #         'resource_uuid': instance.resource_uuid,
-    #         'srvinstance_account_id': instance.account_id,
-    #         'srvinstance_status': instance.status,
-    #         'obj_instance': instance,
-    #     }
-    #
-    #     if instance.model:
-    #         data_context['srvinstance_account_id'] = instance.model.account_id
-    #         data_context['srvinstance_status'] = instance.model.status
-    #         data_context['name'] = instance.model.name
-    #         data_context['desc'] = instance.model.desc
-    #         data_context['resource_uuid'] = instance.model.resource_uuid
-    #
-    #     # merge kvarrgs into rendering context
-    #     data_context.update(kvargs)
-    #
-    #     # render template
-    #     jtmpl = Template(template)
-    #     out_rep = jtmpl.render(**data_context)
-    #
-    #     self.logger.debug('TEMPLATE CONTEXT: <<<%s>>>' % str(data_context))
-    #     self.logger.debug('TEMPLATE RENDERED: <<<%s>>>' % out_rep)
-    #
-    #     data = json.loads(out_rep)
-    #
-    #     return data
-
-    # def prepare_create_process_variables(self, instance, template, **kvargs):
-    #     """
-    #     Prepare process variables prepare process variables using template for crate resource operation
-    #     :param instance:  (ServiceInstance) the instance for which we want to launch process
-    #     :param template: (string) the jinja2 template for get the json representation of the process variables
-    #     :param kvargs:  arbitrary context
-    #     :return: dictionary
-    #     """
-    #
-    #     # current environment
-    #     data_context = {}
-    #     # ggg preparo  il contesto di rendering del template cfg + ambiente
-    #     # ggg recupero la configurazione attiva
-    #     active_cfg = instance.getActiveCFG()
-    #     cfg_data = {}
-    #
-    #     if active_cfg is not None and active_cfg.json_cfg is not None:
-    #         cfg_data = active_cfg.json_cfg
-    #
-    #     # merge cfg + environment
-    #     data_context.update(cfg_data)
-    #     data_context.update(kvargs)
-    #     return self.base_prepare_process_variables(instance, template, **data_context)
-
-    # def createResourceInstanceAsync(self, instance, process_key, template="{}"):
-    #     """ Make resource :
-    #
-    #         :return: uuid resource if it is a sync plugin, None otherwise
-    #         :return: process_id: if it is an asynchronous plugin invoque Camunda process and return id, None otherwise
-    #         :rtype: string, string
-    #         :raises ApiManagerWarning: raise :class:`.ApiManagerWarning`
-    #     """
-    #     data = self.prepare_create_process_variables(instance, template)
-    #
-    #     try:
-    #         res = self.camunda_engine.process_instance_start_processkey(process_key, variables=data)
-    #         self.logger.debug('Call Camunda call: %s' % res)
-    #         process_id = res.get('id')
-    #
-    #         upd_data = {'bpmn_process_id': process_id}
-    #
-    #         instance.update(**upd_data)
-    #
-    #         self.logger.debug('Resource ApiDummySTChild asynchronous...! %s' % process_id)
-    #     except RemoteException as ex:
-    #         self.logger.warn('Resource ApiDummySTChild asynchronous...! %s' % str(ex))
-    #         raise ApiManagerWarning(ex)
-    #
-    #     return None, process_id
-
-    def get_bpmn_process_key(self, instance, method_key):
+    def get_bpmn_process_key(self, instance: 'ApiServiceInstance', method_key):
         """
         get bpmn process info key for method.
         Returns process key and variable template.
@@ -274,7 +147,7 @@ class ApiServiceType(ServiceApiObject):
             return None, None
 
         for p in instance.model.service_definition.service_type.serviceProcesses:
-            self.logger.warn(instance.model.service_definition.service_type.serviceProcesses)
+            self.logger.warning(instance.model.service_definition.service_type.serviceProcesses)
             if p.method_key == method_key:
                 # ggg restituisco ance il template
                 return p.process_key, p.template
@@ -300,9 +173,9 @@ class ApiServiceTypePlugin(ApiServiceType):
         ApiServiceType.__init__(self, *args, **kvargs)
 
         # use this attribute in plugin to point service instance
-        self.instance: ApiServiceInstance = None
+        self.instance: Optional[ApiServiceInstance] = None
         self.active_task = None
-        self.resource = {}
+        self.resource: Dict = {}
         self.parent = None
         self.account = None
         self.definition_name = None
@@ -433,7 +306,21 @@ class ApiServiceTypePlugin(ApiServiceType):
 
         return info
 
-    def detail(self):
+    def aws_info(self) -> Dict:
+        """return information in a format ideally similar to that of aws
+        Extend this function.
+        :return: dictionary with object details
+        """
+        pass
+
+    def aws_simple_info(self) -> Dict:
+        """return information in a format ideally similar to that of aws
+        Extend this function.
+        :return: dictionary with object details
+        """
+        self.aws_info()
+
+    def detail(self) -> Dict:
         """Get object extended info
 
         :return: Dictionary with object detail.
@@ -470,6 +357,15 @@ class ApiServiceTypePlugin(ApiServiceType):
         if self.get_status() == "ACTIVE":
             return True
         return False
+
+    def update_name(self, name, error=None):
+        """Update connected service instance name
+
+        :param name: name
+        :param error: error [optional]
+        """
+        if self.instance is not None:
+            self.instance.update_name(name, error=error)
 
     def update_status(self, status, error=None):
         """Update connected service instance status
@@ -548,6 +444,7 @@ class ApiServiceTypePlugin(ApiServiceType):
                 return None
         return None
 
+            
     def set_config(self, attr_key, attr_value):
         """Set property in config
 
@@ -560,10 +457,21 @@ class ApiServiceTypePlugin(ApiServiceType):
                 self.instance.get_main_config()
             self.instance.config_object.set_json_property(attr_key, attr_value)
 
+    def unset_config(self, attr_key):
+        """Unset property in config
+
+        :param attr_key: property name
+        :type attr_key: str
+        """
+        if self.instance:
+            if not self.instance.config_object:
+                self.instance.get_main_config()
+            self.instance.config_object.unset_json_property(attr_key)
+
     #
     # pre, post function
     #
-    def pre_create(self, **params) -> dict:
+    def pre_create(self, **params) -> Dict:
         """Check input params before resource creation. Use this to format parameters for service creation
         Extend this function to manipulate and validate create input params.
 
@@ -1317,6 +1225,8 @@ class ApiServiceTypePlugin(ApiServiceType):
     # FF: ex maxtime=1200
     def wait_for_task(self, taskid, delta=2, maxtime=3600, task=None, module="resource"):
         """Wait for task
+        Warning!
+        This method must be run only by an asyncronus worker!
 
         :param taskid: task id
         :param delta: sample time
@@ -1450,8 +1360,8 @@ class ApiServiceTypePlugin(ApiServiceType):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=1)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         if taskid is not None:
             self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
@@ -1701,8 +1611,8 @@ class ApiServiceTypeContainer(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=1)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         if taskid is not None:
             self.wait_for_task(taskid, delta=4, maxtime=600, task=task)

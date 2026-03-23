@@ -1,34 +1,38 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 # DBAAS instance CRUD v2.0
 
+from __future__ import annotations
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive.common.apimanager import SwaggerApiView, ApiView, ApiManagerError
-from marshmallow.validate import OneOf, Range
-from beehive_service.controller import ServiceController
+from marshmallow.validate import OneOf, Range, Length
 from beehive_service.plugins.databaseservice.controller import (
     ApiDatabaseServiceInstance,
     ApiDatabaseService,
 )
 from beehive.common.data import operation
 from beehive_service.views import ServiceApiView
-from .check import validate_ora_db_name
+from .check import validate_ora_tbs_size, name_validator, V_LOWERCASE, V_MIXEDCASE, V_UPPERCASE, validate_pg_schema_name
+from typing import TYPE_CHECKING, TypedDict, List
+
+if TYPE_CHECKING:
+    from beehive_service.controller import ServiceController
 
 
 class InstanceTypeFeatureV2ResponseSchema(Schema):
-    vcpus = fields.String(required=False, allow_none=True, example="", description="")
-    ram = fields.String(required=False, allow_none=True, example="", description="")
-    disk = fields.String(required=False, allow_none=True, example="", description="")
+    vcpus = fields.String(required=False, allow_none=True, metadata={"description": ""})
+    ram = fields.String(required=False, allow_none=True, metadata={"description": ""})
+    disk = fields.String(required=False, allow_none=True, metadata={"description": ""})
 
 
 class InstanceTypeV2ResponseSchema(Schema):
-    id = fields.Integer(required=True, example="", description="")
-    uuid = fields.String(required=True, example="", description="")
-    name = fields.String(required=True, example="", description="")
-    resource_id = fields.String(required=False, allow_none=True, example="", description="")
-    description = fields.String(required=True, allow_none=True, example="", description="")
+    id = fields.Integer(required=True, metadata={"description": ""})
+    uuid = fields.String(required=True, metadata={"description": ""})
+    name = fields.String(required=True, metadata={"description": ""})
+    resource_id = fields.String(required=False, allow_none=True, metadata={"description": ""})
+    description = fields.String(required=True, allow_none=True, metadata={"description": ""})
     features = fields.Nested(InstanceTypeFeatureV2ResponseSchema, required=True, many=False, allow_none=False)
 
 
@@ -51,32 +55,33 @@ class DescribeDBInstanceTypesApiV2ResponseSchema(Schema):
 class DescribeDBInstanceTypesApiV2RequestSchema(Schema):
     MaxResults = fields.Integer(
         required=False,
-        default=10,
-        missing=10,
-        description="entities list page size",
+        dump_default=10,
+        load_default=10,
         context="query",
+        metadata={"description": "entities list page size"},
     )
     NextToken = fields.Integer(
         required=False,
-        default=0,
-        missing=0,
-        description="entities list page selected",
+        dump_default=0,
+        load_default=0,
         context="query",
+        metadata={"description": "entities list page selected"},
     )
     owner_id = fields.String(
-        example="d35d19b3-d6b8-4208-b690-a51da2525497",
         required=True,
         context="query",
         data_key="owner-id",
-        description="account id of the instance type owner",
+        metadata={
+            "example": "d35d19b3-d6b8-4208-b690-a51da2525497",
+            "description": "account id of the instance type owner",
+        },
     )
     InstanceType = fields.String(
-        example="d35d19b3-d6b8-4208-b690-a51da2525497",
         required=False,
         context="query",
-        missing=None,
+        load_default=None,
         data_key="InstanceType",
-        description="instance type id",
+        metadata={"example": "d35d19b3-d6b8-4208-b690-a51da2525497", "description": "instance type id"},
     )
 
 
@@ -154,33 +159,34 @@ class DescribeDBInstanceTypes(ServiceApiView):
 
 class DescribeDBInstanceEngineTypesApiV2RequestSchema(Schema):
     owner_id = fields.String(
-        example="d35d19b3-d6b8-4208-b690-a51da2525497",
         required=True,
         context="query",
         data_key="owner-id",
-        description="account id of the instance type owner",
+        metadata={
+            "example": "d35d19b3-d6b8-4208-b690-a51da2525497",
+            "description": "account id of the instance type owner",
+        },
     )
 
 
 class DescribeDBInstanceEngineTypesParamsApiV2ResponseSchema(Schema):
-    engine = fields.String(required=True, example="", description="Database Engine technology")
-    engineVersion = fields.String(required=True, example="", description="Version")
-    fullVersion = fields.String(required=True, example="", description="Full version specification")
-    definition = fields.String(required=True, example="", description="Database Engine Definition")
-    description = fields.String(required=True, example="", description="Database Engine Description")
+    engine = fields.String(required=True, metadata={"description": "Database Engine technology"})
+    engineVersion = fields.String(required=True, metadata={"description": "Version"})
+    fullVersion = fields.String(required=True, metadata={"description": "Full version specification"})
+    definition = fields.String(required=True, metadata={"description": "Database Engine Definition"})
+    description = fields.String(required=True, metadata={"description": "Database Engine Description"})
 
 
 class DescribeDBInstanceEngineTypesApi1V2ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="$xmlns")
-    requestId = fields.String(required=True, description="api request id")
+    requestId = fields.String(required=True, metadata={"description": "api request id"})
     engineTypesSet = fields.Nested(
         DescribeDBInstanceEngineTypesParamsApiV2ResponseSchema,
         many=True,
         allow_none=False,
-        example="",
-        description="",
+        metadata={"description": ""},
     )
-    engineTypesTotal = fields.Integer(required=True, example="", description="")
+    engineTypesTotal = fields.Integer(required=True, metadata={"description": ""})
 
 
 class DescribeDBInstanceEngineTypesApiV2ResponseSchema(Schema):
@@ -261,16 +267,14 @@ class StateReasonV2ResponseSchema(Schema):
     nvl_code = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="state code",
         data_key="nvl-code",
+        metadata={"description": "state code"},
     )
     nvl_message = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="state message",
         data_key="nvl-message",
+        metadata={"description": "state message"},
     )
 
 
@@ -279,7 +283,7 @@ class AVZoneV2ResponseSchema(Schema):
 
 
 class AvailabilityZoneResponseSchema(Schema):
-    AvailabilityZone = fields.Nested(AVZoneV2ResponseSchema, many=False, allow_none=False, example="", description="")
+    AvailabilityZone = fields.Nested(AVZoneV2ResponseSchema, many=False, allow_none=False, metadata={"description": ""})
 
 
 class SubnetV2ResponseSchema(Schema):
@@ -287,25 +291,22 @@ class SubnetV2ResponseSchema(Schema):
         AvailabilityZoneResponseSchema,
         many=False,
         allow_none=False,
-        example="",
-        description="",
+        metadata={"description": ""},
     )
-    SubnetIdentifier = fields.String(required=False, example="", description="ID of the subnet")
-    SubnetStatus = fields.String(required=False, example="", description="status of the subnet")
+    SubnetIdentifier = fields.String(required=False, metadata={"description": "ID of the subnet"})
+    SubnetStatus = fields.String(required=False, metadata={"description": "status of the subnet"})
 
 
 class DBParameterGroupStatus1V2ResponseSchema(Schema):
     DBParameterGroupName = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="name of the DB parameter group applied to DB instance",
+        metadata={"description": "name of the DB parameter group applied to DB instance"},
     )
     ParameterApplyStatus = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="status of the DB parameter applied to DB instance",
+        metadata={"description": "status of the DB parameter applied to DB instance"},
     )
 
 
@@ -322,15 +323,9 @@ class DBSecurityGroupMembership1V2ResponseSchema(Schema):
     DBSecurityGroupName = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="name of the DB security group",
+        metadata={"description": "name of the DB security group"},
     )
-    Status = fields.String(
-        required=False,
-        example="",
-        allow_none=True,
-        description="status of the DB security group",
-    )
+    Status = fields.String(required=False, allow_none=True, metadata={"description": "status of the DB security group"})
 
 
 class DBSecurityGroupMembershipV2ResponseSchema(Schema):
@@ -343,28 +338,24 @@ class DBSecurityGroupMembershipV2ResponseSchema(Schema):
 
 
 class DBSubnetGroupV2ResponseSchema(Schema):
-    DBSubnetGroupArn = fields.String(required=False, allow_none=True, example="", description="")
+    DBSubnetGroupArn = fields.String(required=False, allow_none=True, metadata={"description": ""})
     DBSubnetGroupDescription = fields.String(
-        required=False, example="", description="description of the DB security group"
+        required=False,
+        metadata={"description": "description of the DB security group"},
     )
-    DBSubnetGroupName = fields.String(required=False, example="", description="name of the DB security group")
-    SubnetGroupStatus = fields.String(required=False, example="", description="status of the DB security group")
+    DBSubnetGroupName = fields.String(required=False, metadata={"description": "name of the DB security group"})
+    SubnetGroupStatus = fields.String(required=False, metadata={"description": "status of the DB security group"})
     Subnets = fields.Nested(SubnetV2ResponseSchema, required=False, many=True, allow_none=False)
-    VpcId = fields.String(required=False, example="", description="VpcId of the DB subnet group")
+    VpcId = fields.String(required=False, metadata={"description": "VpcId of the DB subnet group"})
 
 
 class DomainMembership1V2ResponseSchema(Schema):
-    Domain = fields.String(
-        required=False,
-        example="",
-        description="identifier of the Active Directory Domain.",
-    )
-    FQDN = fields.String(required=False, example="", description="")
-    IAMRoleName = fields.String(required=False, example="", description="")
+    Domain = fields.String(required=False, metadata={"description": "identifier of the Active Directory Domain."})
+    FQDN = fields.String(required=False, metadata={"description": ""})
+    IAMRoleName = fields.String(required=False, metadata={"description": ""})
     Status = fields.String(
         required=False,
-        example="",
-        description="status of the DB instance Active Directory Domain membership",
+        metadata={"description": "status of the DB instance Active Directory Domain membership"},
     )
 
 
@@ -376,13 +367,13 @@ class EndpointV2ResponseSchema(Schema):
     Address = fields.String(
         required=False,
         allow_none=True,
-        description="the DNS address of the DB instance",
+        metadata={"description": "the DNS address of the DB instance"},
     )
     # HostedZoneId = fields.String(required=False, example='', description= '')
     Port = fields.Integer(
         required=False,
         allow_none=True,
-        description="the port that the database engine is listening on",
+        metadata={"description": "the port that the database engine is listening on"},
     )
 
 
@@ -390,14 +381,12 @@ class OptionGroupMembership1V2ResponseSchema(Schema):
     OptionGroupName = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="name of the option group that the instance belongs to",
+        metadata={"description": "name of the option group that the instance belongs to"},
     )
     Status = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="status of the DB instance option group membership",
+        metadata={"description": "status of the DB instance option group membership"},
     )
 
 
@@ -414,30 +403,33 @@ class DBInstanceStatusInfoV2ResponseSchema(Schema):
     Message = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="Details of the error if there is "
-        "an error for the instance. If the instance is not in an error state, this value is blank",
+        metadata={
+            "description": "Details of the error if there is "
+            "an error for the instance. If the instance is not in an error state, this value is blank"
+        },
     )
     Normal = fields.Boolean(
         required=False,
         allow_none=True,
-        example=True,
-        description="Boolean value that is true if "
-        "the instance is operating normally, or false if the instance is in an error state.",
+        metadata={
+            "example": True,
+            "description": "Boolean value that is true if "
+            "the instance is operating normally, or false if the instance is in an error state.",
+        },
     )
     Status = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="Status of the DB instance. For a "
-        "StatusType of read replica, the values can be replicating, replication stop point set, "
-        "replication stop point reached, error, stopped, or terminated.",
+        metadata={
+            "description": "Status of the DB instance. For a "
+            "StatusType of read replica, the values can be replicating, replication stop point set, "
+            "replication stop point reached, error, stopped, or terminated."
+        },
     )
     StatusType = fields.String(
         required=False,
         allow_none=True,
-        example="read replication",
-        description='This value is currently "read replication"',
+        metadata={"example": "read replication", "description": 'This value is currently "read replication"'},
     )
 
 
@@ -446,15 +438,13 @@ class VpcSecurityGroupMembership1V2ResponseSchema(Schema):
         required=False,
         allow_none=True,
         data_key="nvl-vpcSecurityGroupName",
-        example="",
-        description="name of the VPC security group",
+        metadata={"description": "name of the VPC security group"},
     )
-    VpcSecurityGroupId = fields.String(required=False, example="", description="ID of the VPC security group")
+    VpcSecurityGroupId = fields.String(required=False, metadata={"description": "ID of the VPC security group"})
     Status = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="status of the VPC security group",
+        metadata={"description": "status of the VPC security group"},
     )
 
 
@@ -471,25 +461,26 @@ class ProcessorFeaturesV2ResponseSchema(Schema):
     Name = fields.String(
         required=False,
         allow_none=True,
-        example="coreCount",
-        description="The name of the processor " "feature. Valid names are coreCount and threadsPerCore.",
+        metadata={
+            "example": "coreCount",
+            "description": "The name of the processor " "feature. Valid names are coreCount and threadsPerCore.",
+        },
     )
     Value = fields.String(
         required=False,
         allow_none=True,
-        example="2",
-        description="The value of a processor feature name",
+        metadata={"example": "2", "description": "The value of a processor feature name"},
     )
 
 
 class TagNV2ResponseSchema(Schema):
-    Key = fields.String(required=False, allow_none=False, description="tag key")
-    Value = fields.String(required=False, allow_none=False, description="tag value")
+    Key = fields.String(required=False, allow_none=False, metadata={"description": "tag key"})
+    Value = fields.String(required=False, allow_none=False, metadata={"description": "tag value"})
 
 
 class MasterUsernameResponseSchema(Schema):
-    pwd = fields.String(required=False, allow_none=True, description="master username password")
-    name = fields.String(required=False, allow_none=True, description="master username name")
+    pwd = fields.String(required=False, allow_none=True, metadata={"description": "master username password"})
+    name = fields.String(required=False, allow_none=True, metadata={"description": "master username name"})
 
 
 class TagSetV2ResponseSchema(Schema):
@@ -499,51 +490,50 @@ class TagSetV2ResponseSchema(Schema):
 class DBInstanceParameterV2ResponseSchema(Schema):
     AllocatedStorage = fields.Integer(
         Required=False,
-        default=0,
-        missing=0,
-        example="20",
-        description="amount of storage (in GB) to allocate for the DB instance",
+        dump_default=0,
+        load_default=0,
+        metadata={"example": "20", "description": "amount of storage (in GB) to allocate for the DB instance"},
     )
-    AvailabilityZone = fields.String(required=False, allow_none=True, example="", description="")
+    AvailabilityZone = fields.String(required=False, allow_none=True, metadata={"description": ""})
     # BackupRetentionPeriod = fields.Integer(required=False, allow_none=True, example='', description='')
     CharacterSetName = fields.String(
         required=False,
         allow_none=True,
-        missing="latin1",
-        description="For supported engines, "
-        "indicates that the DB instance should be  associated with the specified "
-        "CharacterSet.",
+        load_default="latin1",
+        metadata={
+            "description": "For supported engines, "
+            "indicates that the DB instance should be  associated with the specified "
+            "CharacterSet."
+        },
     )
     DBInstanceClass = fields.String(
         required=False,
-        example="db.m4.large",
-        description="The compute and memory capacity" " of the DB instance",
+        metadata={"example": "db.m4.large", "description": "The compute and memory capacity" " of the DB instance"},
     )
-    DBInstanceIdentifier = fields.String(required=False, example="", description="The DB instance identifier")
+    DBInstanceIdentifier = fields.String(required=False, metadata={"description": "The DB instance identifier"})
     DbInstancePort = fields.Integer(
         required=False,
         allow_none=True,
-        example=3306,
-        description="Specifies the port that the DB instance "
-        "listens on. If the DB instance is part of a DB cluster, this can be a different "
-        "port than the DB cluster port.",
+        metadata={
+            "example": 3306,
+            "description": "Specifies the port that the DB instance "
+            "listens on. If the DB instance is part of a DB cluster, this can be a different "
+            "port than the DB cluster port.",
+        },
     )
     DBInstanceStatus = fields.String(
         required=False,
-        example="available",
-        description="Specifies the current state of this database.",
+        metadata={"example": "available", "description": "Specifies the current state of this database."},
     )
     DbiResourceId = fields.String(
         required=False,
         allow_none=True,
-        example="1234",
-        description="The Region-unique, immutable identifier for the DB instance. ",
+        metadata={"example": "1234", "description": "The Region-unique, immutable identifier for the DB instance. "},
     )
     DBName = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="The name of the database to create when the DB " "instance is created. ",
+        metadata={"description": "The name of the database to create when the DB " "instance is created. "},
     )
     # DBParameterGroups = fields.Nested(DBParameterGroupStatusV2ResponseSchema, many=True, required=False,
     #                                   allow_none=True)
@@ -553,17 +543,16 @@ class DBInstanceParameterV2ResponseSchema(Schema):
         many=False,
         required=False,
         allow_none=False,
-        description="Specifies the connection endpoint",
+        metadata={"description": "Specifies the connection endpoint"},
     )
-    Engine = fields.String(required=False, allow_none=True, example="", description="name of the DB engine")
-    EngineVersion = fields.String(required=False, allow_none=True, example="", description="DB engine version")
-    InstanceCreateTime = fields.DateTime(required=False, example="", description="DB instance creation date")
+    Engine = fields.String(required=False, allow_none=True, metadata={"description": "name of the DB engine"})
+    EngineVersion = fields.String(required=False, allow_none=True, metadata={"description": "DB engine version"})
+    InstanceCreateTime = fields.DateTime(required=False, metadata={"description": "DB instance creation date"})
     # Iops: Specifies the Provisioned IOPS (I/O operations per second) value.
     LicenseModel = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="License model information for this DB instance.",
+        metadata={"description": "License model information for this DB instance."},
     )
     # ListenerEndpoint = fields.Nested(EndpointV2ResponseSchema, many=False, required=False, allow_none=False,
     #                                description='Specifies the listener connection endpoint for SQL Server Always On')
@@ -573,9 +562,8 @@ class DBInstanceParameterV2ResponseSchema(Schema):
     MultiAZ = fields.Boolean(
         required=False,
         allow_none=True,
-        example=True,
-        missing=False,
-        description="Specifies if the DB instance is a Multi-AZ deployment",
+        load_default=False,
+        metadata={"example": True, "description": "Specifies if the DB instance is a Multi-AZ deployment"},
     )
     # PreferredBackupWindow: Specifies the daily time range during which automated backups are created if automated
     #                        backups are enabled, as determined by the BackupRetentionPeriod.
@@ -597,32 +585,31 @@ class DBInstanceParameterV2ResponseSchema(Schema):
         many=True,
         required=False,
         allow_none=True,
-        description="The status of a read replica. If the instance is not a read replica, " "this is blank",
+        metadata={
+            "description": "The status of a read replica. If the instance is not a read replica, " "this is blank"
+        },
     )
     StorageEncrypted = fields.Boolean(
         required=False,
         allow_none=True,
-        example=False,
-        description="Specifies whether the DB instance is encrypted",
+        metadata={"example": False, "description": "Specifies whether the DB instance is encrypted"},
     )
     StorageType = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="Specifies the storage type associated with DB instance",
+        metadata={"description": "Specifies the storage type associated with DB instance"},
     )
     TagList = fields.Nested(
         TagSetV2ResponseSchema,
         many=True,
         required=False,
         allow_none=True,
-        description="A list of tags",
+        metadata={"description": "A list of tags"},
     )
     Timezone = fields.String(
         required=False,
         allow_none=True,
-        example="Europe/Rome",
-        description="The time zone of the DB instance",
+        metadata={"example": "Europe/Rome", "description": "The time zone of the DB instance"},
     )
     VpcSecurityGroups = fields.Nested(
         VpcSecurityGroupMembershipV2ResponseSchema,
@@ -640,36 +627,31 @@ class DBInstanceParameterV2ResponseSchema(Schema):
     nvl_ownerAlias = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="name of the account that owns the instance",
         data_key="nvl-ownerAlias",
+        metadata={"description": "name of the account that owns the instance"},
     )
     nvl_ownerId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="ID of the account that owns the instance",
         data_key="nvl-ownerId",
+        metadata={"description": "ID of the account that owns the instance"},
     )
     nvl_resourceId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="Resource uuid of instance",
         data_key="nvl-resourceId",
+        metadata={"description": "Resource uuid of instance"},
     )
     nvl_hypervisor = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="Hypervisor of instance",
         data_key="nvl-hypervisor",
+        metadata={"description": "Hypervisor of instance"},
     )
     monitoring_enabled = fields.Boolean(
         required=False,
         allow_none=True,
-        example=False,
-        description="Monitoring is enable on instance",
+        metadata={"example": False, "description": "Monitoring is enable on instance"},
     )
     # nvl_keyName = fields.String(required=False, example='1ffd', allow_none=True,
     #                             description='The name of the key pair')
@@ -678,24 +660,33 @@ class DBInstanceParameterV2ResponseSchema(Schema):
     SecondaryAvailabilityZone = fields.String(required=False, allow_none=True)
     PreferredMaintenanceWindow = fields.String(required=False, allow_none=True)
     # MasterUsername = fields.String(required=False, allow_none=True)
-    MasterUsername = fields.Nested(MasterUsernameResponseSchema, required=False, allow_none=True, description="")
+    MasterUsername = fields.Nested(
+        MasterUsernameResponseSchema,
+        required=False,
+        allow_none=True,
+        metadata={"description": ""},
+    )
     PreferredBackupWindow = fields.String(required=False, allow_none=True)
     ReadReplicaDBInstanceIdentifiers = fields.List(fields.String(), required=False)
 
 
 class DBResponseMetadataV2ResponseSchema(Schema):
-    RequestId = fields.String(required=False, allow_none=True, example="", description="")
+    RequestId = fields.String(required=False, allow_none=True, metadata={"description": ""})
 
 
 class CreateDBInstanceApiV2ResponseSchema(Schema):
     DBInstance = fields.Nested(DBInstanceParameterV2ResponseSchema, required=True, many=False, allow_none=False)
     ResponseMetadata = fields.Nested(DBResponseMetadataV2ResponseSchema, required=True, many=False, allow_none=False)
+    xmlns = fields.String(required=False, data_key="__xmlns")
 
 
 class CreateDBInstanceResultApiV2ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
     CreateDBInstanceResult = fields.Nested(
-        CreateDBInstanceApiV2ResponseSchema, required=True, many=False, allow_none=False
+        CreateDBInstanceApiV2ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
     )
 
 
@@ -709,83 +700,225 @@ class CreateDBInstanceV2ResponseSchema(Schema):
 
 
 class VpcSecurityGroupId_NV2RequestSchema(Schema):
-    VpcSecurityGroupId = fields.List(fields.String(), required=True, description="security group id")
+    VpcSecurityGroupId = fields.List(fields.String(), required=True, metadata={"description": "security group id"})
+
+
+class VpcSecurityGroupId_NV2RequestDict(TypedDict):
+    VpcSecurityGroupId: List[str]
 
 
 class Tag_NV2RequestSchema(Schema):
-    key = fields.String(required=False, allow_none=False, description="tag key")
-    value = fields.String(required=False, allow_none=False, description="tag value")
+    key = fields.String(required=False, allow_none=False, metadata={"description": "tag key"})
+    value = fields.String(required=False, allow_none=False, metadata={"description": "tag value"})
+
+
+class Tag_NV2RequestDict(TypedDict):
+    key: str
+    value: str
 
 
 class TagSetV2RequestSchema(Schema):
     Tag = fields.Nested(Tag_NV2RequestSchema, many=False, required=False, allow_none=False)
 
 
+TagSetV2RequestDict = TypedDict("TagSetV2RequestDict", {"Tag": Tag_NV2RequestDict})
+
+
 class NvlOracleOptionsV2RequestSchema(Schema):
     ora_dbname = fields.String(
         required=False,
-        description="Oracle database name",
         data_key="Oracle.DBName",
-        validate=validate_ora_db_name,
+        # validate=validate_ora_db_name,
+        validate=name_validator(maxlenght=8, case=V_MIXEDCASE),
+        metadata={"description": "Oracle database name"},
     )
-    ora_lsnport = fields.Integer(required=False, description="Oracle listener port", data_key="Oracle.LsnPort")
-    ora_archmode = fields.String(required=False, description="Oracle archive mode", data_key="Oracle.ArchMode")
+    ora_lsnport = fields.Integer(
+        required=False,
+        data_key="Oracle.LsnPort",
+        metadata={"description": "Oracle listener port"},
+    )
+    ora_archmode = fields.String(
+        required=False,
+        data_key="Oracle.ArchMode",
+        metadata={"description": "Oracle archive mode"},
+    )
     ora_partopt = fields.String(
         required=False,
-        description="Oracle partitioning option",
         data_key="Oracle.PartOption",
+        metadata={"description": "Oracle partitioning option"},
     )
     ora_charset = fields.String(
         required=False,
-        description="Oracle database character set",
         data_key="Oracle.CharSet",
+        metadata={"description": "Oracle database character set"},
     )
     ora_natcharset = fields.String(
         required=False,
-        description="Oracle database national character set",
         data_key="Oracle.NatCharSet",
+        metadata={"description": "Oracle database national character set"},
     )
     ora_dbfdisksize = fields.Integer(
         required=False,
-        description="Oracle database datafiles disk size",
         data_key="Oracle.DbfDiskSize",
+        metadata={"description": "Oracle database datafiles disk size"},
     )
     ora_recodisksize = fields.Integer(
         required=False,
-        description="Oracle database recovery disk size",
         data_key="Oracle.RecoDiskSize",
+        metadata={"description": "Oracle database recovery disk size"},
     )
+    ## starter pack
+    ora_user_name = fields.String(
+        required=False,
+        data_key="Oracle.UserName",
+        validate=name_validator(maxlenght=30, case=V_UPPERCASE),
+        metadata={"description": "schema and user name minimum  max length 30 "},
+    )
+    ora_user_pwd = fields.String(
+        required=False,
+        data_key="Oracle.UserPwd",
+        validate=Length(min=9, max=30),
+        metadata={"description": "user password minimum lenght 9, max length 30"},
+    )
+    ora_data_tbs_name = fields.String(
+        required=False,
+        data_key="Oracle.DataTablespaceName",
+        validate=name_validator(maxlenght=30, case=V_UPPERCASE),
+        metadata={
+            "description": "default tablespace name, minimum lenght 9, max length 30. It will be converted in upper case",
+            "example": "PIPPO_TBL",
+        },
+    )
+    ora_data_tbs_next = fields.String(
+        required=False,
+        data_key="Oracle.DataTablespaceNext",
+        validate=validate_ora_tbs_size,
+        metadata={"description": "default tablespace next extent size (Mega). eg 32M", "example": "32M"},
+    )
+    ora_data_tbs_size = fields.String(
+        required=False,
+        data_key="Oracle.DataTablespaceSize",
+        validate=validate_ora_tbs_size,
+        metadata={"description": "default tablespace initial size (Mega). eg 2048M ", "example": "2048M"},
+    )
+    ora_idx_tbs_name = fields.String(
+        required=False,
+        data_key="Oracle.IdxTablespaceName",
+        validate=name_validator(maxlenght=30, case=V_UPPERCASE),
+        metadata={
+            "description": "index tablespace name, minimum lenght 9, max length 30. It will be converted in upper case",
+            "example": "PIPPO_IDX",
+        },
+    )
+    ora_idx_tbs_next = fields.String(
+        required=False,
+        data_key="Oracle.IdxTablespaceNext",
+        validate=validate_ora_tbs_size,
+        metadata={"description": "index tablespece next extent size (Mega). eg 16M", "example": "32M"},
+    )
+    ora_idx_tbs_size = fields.String(
+        required=False,
+        data_key="Oracle.IdxTablespaceSize",
+        validate=validate_ora_tbs_size,
+        metadata={"description": "index tablespace intial size (Mega). eg 1024M", "example": "1024M"},
+    )
+    ora_lob_tbs_name = fields.String(
+        required=False,
+        data_key="Oracle.LobTablespaceName",
+        validate=name_validator(maxlenght=30, case=V_UPPERCASE),
+        metadata={
+            "description": "LOB tablespace name, minimum lenght 9, max length 30. It will be converted in upper case",
+            "example": "PIPPO_LOB",
+        },
+    )
+    ora_lob_tbs_next = fields.String(
+        required=False,
+        data_key="Oracle.LobTablespaceNext",
+        validate=validate_ora_tbs_size,
+        metadata={"description": "LOB tablespace next extente size (Mega). eg32M", "example": "32M"},
+    )
+    ora_lob_tbs_size = fields.String(
+        required=False,
+        data_key="Oracle.LobTablespaceSize",
+        validate=validate_ora_tbs_size,
+        metadata={"description": "LOB tablespace intial size (Mega). eg 2048M", "example": "2048M"},
+    )
+
+
+NvlOracleOptionsV2RequestDict = TypedDict(
+    "NvlOracleOptionsV2RequestDict",
+    {
+        "Oracle.DBName": str,
+        "Oracle.LsnPort": int,
+        "Oracle.ArchMode": str,
+        "Oracle.PartOption": str,
+        "Oracle.CharSet": str,
+        "Oracle.NatCharSet": str,
+        "Oracle.DbfDiskSize": int,
+        "Oracle.RecoDiskSize": int,
+        "Oracle.UserName": str,
+        "Oracle.UserPwd": str,
+        "Oracle.DataTablespaceName": str,
+        "Oracle.DataTablespaceNext": str,
+        "Oracle.DataTablespaceSize": str,
+        "Oracle.IdxTablespaceName": str,
+        "Oracle.IdxTablespaceNext": str,
+        "Oracle.IdxTablespaceSize": str,
+        "Oracle.LobTablespaceName": str,
+        "Oracle.LobTablespaceNext": str,
+        "Oracle.LobTablespaceSize": str,
+    },
+)
 
 
 class NvlPostgresqlOptionsV2RequestSchema(Schema):
     Postgresql_GeoExtension = fields.String(
         required=False,
-        missing=True,
+        load_default=True,
         data_key="Postgresql.GeoExtension",
-        description="if True enable installation of postgres extension postgis",
+        metadata={"description": "if True enable installation of postgres extension postgis"},
     )
-    pg_db_name = fields.String(required=False, example="mydatabase", description="Database name")
+    pg_db_name = fields.String(
+        required=False,
+        validate=name_validator(maxlenght=8),
+        metadata={"example": "mydatabase", "description": "Database name"},
+    )
     pg_encoding = fields.String(
-        default="UTF-8", missing="UTF-8", example="UTF-8", validate=OneOf(["UTF-8"]), description="Database Encoding"
+        dump_default="UTF-8",
+        load_default="UTF-8",
+        validate=OneOf(["UTF-8"]),
+        metadata={"example": "UTF-8", "description": "Database Encoding"},
     )
     pg_lc_collate = fields.String(
-        default="en_US.UTF-8",
-        missing="en_US.UTF-8",
+        dump_default="en_US.UTF-8",
+        load_default="en_US.UTF-8",
         validate=OneOf(["en_US.UTF-8"]),
-        example="en_US.UTF-8",
-        description="Database Collate",
+        metadata={"example": "en_US.UTF-8", "description": "Database Collate"},
     )
     pg_lc_ctype = fields.String(
         required=False,
-        default="en_US.UTF-8",
-        missing="en_US.UTF-8",
-        example="en_US.UTF-8",
+        dump_default="en_US.UTF-8",
+        load_default="en_US.UTF-8",
         validate=OneOf(["en_US.UTF-8"]),
-        description="Database Ctype",
+        metadata={"example": "en_US.UTF-8", "description": "Database Ctype"},
     )
-    pg_role_name = fields.String(required=False, missing=None, example="myuser", description="Role name")
-    pg_password = fields.String(required=False, missing=None, example="mypassword", description="Role password")
-    pg_schema_name = fields.String(required=False, missing=None, example="myschema", description="Schema name")
+    pg_role_name = fields.String(
+        required=False,
+        load_default=None,
+        validate=name_validator(maxlenght=20, no_startwith=["pg_"]),
+        metadata={"example": "myuser", "description": "Role name"},
+    )
+    pg_password = fields.String(
+        required=False,
+        load_default=None,
+        validate=Length(min=9, max=30),
+        metadata={"example": "mypassword", "description": "Role password"},
+    )
+    pg_schema_name = fields.String(
+        required=False,
+        load_default=None,
+        metadata={"example": "myschema", "description": "Schema name"},
+    )
     # validate=OneOf(["pg_stat_statements" "adminpack" "pg_buffercache" "pgcrypto" "orafce" "tablefunc" "uuid-ossp" "postgis"])
     # validate=OneOf(["pgcrypto", "orafce", "tablefunc", "uuid-ossp", "postgis",]),
     pg_extensions = fields.List(
@@ -793,43 +926,57 @@ class NvlPostgresqlOptionsV2RequestSchema(Schema):
             description="Postgresql extension",
             example="postgis",
         ),
-        missing=[],
-        description="Postgresql extension to activate",
+        load_default=[],
+        metadata={"description": "Postgresql extension to activate"},
     )
+
+
+NvlPostgresqlOptionsV2RequestDict = TypedDict(
+    "NvlPostgresqlOptionsV2RequestDict",
+    {
+        "Postgresql.GeoExtension": str,
+        "pg_db_name": str,
+        "pg_encoding": str,
+        "pg_lc_collate": str,
+        "pg_lc_ctype": str,
+        "pg_role_name": str,
+        "pg_password": str,
+        "pg_schema_name": str,
+        "pg_extensions": List[str],
+    },
+)
 
 
 class NvlMysqlOptionsV2RequestSchema(Schema):
     pass
 
 
+NvlMysqlOptionsV2RequestDict = TypedDict("NvlMysqlOptionsV2RequestDict", {})
+
+
 class CreateDBInstancesApiParamV2RequestSchema(Schema):
-    AccountId = fields.String(
-        required=True,
-        example="",
-        description="account id or uuid associated to compute zone",
-    )
+    AccountId = fields.String(required=True, metadata={"description": "account id or uuid associated to compute zone"})
     AllocatedStorage = fields.Integer(
         Required=False,
-        example=30,
-        missing=30,
-        description="amount of storage (in GB) to allocate for the DB instance",
+        load_default=30,
+        metadata={"example": 30, "description": "amount of storage (in GB) to allocate for the DB instance"},
     )
     # BackupRetentionPeriod
     CharacterSetName = fields.String(
         required=False,
-        example="",
-        missing="latin1",
-        description="For supported engines, "
-        "indicates that the DB instance should be associated with the specified "
-        "CharacterSet.",
+        load_default="latin1",
+        metadata={
+            "description": "For supported engines, "
+            "indicates that the DB instance should be associated with the specified "
+            "CharacterSet."
+        },
     )
     # DBClusterIdentifier: The identifier of the DB cluster that the instance will belong to.
     DBInstanceClass = fields.String(
         required=True,
-        example="db.m1.small",
-        description="service definition of the DB instance",
+        metadata={"example": "db.m1.small", "description": "service definition of the DB instance"},
     )
-    DBInstanceIdentifier = fields.String(required=True, example="", description="The DB instance identifier")
+    DBInstanceIdentifier = fields.String(required=True, metadata={"description": "The DB instance identifier"})
     # DBName = fields.String(required=False, missing='mydbname', example='',
     #                        description='The name of the database to create when the DB instance is created')
     # DBParameterGroupName: The name of the DB parameter group to associate with this DB instance. If you do not
@@ -837,16 +984,21 @@ class CreateDBInstancesApiParamV2RequestSchema(Schema):
     # DBSecurityGroups.DBSecurityGroupName.N: A list of DB security groups to associate with this DB instance.
     DBSubnetGroupName = fields.String(
         required=True,
-        example="",
-        description="a DB vpc subnet to associate with DB instance",
+        metadata={"description": "a DB vpc subnet to associate with DB instance"},
     )
     Engine = fields.String(
         required=True,
-        example="mysql",
-        description="engine of DB instance",
         validate=OneOf(["mysql", "oracle", "postgresql", "sqlserver", "mariadb"]),
+        metadata={"example": "mysql", "description": "engine of DB instance"},
     )
-    EngineVersion = fields.String(required=True, example="5.7", description="engine version of DB instance")
+    EngineVersion = fields.String(
+        required=True,
+        metadata={"example": "5.7", "description": "engine version of DB instance"},
+    )
+    KmsDomain = fields.String(
+        required=False,
+        metadata={"description": "Kms Domain when TDE option is available"},
+    )
     # Iops: The amount of Provisioned IOPS (input/output operations per second) to be initially allocated for the DB
     #       instance. For information about valid Iops values, see Amazon RDS Provisioned IOPS Storage to Improve
     #       Performance in the Amazon RDS User Guide.
@@ -858,8 +1010,7 @@ class CreateDBInstancesApiParamV2RequestSchema(Schema):
     MasterUserPassword = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="Password for the master database user",
+        metadata={"description": "Password for the master database user"},
     )
     # MaxAllocatedStorage: The upper limit to which can automatically scale the storage of the DB instance.
     # MonitoringInterval: The interval, in seconds, between points when Enhanced Monitoring metrics are collected for
@@ -867,54 +1018,53 @@ class CreateDBInstancesApiParamV2RequestSchema(Schema):
     #                     is 0.
     MultiAZ = fields.Boolean(
         required=False,
-        missing=False,
-        description="A value that indicates whether the DB instance is a Multi-AZ deployment",
+        load_default=False,
+        metadata={"description": "A value that indicates whether the DB instance is a Multi-AZ deployment"},
     )
     # OptionGroupName: Indicates that the DB instance should be associated with the specified option group.
     Port = fields.String(
         required=False,
-        example="",
-        missing=None,
-        description="The port number on which the database "
-        "accepts connections. MySql: 3306, PostgreSQL: 5432, Oracle: 1522, SQL Server: 1433",
+        load_default=None,
+        metadata={
+            "description": "The port number on which the database "
+            "accepts connections. MySql: 3306, PostgreSQL: 5432, Oracle: 1522, SQL Server: 1433"
+        },
     )
     Tags = fields.Nested(TagSetV2RequestSchema, many=True, required=False, allow_none=True)
     Nvl_KeyName = fields.String(
         required=False,
-        example="1ffd",
         allow_none=True,
-        description="The name of the key pair",
+        metadata={"example": "1ffd", "description": "The name of the key pair"},
     )
     Timezone = fields.String(
         required=False,
-        example="Europe/Rome",
-        missing="Europe/Rome",
-        description="characterSet of DB instance",
+        load_default="Europe/Rome",
+        metadata={"example": "Europe/Rome", "description": "characterSet of DB instance"},
     )
     VpcSecurityGroupIds = fields.Nested(
         VpcSecurityGroupId_NV2RequestSchema,
         many=False,
         required=False,
         allow_none=False,
-        description="a DB security groups to associate with DB " "instance",
+        metadata={"description": "a DB security groups to associate with DB " "instance"},
     )
     Nvl_Oracle_Options = fields.Nested(
         NvlOracleOptionsV2RequestSchema,
         required=False,
         allow_none=True,
-        description="Configure Oracle database options",
+        metadata={"description": "Configure Oracle database options"},
     )
     Nvl_Postgresql_Options = fields.Nested(
         NvlPostgresqlOptionsV2RequestSchema,
         required=False,
         allow_none=True,
-        description="Configure Postgresql database options",
+        metadata={"description": "Configure Postgresql database options"},
     )
     Nvl_Mysql_Options = fields.Nested(
         NvlMysqlOptionsV2RequestSchema,
         required=False,
         allow_none=True,
-        description="Configure Mysql database options",
+        metadata={"description": "Configure Mysql database options"},
     )
 
     #
@@ -934,8 +1084,39 @@ class CreateDBInstancesApiParamV2RequestSchema(Schema):
     #
 
 
+CreateDBInstancesApiParamV2RequestDict = TypedDict(
+    "CreateDBInstancesApiParamV2RequestDict",
+    {
+        'AccountId': str,
+        'AllocatedStorage': int,
+        'CharacterSetName': str,
+        'DBInstanceClass': str,
+        'DBInstanceIdentifier': str,
+        'DBSubnetGroupName': str,
+        'Engine': str,
+        'EngineVersion': str,
+        'KmsDomain' :str,
+        'MasterUserPassword': str,
+        'MultiAZ': bool,
+        'Port': str,
+        'Tags': List[TagSetV2RequestDict],
+        'Nvl_KeyName': str,
+        'Timezone': str,
+        'VpcSecurityGroupIds': VpcSecurityGroupId_NV2RequestDict,
+        'Nvl_Oracle_Options': NvlOracleOptionsV2RequestDict,
+        'Nvl_Postgresql_Options': NvlPostgresqlOptionsV2RequestDict,
+        'Nvl_Mysql_Options': NvlMysqlOptionsV2RequestDict,
+    },
+)
+
+
 class CreateDBInstancesApiV2RequestSchema(Schema):
     dbinstance = fields.Nested(CreateDBInstancesApiParamV2RequestSchema, context="body")
+    
+
+CreateDBInstancesApiV2RequestDict=TypedDict(
+    'CreateDBInstancesApiV2RequestDict',
+    {'dbinstance':CreateDBInstancesApiParamV2RequestDict})
 
 
 class CreateDBInstancesApiBodyV2RequestSchema(Schema):
@@ -957,7 +1138,7 @@ class CreateDBInstances(ServiceApiView):
     )
     response_schema = CreateDBInstanceV2ResponseSchema
 
-    def post(self, controller: ServiceController, data, *args, **kwargs):
+    def post(self, controller: ServiceController, data:CreateDBInstancesApiV2RequestDict, *args, **kwargs):
         inner_data = data.get("dbinstance")
 
         sdef_oid = inner_data.get("DBInstanceClass")
@@ -984,9 +1165,22 @@ class CreateDBInstances(ServiceApiView):
         if len(engine_defs) < 1 or len(engine_defs) > 1:
             raise ApiManagerError("Engine %s with version %s was not found" % (engine, engine_version))
 
-        # add engine config
         engine_def_config = engine_defs[0].get_main_config().params
+        
+        # check optional kms domain: if present add kms information to engine configuration
+        kms_domain = inner_data.get('KmsDomain')
+        if type(kms_domain)== str:
+            kms_domain_def_name = f'KMS-DOMAIN-{kms_domain}'
+            kms_domain_engine_defs, tot = account.get_definitions(name=kms_domain_def_name, plugintype="VirtualService")
+            if len(kms_domain_engine_defs) < 1 or len(kms_domain_engine_defs) > 1:
+                raise ApiManagerError(f"Kms Domain {kms_domain} not found in account" )
+            kms_domain_config = kms_domain_engine_defs[0].get_main_config().params
+            engine_def_config.update(kms_domain_config)
+        
+        # add engine config
         data.update({"engine": engine_def_config})
+        
+             
 
         # check service definition
         service_defs, total = account.get_definitions(
@@ -1015,7 +1209,7 @@ class CreateDBInstances(ServiceApiView):
                     "DBInstance": {
                         "DBInstanceIdentifier": inst.instance.uuid,
                         "DBInstanceStatus": inst.status,
-                        "DbiResourceId": None,
+                        # "DbiResourceId": None,
                     },
                     "ResponseMetadata": {"RequestId": operation.id},
                 },
@@ -1032,7 +1226,7 @@ class DBInstanceV2ResponseSchema(Schema):
 class DescribeDBInstanceResultV2ResponseSchema(Schema):
     DBInstances = fields.Nested(DBInstanceV2ResponseSchema, many=True, required=False, allow_none=True)
     Marker = fields.Integer(required=False, allow_none=True)
-    nvl_DBInstancesTotal = fields.Integer(required=True, default=0, data_key="nvl-DBInstancesTotal")
+    nvl_DBInstancesTotal = fields.Integer(required=True, dump_default=0, data_key="nvl-DBInstancesTotal")
 
 
 class DescribeDBInstanceResultResponse1Schema(Schema):
@@ -1062,7 +1256,7 @@ class DescribeDBInstancesV2RequestSchema(Schema):
     DBInstanceIdentifier = fields.String(
         required=False,
         context="query",
-        description="The user-supplied instance identifier.",
+        metadata={"description": "The user-supplied instance identifier."},
     )
     db_cluster_id = fields.List(
         fields.String(),
@@ -1071,7 +1265,7 @@ class DescribeDBInstancesV2RequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="db-cluster-id.N",
-        description="Accepts DB cluster identifiers and DB cluster Names",
+        metadata={"description": "Accepts DB cluster identifiers and DB cluster Names"},
     )
     db_instance_id_N = fields.List(
         fields.String(),
@@ -1080,13 +1274,11 @@ class DescribeDBInstancesV2RequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="db-instance-id.N",
-        description="Accepts DB instance identifiers and DB instance Names",
+        metadata={"description": "Accepts DB instance identifiers and DB instance Names"},
     )
-    # dbi_resource_id_N = fields.List(fields.String(example=''), required=False, allow_none=True, context='query',
-    #                                 collection_format='multi', data_key='dbi-resource-id.N',
-    #                                 description='Accepts DB instance resource identifiers')
-    MaxRecords = fields.Integer(required=False, missing=100, validation=Range(min=20, max=100), context="query")
-    Marker = fields.String(required=False, missing="0", default="0", context="query")
+
+    MaxRecords = fields.Integer(required=False, load_default=100, validation=Range(min=20, max=100), context="query")
+    Marker = fields.String(required=False, load_default="0", dump_default="0", context="query")
     Nvl_tag_key_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -1094,7 +1286,7 @@ class DescribeDBInstancesV2RequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="Nvl-tag-key.N",
-        descriptiom="value of a tag assigned to the resource",
+        metadata={"description": "value of a tag assigned to the resource"},
     )
 
 
@@ -1113,7 +1305,7 @@ class DescribeDBInstances(ServiceApiView):
     )
     response_schema = DescribeDBInstancesV2ResponseSchema
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: ServiceController, data, *args, **kwargs):
         maxRecords = data.get("MaxRecords", 100)
         marker = int(data.get("Marker", 0))
 
@@ -1174,6 +1366,128 @@ class DescribeDBInstances(ServiceApiView):
             }
         }
         return res
+    
+
+# simple begin
+
+class DescribeSimpleDBInstancesV2RequestSchema(DescribeDBInstancesV2RequestSchema):
+    pass
+
+
+class SimpleDBInstanceParameterV2ResponseSchema(DBInstanceParameterV2ResponseSchema):
+    nvl_divisionAlias = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="name of the division that owns the instance",
+        data_key="nvl-divisionAlias",
+    )
+    nvl_divisionId = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="ID of the division that owns the instance",
+        data_key="nvl-divisionId",
+    )
+
+
+class SimpleDBInstanceV2ResponseSchema(Schema):
+    DBInstance = fields.Nested(SimpleDBInstanceParameterV2ResponseSchema, many=False, required=True, allow_none=False)
+
+
+class DescribeSimpleDBInstanceResultV2ResponseSchema(Schema):
+    DBInstances = fields.Nested(SimpleDBInstanceV2ResponseSchema, many=True, required=False, allow_none=True)
+    Marker = fields.Integer(required=False, allow_none=True)
+    nvl_DBInstancesTotal = fields.Integer(required=True, dump_default=0, data_key="nvl-DBInstancesTotal")
+
+
+class DescribeSimpleDBInstanceResultResponse1Schema(Schema):
+    DescribeDBInstancesResult = fields.Nested(DescribeSimpleDBInstanceResultV2ResponseSchema, many=False, required=True)
+    ResponseMetadata = fields.Nested(DBResponseMetadataV2ResponseSchema, many=False, required=False, allow_none=True)
+    xmlns = fields.String(required=False, data_key="__xmlns")
+
+
+class DescribeSimpleDBInstancesV2ResponseSchema(Schema):
+    DescribeDBInstancesResponse = fields.Nested(
+        DescribeSimpleDBInstanceResultResponse1Schema,
+        required=True,
+        many=False,
+        allow_none=False,
+    )
+
+
+class DescribeSimpleDBInstances(ServiceApiView):
+    summary = "Describe database service"
+    description = "Describe database service"
+    tags = ["databaseservice"]
+    definitions = {
+        "DescribeSimpleDBInstancesV2RequestSchema": DescribeSimpleDBInstancesV2RequestSchema,
+        "DescribeSimpleDBInstancesV2ResponseSchema": DescribeSimpleDBInstancesV2ResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(DescribeSimpleDBInstancesV2RequestSchema)
+    parameters_schema = DescribeSimpleDBInstancesV2RequestSchema
+    responses = ServiceApiView.setResponses(
+        {200: {"description": "success", "schema": DescribeSimpleDBInstancesV2ResponseSchema}}
+    )
+    response_schema = DescribeSimpleDBInstancesV2ResponseSchema
+
+    def get(self, controller:ServiceController, data, *args, **kwargs):
+        data_search = {
+            "details": False,   # avoid customize_list
+            "simple": True,     # call customize_simple_list
+        }
+
+        maxRecords = data.get("MaxRecords", 100)
+        marker = int(data.get("Marker", 0))
+
+        # check Account
+        # accountIdList, zone_list = self.get_account_list(controller, data, ApiDatabaseService)
+
+        # check Account
+        account_id_list = data.get("owner_id_N", [])
+
+        # get instance identifier
+        instance_id_list = data.get("db_instance_id_N", [])
+
+        # get instance name
+        instance_name_list = data.get("DBInstanceIdentifier", None)
+        if instance_name_list is not None:
+            instance_name_list = [instance_name_list]
+
+        # get tags
+        tag_values = data.get("Nvl_tag_key_N", None)
+
+        # get instances list
+        res, total = controller.get_service_type_plugins(
+            service_uuid_list=instance_id_list,
+            service_name_list=instance_name_list,
+            account_id_list=account_id_list,
+            servicetags_or=tag_values,
+            plugintype=ApiDatabaseServiceInstance.plugintype,
+            page=marker,
+            size=maxRecords,
+            **data_search,
+        )
+
+        # format result
+        instances_set = [{"DBInstance": r.aws_simple_info()} for r in res]
+
+        res = {
+            "DescribeDBInstancesResponse": {
+                "__xmlns": self.xmlns,
+                "DescribeDBInstancesResult": {
+                    "Marker": marker,
+                    "DBInstances": instances_set,
+                    "nvl-DBInstancesTotal": total,
+                },
+                "ResponseMetadata": {
+                    "RequestId": operation.id,
+                },
+            }
+        }
+        return res
+    
+# simple end
 
 
 class DeleteDBInstanceV2ResponseSchema(Schema):
@@ -1183,7 +1497,10 @@ class DeleteDBInstanceV2ResponseSchema(Schema):
 class DeleteDBInstanceResultV2ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
     DeleteDBInstanceResult = fields.Nested(
-        DeleteDBInstanceV2ResponseSchema, many=False, required=False, allow_none=False
+        DeleteDBInstanceV2ResponseSchema,
+        many=False,
+        required=False,
+        allow_none=False,
     )
     ResponseMetadata = fields.Nested(DBResponseMetadataV2ResponseSchema, many=False, required=False, allow_none=True)
 
@@ -1201,22 +1518,27 @@ class DeleteDBInstancesApiV2RequestSchema(Schema):
     DBInstanceIdentifier = fields.String(
         required=True,
         context="query",
-        description="The DB instance identifier for " "the DB instance to be deleted",
+        metadata={"description": "The DB instance identifier for " "the DB instance to be deleted"},
     )
     FinalDBSnapshotIdentifier = fields.String(
         required=False,
         allow_none=True,
         context="query",
-        description="The DBSnapshotIdentifier of the new DBSnapshot created " "when SkipFinalSnapshot is set to false.",
+        metadata={
+            "description": "The DBSnapshotIdentifier of the new DBSnapshot created "
+            "when SkipFinalSnapshot is set to false."
+        },
     )
     SkipFinalSnapshot = fields.String(
         required=False,
         allow_none=True,
         context="query",
-        description="Determines whether"
-        " a final DB snapshot is created before the DB instance is deleted. If true is "
-        "specified, no DBSnapshot is created. If false is specified, a DB snapshot is "
-        "created before the DB instance is deleted.",
+        metadata={
+            "description": "Determines whether"
+            " a final DB snapshot is created before the DB instance is deleted. If true is "
+            "specified, no DBSnapshot is created. If false is specified, a DB snapshot is "
+            "created before the DB instance is deleted."
+        },
     )
 
 
@@ -1266,7 +1588,6 @@ class DeleteDBInstances(ServiceApiView):
 
 class ModifyDBInstanceApiV2Result1ResponseSchema(Schema):
     DBInstance = fields.Nested(DBInstanceParameterV2ResponseSchema, many=False, required=False, allow_none=True)
-    ResponseMetadata = fields.Nested(DBResponseMetadataV2ResponseSchema, many=False, required=False, allow_none=True)
 
 
 class ModifyDBInstanceApiV2ResultResponseSchema(Schema):
@@ -1276,6 +1597,8 @@ class ModifyDBInstanceApiV2ResultResponseSchema(Schema):
         required=False,
         allow_none=False,
     )
+    ResponseMetadata = fields.Nested(DBResponseMetadataV2ResponseSchema, required=True, many=False, allow_none=False)
+    xmlns = fields.String(required=False, data_key="__xmlns")
 
 
 class ModifyDBInstanceApiV2ResponseSchema(Schema):
@@ -1291,44 +1614,46 @@ class ModifyDBInstanceApiV2SgRequestSchema(Schema):
     VpcSecurityGroupId = fields.List(
         fields.String(),
         required=True,
-        description="security group id followed by :ADD " "to add and :DEL to remove",
+        metadata={"description": "security group id followed by :ADD " "to add and :DEL to remove"},
     )
 
 
 class ModifyDBInstanceApiV2ExtensionRequestSchema(Schema):
-    Name = fields.String(required=True, description="Extension name")
+    Name = fields.String(required=True, metadata={"description": "Extension name"})
     Type = fields.String(
         required=True,
-        description="Extension type",
         validate=OneOf(["plugin", "component"]),
+        metadata={"description": "Extension type"},
     )
 
 
 class ModifyDBInstanceApiV2RequestSchema(Schema):
-    DBInstanceIdentifier = fields.String(required=True, description="The DB instance identifier")
+    DBInstanceIdentifier = fields.String(required=True, metadata={"description": "The DB instance identifier"})
     AllocatedStorage = fields.Integer(
         required=False,
-        example=100,
-        description="The new amount of storage space, in " "gibibytes (GiB), to allocate to the DB instance",
+        metadata={
+            "example": 100,
+            "description": "The new amount of storage space, in " "gibibytes (GiB), to allocate to the DB instance",
+        },
     )
     DBInstanceClass = fields.String(
         required=False,
         allow_none=True,
-        description="The new compute and memory capacity " "of the DB instance, for example db.m4.large",
+        metadata={"description": "The new compute and memory capacity " "of the DB instance, for example db.m4.large"},
     )
     VpcSecurityGroupIds = fields.Nested(
         ModifyDBInstanceApiV2SgRequestSchema,
         many=False,
         required=False,
         allow_none=False,
-        description="Changes the security groups of the DB instance",
+        metadata={"description": "Changes the security groups of the DB instance"},
     )
     Extensions = fields.Nested(
         ModifyDBInstanceApiV2ExtensionRequestSchema,
         required=False,
         many=True,
         allow_none=True,
-        description="Extensions to install on the DB instance",
+        metadata={"description": "Extensions to install on the DB instance"},
     )
     # DBSubnetGroupName = fields.String(required=False, example='',
     #                                   description='a DB vpc subnet to associate with DB instance')
@@ -1356,20 +1681,20 @@ class ModifyDBInstance(ServiceApiView):
     )
     response_schema = ModifyDBInstanceApiV2ResponseSchema
 
-    def put(self, controller, data, *args, **kwargs):
+    def put(self, controller: "ServiceController", data, *args, **kwargs):
         # check service definition
         service_definition_id = data.get("DBInstanceClass")
-        sdi = controller.get_definition_id(service_definition_id)
         instance_id = data.pop("DBInstanceIdentifier")
-        type_plugin: ApiDatabaseServiceInstance = controller.get_service_type_plugin(instance_id)
+        type_plugin = controller.get_service_type_plugin(instance_id, plugin_class=ApiDatabaseServiceInstance)
         account = type_plugin.get_account()
         if service_definition_id is not None:
+            sdi = controller.get_definition_id(service_definition_id)
             # service_def = controller.get_service_def(service_definition_id)
             service_defs, total = account.get_definitions(
                 service_definition_id=sdi,
                 plugintype=ApiDatabaseServiceInstance.plugintype,
             )
-            self.logger.info("service_defs: %s" % service_defs)
+            self.logger.info("service_defs: %s", service_defs)
             if total < 1:
                 raise ApiManagerError("DBInstanceClass is wrong")
 
@@ -1419,7 +1744,7 @@ class StopDBInstanceApiV2RequestSchema(Schema):
     DBInstanceIdentifier = fields.String(
         required=True,
         context="query",
-        description="The DB instance identifier for " "the DB instance to stop",
+        metadata={"description": "The DB instance identifier for " "the DB instance to stop"},
     )
     # StopDBInstanceResponse = fields.String(required=False, allow_none=True, context='query',
     #                                        description='The user-supplied instance identifier of the DB Snapshot '
@@ -1491,7 +1816,7 @@ class StartDBInstanceApiV2RequestSchema(Schema):
     DBInstanceIdentifier = fields.String(
         required=True,
         context="query",
-        description="The DB instance identifier for " "the DB instance to start",
+        metadata={"description": "The DB instance identifier for " "the DB instance to start"},
     )
     # StartDBInstanceResponse = fields.String(required=False, allow_none=True, context='query',
     #                                        description='The user-supplied instance identifier of the DB Snapshot '
@@ -1563,7 +1888,7 @@ class RebootDBInstanceApiV2RequestSchema(Schema):
     DBInstanceIdentifier = fields.String(
         required=True,
         context="query",
-        description="The DB instance identifier for " "the DB instance to reboot",
+        metadata={"description": "The DB instance identifier for " "the DB instance to reboot"},
     )
 
 
@@ -1623,13 +1948,21 @@ class PromoteReadReplica(ServiceApiView):
 
 
 class DescribeDBInstanceSchemaApiV2Result2ResponseSchema(Schema):
-    db_name = fields.String(required=True, description="The database or schema name")
-    charset = fields.String(required=True, description="The database or schema charset")
-    collation = fields.String(required=True, description="The database or schema collation")
+    db_name = fields.String(required=True, metadata={"description": "The database or schema name"})
+    charset = fields.String(required=True, metadata={"description": "The database or schema charset"})
+    collation = fields.String(required=True, metadata={"description": "The database or schema collation"})
     access_privileges = fields.String(
         required=False,
         allow_none=True,
-        description="The database or schema access privileges",
+        metadata={"description": "The database or schema access privileges"},
+    )
+    size = fields.String(required=False, allow_none=True, metadata={"description": "The database size"})
+    schemas = fields.List(
+        fields.String(example=""),
+        required=False,
+        allow_none=True,
+        collection_format="multi",
+        metadata={"description": "The database schemas"},
     )
 
 
@@ -1640,7 +1973,7 @@ class DescribeDBInstanceSchemaApiV2Result1ResponseSchema(Schema):
         required=False,
         allow_none=True,
     )
-    SchemasTotal = fields.Int(required=True, description="The database or schema number")
+    SchemasTotal = fields.Int(required=True, metadata={"description": "The database or schema number"})
 
 
 class DescribeDBInstanceSchemaApiV2ResultResponseSchema(Schema):
@@ -1664,7 +1997,11 @@ class DescribeDBInstanceSchemaApiV2ResponseSchema(Schema):
 
 
 class DescribeDBInstanceSchemaApiV2RequestSchema(Schema):
-    DBInstanceIdentifier = fields.String(required=True, context="query", description="The DB instance identifier")
+    DBInstanceIdentifier = fields.String(
+        required=True,
+        context="query",
+        metadata={"description": "The DB instance identifier"},
+    )
 
 
 class DescribeDBInstanceSchemaBodyV2RequestSchema(Schema):
@@ -1713,8 +2050,8 @@ class DescribeDBInstanceSchema(ServiceApiView):
 
 
 class CreateDBInstanceSchemaApiV2Result1ResponseSchema(Schema):
-    Name = fields.String(required=True, description="The database or schema name")
-    Charset = fields.String(required=True, description="The database or schema charset")
+    Name = fields.String(required=True, metadata={"description": "The database or schema name"})
+    Charset = fields.String(required=True, allow_none=True, metadata={"description": "The database or schema charset"})
 
 
 class CreateDBInstanceSchemaApiV2ResultResponseSchema(Schema):
@@ -1738,9 +2075,9 @@ class CreateDBInstanceSchemaApiV2ResponseSchema(Schema):
 
 
 class CreateDBInstanceSchemaApiV2RequestSchema(Schema):
-    DBInstanceIdentifier = fields.String(required=True, description="The DB instance identifier")
-    Name = fields.String(required=True, description="The database or schema name")
-    Charset = fields.String(required=False, allow_none=True, description="The database or schema charset")
+    DBInstanceIdentifier = fields.String(required=True, metadata={"description": "The DB instance identifier"})
+    Name = fields.String(required=True, metadata={"description": "The database or schema name"})
+    Charset = fields.String(required=False, allow_none=True, metadata={"description": "The database or schema charset"})
 
 
 class CreateDBInstanceSchemaBodyV2RequestSchema(Schema):
@@ -1789,7 +2126,7 @@ class CreateDBInstanceSchema(ServiceApiView):
 
 
 class DeleteDBInstanceSchemaApiV2Result1ResponseSchema(Schema):
-    Name = fields.String(required=True, description="The database or schema name")
+    Name = fields.String(required=True, metadata={"description": "The database or schema name"})
 
 
 class DeleteDBInstanceSchemaApiV2ResultResponseSchema(Schema):
@@ -1813,8 +2150,8 @@ class DeleteDBInstanceSchemaApiV2ResponseSchema(Schema):
 
 
 class DeleteDBInstanceSchemaApiV2RequestSchema(Schema):
-    DBInstanceIdentifier = fields.String(required=True, description="The DB instance identifier")
-    Name = fields.String(required=True, description="The database or schema name")
+    DBInstanceIdentifier = fields.String(required=True, metadata={"description": "The DB instance identifier"})
+    Name = fields.String(required=True, metadata={"description": "The database or schema name"})
 
 
 class DeleteDBInstanceSchemaBodyV2RequestSchema(Schema):
@@ -1862,27 +2199,22 @@ class DeleteDBInstanceSchema(ServiceApiView):
 
 
 class GrantSchema(Schema):
-    db = fields.String(required=False, description="db", example="performance_schema")
-    privilege = fields.String(required=False, description="privilege", example="SELECT")
+    db = fields.String(required=False, metadata={"description": "db", "example": "performance_schema"})
+    privilege = fields.String(required=False, metadata={"description": "privilege", "example": "SELECT"})
 
 
 class DescribeDBInstanceUserApiV2Result2ResponseSchema(Schema):
-    host = fields.String(required=True, description="The user host")
-    user = fields.String(required=True, description="The user name")
+    host = fields.String(required=True, metadata={"description": "The user host"})
+    user = fields.String(required=True, metadata={"description": "The user name"})
     grants = fields.Nested(GrantSchema, many=True, required=False, allow_none=True)
-    max_connections = fields.String(required=False, description="max connections")
-    plugin = fields.String(required=False, description="plugin")
-    account_locked = fields.String(required=False, description="account_locked")
+    max_connections = fields.String(required=False, metadata={"description": "max connections"})
+    plugin = fields.String(required=False, metadata={"description": "plugin"})
+    account_locked = fields.String(required=False, metadata={"description": "account_locked"})
 
 
 class DescribeDBInstanceUserApiV2Result1ResponseSchema(Schema):
-    Users = fields.Nested(
-        DescribeDBInstanceUserApiV2Result2ResponseSchema,
-        many=True,
-        required=False,
-        allow_none=True,
-    )
-    UserTotal = fields.Int(required=True, description="The user number")
+    Users = fields.Nested(DescribeDBInstanceUserApiV2Result2ResponseSchema, many=True, required=False, allow_none=True)
+    UserTotal = fields.Int(required=True, metadata={"description": "The user number"})
 
 
 class DescribeDBInstanceUserApiV2ResultResponseSchema(Schema):
@@ -1906,7 +2238,11 @@ class DescribeDBInstanceUserApiV2ResponseSchema(Schema):
 
 
 class DescribeDBInstanceUserApiV2RequestSchema(Schema):
-    DBInstanceIdentifier = fields.String(required=True, context="query", description="The DB instance identifier")
+    DBInstanceIdentifier = fields.String(
+        required=True,
+        context="query",
+        metadata={"description": "The DB instance identifier"},
+    )
 
 
 class DescribeDBInstanceUserBodyV2RequestSchema(Schema):
@@ -1952,7 +2288,7 @@ class DescribeDBInstanceUser(ServiceApiView):
 
 
 class CreateDBInstanceUserApiV2Result1ResponseSchema(Schema):
-    Name = fields.String(required=True, description="The user name")
+    Name = fields.String(required=True, metadata={"description": "The user name"})
 
 
 class CreateDBInstanceUserApiV2ResultResponseSchema(Schema):
@@ -1976,9 +2312,9 @@ class CreateDBInstanceUserApiV2ResponseSchema(Schema):
 
 
 class CreateDBInstanceUserApiV2RequestSchema(Schema):
-    DBInstanceIdentifier = fields.String(required=True, description="The DB instance identifier")
-    Name = fields.String(required=True, description="The user name")
-    Password = fields.String(required=True, description="The user password")
+    DBInstanceIdentifier = fields.String(required=True, metadata={"description": "The DB instance identifier"})
+    Name = fields.String(required=True, metadata={"description": "The user name"})
+    Password = fields.String(required=True, metadata={"description": "The user password"})
 
 
 class CreateDBInstanceUserBodyV2RequestSchema(Schema):
@@ -2027,8 +2363,8 @@ class CreateDBInstanceUser(ServiceApiView):
 
 
 class DeleteDBInstanceUserApiV2Result1ResponseSchema(Schema):
-    Name = fields.String(required=True, description="The user name")
-    Force = fields.Boolean(required=False, description="Force delete")
+    Name = fields.String(required=True, metadata={"description": "The user name"})
+    Force = fields.Boolean(required=False, metadata={"description": "Force delete"})
 
 
 class DeleteDBInstanceUserApiV2ResultResponseSchema(Schema):
@@ -2052,9 +2388,14 @@ class DeleteDBInstanceUserApiV2ResponseSchema(Schema):
 
 
 class DeleteDBInstanceUserApiV2RequestSchema(Schema):
-    DBInstanceIdentifier = fields.String(required=True, description="The DB instance identifier")
-    Name = fields.String(required=True, description="The user name")
-    Force = fields.Boolean(required=False, default=False, missing=False, description="Force deletion flag")
+    DBInstanceIdentifier = fields.String(required=True, metadata={"description": "The DB instance identifier"})
+    Name = fields.String(required=True, metadata={"description": "The user name"})
+    Force = fields.Boolean(
+        required=False,
+        dump_default=False,
+        load_default=False,
+        metadata={"description": "Force deletion flag"},
+    )
 
 
 class DeleteDBInstanceUserBodyV2RequestSchema(Schema):
@@ -2103,7 +2444,7 @@ class DeleteDBInstanceUser(ServiceApiView):
 
 
 class ChangeDBInstanceUserPasswordApiV2Result1ResponseSchema(Schema):
-    Name = fields.String(required=True, description="The user name")
+    Name = fields.String(required=True, metadata={"description": "The user name"})
 
 
 class ChangeDBInstanceUserPasswordApiV2ResultResponseSchema(Schema):
@@ -2127,9 +2468,9 @@ class ChangeDBInstanceUserPasswordApiV2ResponseSchema(Schema):
 
 
 class ChangeDBInstanceUserPasswordApiV2RequestSchema(Schema):
-    DBInstanceIdentifier = fields.String(required=True, description="The DB instance identifier")
-    Name = fields.String(required=True, description="The user name")
-    Password = fields.String(required=True, description="The user password")
+    DBInstanceIdentifier = fields.String(required=True, metadata={"description": "The DB instance identifier"})
+    Name = fields.String(required=True, metadata={"description": "The user name"})
+    Password = fields.String(required=True, metadata={"description": "The user password"})
 
 
 class ChangeDBInstanceUserPasswordBodyV2RequestSchema(Schema):
@@ -2178,12 +2519,11 @@ class ChangeDBInstanceUserPassword(ServiceApiView):
 
 
 class GrantDBInstanceUserPrivilegesApiV2Result1ResponseSchema(Schema):
-    DbName = fields.String(required=True, exmaple="testdb", description="The db name")
-    UserName = fields.String(required=True, example="testuser", description="The user name")
+    DbName = fields.String(required=True, exmaple="testdb", metadata={"description": "The db name"})
+    UserName = fields.String(required=True, metadata={"example": "testuser", "description": "The user name"})
     Privileges = fields.String(
         required=False,
-        example="ALL",
-        description="The privileges string like SELECT,INSERT," "DELETE,UPDATE or ALL",
+        metadata={"example": "ALL", "description": "The privileges string like SELECT,INSERT," "DELETE,UPDATE or ALL"},
     )
 
 
@@ -2208,21 +2548,25 @@ class GrantDBInstanceUserPrivilegesApiV2ResponseSchema(Schema):
 
 
 class GrantDBInstanceUserPrivilegesApiV2RequestSchema(Schema):
-    DBInstanceIdentifier = fields.String(required=True, description="The DB instance identifier")
+    DBInstanceIdentifier = fields.String(required=True, metadata={"description": "The DB instance identifier"})
     DbName = fields.String(
         required=True,
         exmaple="testdb",
-        description="database name. For postgres use db1 to select "
-        "a database db1 and db1.schema1 to select schema schema1 in database db1",
+        metadata={
+            "description": "database name. For postgres use db1 to select "
+            "a database db1 and db1.schema1 to select schema schema1 in database db1"
+        },
     )
-    UserName = fields.String(required=True, example="testuser", description="The user name")
+    UserName = fields.String(required=True, metadata={"example": "testuser", "description": "The user name"})
     Privileges = fields.String(
         required=False,
-        example="ALL",
-        missing="ALL",
-        description="Mysql privileges: string like SELECT,INSERT,DELETE,UPDATE or ALL"
-        "Postgresql privileges: for database - CONNECT, "
-        "                       for schema - CREATE,USAGE,ALL",
+        load_default="ALL",
+        metadata={
+            "example": "ALL",
+            "description": "Mysql privileges: string like SELECT,INSERT,DELETE,UPDATE or ALL"
+            "Postgresql privileges: for database - CONNECT, "
+            "                       for schema - CREATE,USAGE,ALL",
+        },
     )
 
 
@@ -2278,12 +2622,11 @@ class GrantDBInstanceUserPrivileges(ServiceApiView):
 
 
 class RevokeDBInstanceUserPrivilegesApiV2Result1ResponseSchema(Schema):
-    DbName = fields.String(required=True, exmaple="testdb", description="The db name")
-    UserName = fields.String(required=True, example="testuser", description="The user name")
+    DbName = fields.String(required=True, exmaple="testdb", metadata={"description": "The db name"})
+    UserName = fields.String(required=True, metadata={"example": "testuser", "description": "The user name"})
     Privileges = fields.String(
         required=False,
-        example="ALL",
-        description="The privileges string like SELECT,INSERT," "DELETE,UPDATE or ALL",
+        metadata={"example": "ALL", "description": "The privileges string like SELECT,INSERT," "DELETE,UPDATE or ALL"},
     )
 
 
@@ -2308,14 +2651,13 @@ class RevokeDBInstanceUserPrivilegesApiV2ResponseSchema(Schema):
 
 
 class RevokeDBInstanceUserPrivilegesApiV2RequestSchema(Schema):
-    DBInstanceIdentifier = fields.String(required=True, description="The DB instance identifier")
-    DbName = fields.String(required=True, exmaple="testdb", description="The db name")
-    UserName = fields.String(required=True, example="testuser", description="The user name")
+    DBInstanceIdentifier = fields.String(required=True, metadata={"description": "The DB instance identifier"})
+    DbName = fields.String(required=True, exmaple="testdb", metadata={"description": "The db name"})
+    UserName = fields.String(required=True, metadata={"example": "testuser", "description": "The user name"})
     Privileges = fields.String(
         required=False,
-        example="ALL",
-        missing="ALL",
-        description="The privileges string like SELECT,INSERT,DELETE,UPDATE or ALL",
+        load_default="ALL",
+        metadata={"example": "ALL", "description": "The privileges string like SELECT,INSERT,DELETE,UPDATE or ALL"},
     )
 
 
@@ -2374,13 +2716,10 @@ class DBInstanceStateResponseSchema(Schema):
     code = fields.Integer(
         required=False,
         allow_none=True,
-        example="0",
-        description="code of DB instance state",
+        metadata={"example": "0", "description": "code of DB instance state"},
     )
     name = fields.String(
         required=False,
-        example="pending | running | ....",
-        description="name of DB instance state",
         validate=OneOf(
             [
                 "pending",
@@ -2393,37 +2732,41 @@ class DBInstanceStateResponseSchema(Schema):
                 "unknown",
             ]
         ),
+        metadata={"example": "pending | running | ....", "description": "name of DB instance state"},
     )
 
 
 class StateDBInstancesApi2ResponseSchema(Schema):
     currentState = fields.Nested(DBInstanceStateResponseSchema, many=False, required=False)
-    instanceId = fields.String(required=False, example="", description="DB instance ID")
+    instanceId = fields.String(required=False, metadata={"description": "DB instance ID"})
     previousState = fields.Nested(DBInstanceStateResponseSchema, many=False, required=False)
 
 
 class StateDBInstancesApi1ResponseSchema(Schema):
-    requestId = fields.String(required=True, example="", allow_none=True)
+    requestId = fields.String(required=True, allow_none=True)
     instancesSet = fields.Nested(StateDBInstancesApi2ResponseSchema, required=True, many=True, allow_none=True)
 
 
 class MonitorDBInstancesApi3ResponseSchema(Schema):
-    state = fields.String(required=True, example="pending", description="monitoring state")
+    state = fields.String(required=True, metadata={"example": "pending", "description": "monitoring state"})
 
 
 class MonitorDBInstancesApi2ResponseSchema(Schema):
-    instanceId = fields.String(required=True, example="", description="DB instance ID")
+    instanceId = fields.String(required=True, metadata={"description": "DB instance ID"})
     monitoring = fields.Nested(MonitorDBInstancesApi3ResponseSchema, required=True, allow_none=True)
 
 
 class MonitorDBInstancesApi1ResponseSchema(Schema):
-    requestId = fields.String(required=True, default="", allow_none=True)
+    requestId = fields.String(required=True, dump_default="", allow_none=True)
     instancesSet = fields.Nested(MonitorDBInstancesApi2ResponseSchema, required=True, allow_none=True)
 
 
 class MonitorDBInstancesApiResponseSchema(Schema):
     MonitorDBInstancesResponse = fields.Nested(
-        StateDBInstancesApi1ResponseSchema, required=True, many=False, allow_none=False
+        StateDBInstancesApi1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
     )
 
 
@@ -2434,7 +2777,7 @@ class MonitorDBInstancesApiRequestSchema(Schema):
         allow_none=False,
         collection_format="multi",
         data_key="owner-id.N",
-        description="account ID of the DB instance owner",
+        metadata={"description": "account ID of the DB instance owner"},
     )
     DBInstanceIdentifier = fields.List(
         fields.String(example=""),
@@ -2442,15 +2785,15 @@ class MonitorDBInstancesApiRequestSchema(Schema):
         allow_none=True,
         collection_format="multi",
         data_key="DBInstanceId.N",
-        description="DB instance id",
+        metadata={"description": "DB instance id"},
     )
     Nvl_Templates = fields.List(
         fields.String(example=""),
         required=False,
         many=False,
         allow_none=True,
-        missing=None,
-        description="List of monitoring template",
+        load_default=None,
+        metadata={"description": "List of monitoring template"},
     )
 
 
@@ -2503,7 +2846,7 @@ class UnmonitorDBInstancesApiRequestSchema(Schema):
         allow_none=False,
         collection_format="multi",
         data_key="owner-id.N",
-        description="account ID of the DB instance owner",
+        metadata={"description": "account ID of the DB instance owner"},
     )
     DBInstanceIdentifier = fields.List(
         fields.String(example=""),
@@ -2511,7 +2854,7 @@ class UnmonitorDBInstancesApiRequestSchema(Schema):
         allow_none=True,
         collection_format="multi",
         data_key="DBInstanceId.N",
-        description="DB instance id",
+        metadata={"description": "DB instance id"},
     )
 
 
@@ -2558,27 +2901,25 @@ class UnmonitorDBInstances(ServiceApiView):
 
 
 class ForwardLogDBInstancesApi3ResponseSchema(Schema):
-    state = fields.String(required=True, example="pending", description="logging state")
+    state = fields.String(required=True, metadata={"example": "pending", "description": "logging state"})
 
 
 class ForwardLogDBInstancesApi2ResponseSchema(Schema):
-    instanceId = fields.String(required=True, example="", description="instance ID")
+    instanceId = fields.String(required=True, metadata={"description": "instance ID"})
     logging = fields.Nested(ForwardLogDBInstancesApi3ResponseSchema, required=True, allow_none=True)
 
 
 class ForwardLogDBInstancesApi1ResponseSchema(Schema):
-    requestId = fields.String(required=True, default="", allow_none=True)
-    instancesSet = fields.Nested(
-        ForwardLogDBInstancesApi2ResponseSchema,
-        required=True,
-        many=True,
-        allow_none=True,
-    )
+    requestId = fields.String(required=True, dump_default="", allow_none=True)
+    instancesSet = fields.Nested(ForwardLogDBInstancesApi2ResponseSchema, required=True, many=True, allow_none=True)
 
 
 class ForwardLogDBInstancesApiResponseSchema(Schema):
     ForwardLogDBInstancesResponse = fields.Nested(
-        StateDBInstancesApi1ResponseSchema, required=True, many=False, allow_none=False
+        StateDBInstancesApi1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
     )
 
 
@@ -2589,7 +2930,7 @@ class ForwardLogDBInstancesApiRequestSchema(Schema):
         allow_none=False,
         collection_format="multi",
         data_key="owner-id.N",
-        description="account ID of the DB instance owner",
+        metadata={"description": "account ID of the DB instance owner"},
     )
     DBInstanceIdentifier = fields.List(
         fields.String(example=""),
@@ -2597,21 +2938,21 @@ class ForwardLogDBInstancesApiRequestSchema(Schema):
         allow_none=True,
         collection_format="multi",
         data_key="DBInstanceId.N",
-        description="DB instance id",
+        metadata={"description": "DB instance id"},
     )
     Files = fields.List(
         fields.String(example=""),
         required=False,
         many=False,
         allow_none=True,
-        missing=None,
-        description="List of files to forward",
+        load_default=None,
+        metadata={"description": "List of files to forward"},
     )
     Pipeline = fields.String(
         required=False,
         allow_none=True,
-        missing=None,
-        description="Log collector pipeline port",
+        load_default=None,
+        metadata={"description": "Log collector pipeline port"},
     )
 
 
@@ -2664,6 +3005,7 @@ class DatabaseInstanceV2API(ApiView):
     def register_api(module, dummyrules=None, **kwargs):
         base = module.base_path + "/databaseservices/instance"
         rules = [
+            ("%s/describesimpledbinstances" % base, "GET", DescribeSimpleDBInstances, {}),
             ("%s/describedbinstances" % base, "GET", DescribeDBInstances, {}),
             ("%s/createdbinstance" % base, "POST", CreateDBInstances, {}),
             ("%s/modifydbinstance" % base, "PUT", ModifyDBInstance, {}),

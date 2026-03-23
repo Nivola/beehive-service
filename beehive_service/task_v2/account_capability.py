@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
 from time import sleep
@@ -13,7 +13,7 @@ from beehive_service.controller import (
 from beehive_service.model import Account
 from beehive_service.model import SrvStatusType
 from beehive.common.task_v2 import TaskError, task_step, run_sync_task
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from typing import List, Type, Tuple, Any, Union, Dict
 from .servicetask import ServiceTask
 
@@ -337,6 +337,7 @@ class AccountCapabilityTask(ServiceTask):
                 "NetworkService",
                 "LoggingService",
                 "MonitoringService",
+                "ContainerService",
             ]:
                 service_def = self.__check_template(service_type, service_template)
                 plugin = self.__create_core_service(account, service_name, service_def)
@@ -438,7 +439,7 @@ class AddAccountCapabilityTask(AccountCapabilityTask):
 
     @staticmethod
     @task_step()
-    def step_add_capability(task, step_id: str, params: dict, capability_id: str, *args, **kvargs):
+    def step_add_capability(task: 'AddAccountCapabilityTask', step_id: str, params: dict, capability_id: str, *args, **kvargs):
         """Step update account capability
 
         :param task: parent celery task
@@ -462,7 +463,7 @@ class UpdateAccountCapabilityTask(AccountCapabilityTask):
 
     @staticmethod
     @task_step()
-    def step_update_capability(task, step_id: str, params: dict, capability_id: str, *args, **kvargs):
+    def step_update_capability(task:'UpdateAccountCapabilityTask', step_id: str, params: dict, capability_id: str, *args, **kvargs):
         """Step update account capability
 
         :param task: parent celery task
@@ -474,6 +475,6 @@ class UpdateAccountCapabilityTask(AccountCapabilityTask):
         task.add_or_update_capability(params, capability_id)
         return True, params
 
-
-task_manager.tasks.register(AddAccountCapabilityTask())
-task_manager.tasks.register(UpdateAccountCapabilityTask())
+task_manager = get_task_manager()
+task_manager.register_task(AddAccountCapabilityTask())
+task_manager.register_task(UpdateAccountCapabilityTask())

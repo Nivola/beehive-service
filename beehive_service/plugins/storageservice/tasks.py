@@ -1,18 +1,22 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 # TODO Deorecated
 # TODO delete this file
+from typing import TYPE_CHECKING
 from beehive.common.task.job import job_task
-from beehive.common.task.manager import task_manager
+from beehive.common.task.manager import get_task_manager
 from beehive_service.model.base import SrvStatusType
 from beehive_service.task.servicetypeplugin import ServiceTypePluginJobTask
+if TYPE_CHECKING:
+    from beehive_service.plugins.storageservice import StorageServicePlugin
 
+task_manager = get_task_manager()
 
 @task_manager.task(bind=True, base=ServiceTypePluginJobTask)
 @job_task()
-def create_mount_target_task(self, options):
+def create_mount_target_task(self: 'ServiceTypePluginJobTask', options):
     """Send action to physical server.
 
     :param tupla options: Task config params. (class_name, objid, job, job id, start time, time before new query, user)
@@ -32,12 +36,11 @@ def create_mount_target_task(self, options):
 
     # validate input params
     instance_id = params.pop("id")
-    network = params.get("network")
     self.update("PROGRESS", msg="Get configuration params")
 
     # run action over orchestrator entity
     self.get_session()
-    plugin = self.get_type_plugin(instance_id)
+    plugin: 'StorageServicePlugin' = self.get_type_plugin(instance_id)
     self.update("PROGRESS", msg="Get plugin %s" % plugin)
 
     # create share
@@ -55,7 +58,7 @@ def create_mount_target_task(self, options):
 
 @task_manager.task(bind=True, base=ServiceTypePluginJobTask)
 @job_task()
-def delete_mount_target_task(self, options):
+def delete_mount_target_task(self: 'ServiceTypePluginJobTask', options):
     """Send action to physical server.
 
     :param tupla options: Task config params. (class_name, objid, job, job id, start time, time before new query, user)
@@ -71,7 +74,6 @@ def delete_mount_target_task(self, options):
     """
     self.set_operation()
     params = self.get_shared_data()
-    data = params.get("data")
 
     # validate input params
     instance_id = params.pop("id")
@@ -98,7 +100,7 @@ def delete_mount_target_task(self, options):
 
 @task_manager.task(bind=True, base=ServiceTypePluginJobTask)
 @job_task()
-def mount_grant_operation_task(self, options):
+def mount_grant_operation_task(self: 'ServiceTypePluginJobTask', options):
     """Send action to physical server.
 
     :param tupla options: Task config params. (class_name, objid, job, job id, start time, time before new query, user)
@@ -141,7 +143,7 @@ def mount_grant_operation_task(self, options):
 
 @task_manager.task(bind=True, base=ServiceTypePluginJobTask)
 @job_task()
-def update_efs_resource(self, options):
+def update_efs_resource(self: 'ServiceTypePluginJobTask', options):
     """Update share .
 
     :param tupla options: Task config params. (class_name, objid, job, job id, start time, time before new query, user)

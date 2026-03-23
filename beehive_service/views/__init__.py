@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from typing import List, Tuple, Any, TYPE_CHECKING
 from beehive.common.apimanager import (
     SwaggerApiView,
     ApiObjectResponseSchema,
@@ -10,16 +11,13 @@ from beehive.common.apimanager import (
 )
 from flasgger import fields, Schema
 from marshmallow.validate import Regexp
-from beehive.common.data import transaction, operation
-from beecell.simple import truncate
-from beehive.common.assert_util import AssertUtil
-from beehive_service.entity.service_instance import ApiServiceInstance
-from beehive_service.controller import ServiceController, ApiAccount
+from beehive.common.data import operation
 from marshmallow.decorators import validates_schema
 from marshmallow.exceptions import ValidationError
-from six import text_type, binary_type
-from typing import List, Type, Tuple, Any, Union, Dict
 
+if TYPE_CHECKING:
+    from beehive_service.controller import ServiceController
+    from beehive_service.controller import ApiAccount
 
 class ServiceApiView(SwaggerApiView):
     authorizable = True
@@ -45,14 +43,14 @@ class ServiceApiView(SwaggerApiView):
         self.logger.debug("Service Aws response: %s" % res)
         return res
 
-    def service_exist(self, controller: ServiceController, name: str, plugintype: str):
+    def service_exist(self, controller: 'ServiceController', name: str, plugintype: str):
         exist = controller.exist_service_instance(name, plugintype)
         if exist is True:
             raise ApiManagerWarning("%s %s already exists" % (plugintype, name))
 
     def check_parent_service(
-        self, controller: ServiceController, account_id: int, plugintype: str = None, action: str = "update"
-    ) -> Tuple[ApiAccount, Any]:
+        self, controller: 'ServiceController', account_id: int, plugintype: str = None, action: str = "update"
+    ) -> Tuple['ApiAccount', Any]:
         """Get parent service
 
         Args:
@@ -76,12 +74,12 @@ class ServiceApiView(SwaggerApiView):
 
         return None, None
 
-    def get_account_list(self, controller, data, service_class):
+    def get_account_list(self, controller: 'ServiceController', data, service_class) -> Tuple[List['ApiAccount'],List[str]]:
         """
         :param controller: service controller
         :param data: request data
         :param service_class: service implementation class
-        :return:
+        :return: list of account ids and resource uuids associated to service_class (~ compute zone uuids)
         """
         account_ids = data.get("owner_id_N", [])
         account_ids.extend(data.get("requester_id_N", []))
@@ -102,34 +100,34 @@ class ServiceApiView(SwaggerApiView):
                     if services[0].resource_uuid is not None:
                         zone_list.append(services[0].resource_uuid)
                 else:
-                    self.logger.warn("account %s does not have associated compute service" % account_id)
+                    self.logger.warning("account %s does not have associated compute service" % account_id)
             except ApiManagerError as ex:
                 if ex.code != 403:
                     raise
         self.logger.debug("Get accounts and zones by filter: %s %s" % (account_id_list, zone_list))
         return account_id_list, zone_list
 
-    def get_organization_idx(self, controller: ServiceController, *args, **kvargs):
+    def get_organization_idx(self, controller: 'ServiceController', *args, **kvargs):
         """Get organizations indexed by id"""
         return controller.get_organization_idx(*args, **kvargs)
 
-    def get_division_idx(self, controller: ServiceController, *args, **kvargs):
+    def get_division_idx(self, controller: 'ServiceController', *args, **kvargs):
         """Get divisions indexed by id"""
         return controller.get_division_idx(*args, **kvargs)
 
-    def get_account_idx(self, controller: ServiceController, *args, **kvargs):
+    def get_account_idx(self, controller: 'ServiceController', *args, **kvargs):
         """Get accounts indexed by id"""
         return controller.get_account_idx(*args, **kvargs)
 
-    def get_service_definition_idx(self, controller: ServiceController, plugintype: str):
+    def get_service_definition_idx(self, controller: 'ServiceController', plugintype: str):
         """Get service instance indexed by id and uuid"""
         return controller.get_service_definition_idx(plugintype)
 
-    def get_service_instance_idx(self, controller, plugintype):
+    def get_service_instance_idx(self, controller: 'ServiceController', plugintype):
         """Get service instance indexed by id and uuid"""
         return controller.get_service_instance_idx(plugintype)
 
-    def get_tag_instance_idx(self, controller, *args, **kvargs):
+    def get_tag_instance_idx(self, controller: 'ServiceController', *args, **kvargs):
         """Get service instance filter by a specific tag. Results are indexed by id and uuid"""
         data, tot = controller.get_tags(filter_expired=False, authorize=False, *args, **kvargs)
         res = {}
@@ -140,14 +138,14 @@ class ServiceApiView(SwaggerApiView):
         self.logger.debug("Index tag instance : %s" % res)
         return res
 
-    def delete_service_instance(self, controller, srv_inst, data, recursive_delete=True, batch=True):
+    def delete_service_instance(self, controller: 'ServiceController', srv_inst, data, recursive_delete=True, batch=True):
         controller.delete_service_instance(srv_inst, data, recursive_delete=recursive_delete, batch=batch)
         resp = {"uuid": srv_inst.uuid}
         return resp, 204
 
 
 class ApiObjectRequestFiltersSchema(Schema):
-    filter_expired = fields.Boolean(required=False, context="query", missing=False)
+    filter_expired = fields.Boolean(required=False, context="query", load_default=False)
     filter_creation_date_start = fields.DateTime(required=False, context="query")
     filter_creation_date_stop = fields.DateTime(required=False, context="query")
     filter_modification_date_start = fields.DateTime(required=False, context="query")
@@ -190,7 +188,7 @@ class ServiceRegexp(Regexp):
 
     def __call__(self, value):
         ch_value = None
-        if isinstance(value, (text_type, binary_type)):
+        if isinstance(value, (str, bytes)):
             ch_value = value
         else:
             ch_value = "%s" % value

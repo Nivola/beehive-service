@@ -12,7 +12,7 @@ select min (period)  from aggregate_cost_store ac ;
 /*
 SPDX-License-Identifier: EUPL-1.2
 
-(C) Copyright 2018-2024 CSI-Piemonte
+(C) Copyright 2018-2026 CSI-Piemonte
 
 */
 

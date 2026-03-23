@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from .servicetask import ServiceTask
 from beehive_service.controller import ServiceController, ApiAccount
@@ -10,7 +10,7 @@ from beehive.common.task.job import task_local
 from beehive_service.controller import ApiServiceType
 from beehive_service.entity.service_instance import ApiServiceInstance
 from beehive.common.task_v2 import task_step
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from datetime import datetime, timedelta, date
 from beecell.simple import id_gen
 from beehive_service.model import ServiceMetric, SrvStatusType, ServiceMetricType
@@ -66,5 +66,4 @@ class AcquisitionMonitorTask(ServiceTask):
             pass
         return True, params
 
-
-task_manager.tasks.register(AcquisitionMonitorTask())
+get_task_manager().register_task(AcquisitionMonitorTask())

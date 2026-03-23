@@ -1,12 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from flasgger import fields, Schema
-from beehive.common.data import operation
-from beehive_service.model.base import SrvStatusType
-from beehive_service.plugins.computeservice import ApiComputeService
-from beehive_service.views import ServiceApiView
+from typing import TYPE_CHECKING, Dict
 from beecell.swagger import SwaggerHelper
 from beehive.common.apimanager import (
     SwaggerApiView,
@@ -15,7 +12,13 @@ from beehive.common.apimanager import (
     ApiView,
     CrudApiObjectTaskResponseSchema,
 )
-from beehive_service.controller import ApiServiceType, ServiceController
+from beehive.common.data import operation
+from beehive_service.model.base import SrvStatusType
+from beehive_service.plugins.computeservice import ApiComputeService
+from beehive_service.views import ServiceApiView
+from beehive_service.controller import ApiServiceType
+if TYPE_CHECKING:
+    from beehive_service.controller import ServiceController
 
 
 class DescribeComputeServiceRequestSchema(Schema):
@@ -24,31 +27,21 @@ class DescribeComputeServiceRequestSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
 
 
 class StateReasonResponseSchema(Schema):
-    code = fields.String(
-        required=False,
-        allow_none=True,
-        example="",
-        description="reason code for the state change",
-    )
-    message = fields.String(
-        required=False,
-        allow_none=True,
-        example="",
-        description="message for the state change",
-    )
+    code = fields.String(required=False, allow_none=True, metadata={"description": "reason code for the state change"})
+    message = fields.String(required=False, allow_none=True, metadata={"description": "message for the state change"})
 
 
 class ComputeSetResponseSchema(Schema):
     id = fields.String(required=True)
     name = fields.String(required=True)
-    creationDate = fields.DateTime(required=False, allow_none=True, description="date creation")
+    creationDate = fields.DateTime(required=False, allow_none=True, metadata={"description": "date creation"})
     description = fields.String(required=True)
-    state = fields.String(required=False, default=SrvStatusType.DRAFT)
+    state = fields.String(required=False, dump_default=SrvStatusType.DRAFT)
     owner = fields.String(required=True)
     owner_name = fields.String(required=True)
     template = fields.String(required=True)
@@ -58,7 +51,7 @@ class ComputeSetResponseSchema(Schema):
         many=False,
         required=False,
         allow_none=False,
-        description="array of status reason",
+        metadata={"description": "array of status reason"},
     )
     resource_uuid = fields.String(required=False, allow_none=True)
 
@@ -115,10 +108,10 @@ class DescribeComputeService(ServiceApiView):
 
 class CreateComputeServiceApiRequestSchema(Schema):
     owner_id = fields.String(required=True)
-    name = fields.String(required=False, default="")
-    desc = fields.String(required=False, default="")
-    service_def_id = fields.String(required=True, example="")
-    resource_desc = fields.String(required=False, default="")
+    name = fields.String(required=False, dump_default="")
+    desc = fields.String(required=False, dump_default="")
+    service_def_id = fields.String(required=True)
+    resource_desc = fields.String(required=False, dump_default="")
 
 
 class CreateComputeServiceApiBodyRequestSchema(Schema):
@@ -140,7 +133,7 @@ class CreateComputeService(ServiceApiView):
     )
     response_schema = CrudApiObjectTaskResponseSchema
 
-    def post(self, controller: ServiceController, data: dict, *args, **kvargs):
+    def post(self, controller: 'ServiceController', data: Dict, *args, **kvargs):
         service_definition_id = data.pop("service_def_id")
         account_id = data.pop("owner_id")
         desc = data.pop("desc", "Compute service account %s" % account_id)
@@ -165,11 +158,11 @@ class UpdateComputeServiceApiRequestParamSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
-    name = fields.String(required=False, default="")
-    desc = fields.String(required=False, default="")
-    service_def_id = fields.String(required=False, default="")
+    name = fields.String(required=False, dump_default="")
+    desc = fields.String(required=False, dump_default="")
+    service_def_id = fields.String(required=False, dump_default="")
 
 
 class UpdateComputeServiceApiRequestSchema(Schema):
@@ -221,7 +214,7 @@ class DescribeAccountAttributesRequestSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
 
 
@@ -233,10 +226,10 @@ class DescribeAccountAttributesResponseSchema(Schema):
     account_name = fields.String(required=True)
     template_id = fields.String(required=True)
     template_name = fields.String(required=True)
-    state = fields.String(required=False, default=SrvStatusType.DRAFT)
+    state = fields.String(required=False, dump_default=SrvStatusType.DRAFT)
     resource_uuid = fields.String(required=False, allow_none=True)
-    stateReason = fields.String(required=False, default="")
-    limits = fields.Dict(required=False, default={})
+    stateReason = fields.String(required=False, dump_default="")
+    limits = fields.Dict(required=False, dump_default={})
 
 
 # AHMAD NSP-344 -begin
@@ -314,7 +307,7 @@ class DescribeAccountAttributes(ServiceApiView):
 
 class ModifyAccountAttributeBodyRequestSchema(Schema):
     owner_id = fields.String(required=True)
-    quotas = fields.Dict(required=True, example="")
+    quotas = fields.Dict(required=True)
 
 
 class ModifyAccountAttributesBodyRequestSchema(Schema):
@@ -322,7 +315,7 @@ class ModifyAccountAttributesBodyRequestSchema(Schema):
 
 
 class ModifyAccountAttributeSetResponseSchema(Schema):
-    uuid = fields.String(required=True, example="")
+    uuid = fields.String(required=True)
 
 
 class ModifyAccountAttributeResponseSchema(Schema):
@@ -390,7 +383,7 @@ class DescribeAvailabilityZonesRequestSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
 
 
@@ -398,20 +391,19 @@ class AvailabilityZoneMessageResponseSchema(Schema):
     message = fields.String(
         required=False,
         allow_none=True,
-        description="message about the Availability Zone",
+        metadata={"description": "message about the Availability Zone"},
     )
 
 
 class DescribeAvailabilityZonesItemResponseSchema(Schema):
-    zoneName = fields.String(required=False, allow_none=True, description="name of the Availability Zone")
-    zoneState = fields.String(required=False, allow_none=True, description="state of the Availability Zone")
-    regionName = fields.String(required=False, allow_none=True, description="name of the region")
-    messageSet = fields.Nested(
-        AvailabilityZoneMessageResponseSchema,
+    zoneName = fields.String(required=False, allow_none=True, metadata={"description": "name of the Availability Zone"})
+    zoneState = fields.String(
         required=False,
-        many=True,
-        allow_none=False,
+        allow_none=True,
+        metadata={"description": "state of the Availability Zone"},
     )
+    regionName = fields.String(required=False, allow_none=True, metadata={"description": "name of the region"})
+    messageSet = fields.Nested(AvailabilityZoneMessageResponseSchema, required=False, many=True, allow_none=False)
 
 
 class DescribeAvailabilityZonesApi1ResponseSchema(Schema):
@@ -479,8 +471,8 @@ class DescribeAvailabilityZonesResponse(ServiceApiView):
 
 
 class DeleteComputeServiceResponseSchema(Schema):
-    uuid = fields.String(required=True, description="Instance id")
-    taskid = fields.String(required=True, description="task id")
+    uuid = fields.String(required=True, metadata={"description": "Instance id"})
+    taskid = fields.String(required=True, metadata={"description": "task id"})
 
 
 class DeleteComputeServiceRequestSchema(Schema):
@@ -488,7 +480,7 @@ class DeleteComputeServiceRequestSchema(Schema):
         required=True,
         allow_none=True,
         context="query",
-        description="Instance uuid or name",
+        metadata={"description": "Instance uuid or name"},
     )
 
 

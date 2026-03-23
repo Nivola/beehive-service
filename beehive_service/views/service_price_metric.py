@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.data import transaction
 from beehive.common.apimanager import (
@@ -43,12 +43,7 @@ class GetServicePriceMetricParamsResponseSchema(ApiServiceObjectResponseSchema):
     metric_type_name = fields.String(required=False)
     price_list_name = fields.String(required=False)
     price_type = fields.String(required=False)
-    thresholds = fields.Nested(
-        CrudServicePriceMetricThresholdSchema,
-        required=False,
-        allow_none=True,
-        many=True,
-    )
+    thresholds = fields.Nested(CrudServicePriceMetricThresholdSchema, required=False, allow_none=True, many=True)
 
 
 class GetServicePriceMetricResponseSchema(Schema):
@@ -81,12 +76,7 @@ class ListServicePriceMetricRequestSchema(
 
 
 class ListServicePriceMetricResponseSchema(PaginatedResponseSchema):
-    price_metric = fields.Nested(
-        GetServicePriceMetricParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
+    price_metric = fields.Nested(GetServicePriceMetricParamsResponseSchema, many=True, required=True, allow_none=True)
 
 
 class ListServicePriceMetric(ServiceApiView):
@@ -120,12 +110,7 @@ class CreateServicePriceMetricParamRequestSchema(ApiBaseServiceObjectCreateReque
     price_list_id = fields.String(required=True)
     time_unit = fields.String(required=True, validate=OneOf(__PRICE_TIME_UNIT__))
     price_type = fields.String(required=False, validate=OneOf(__PRICE_TYPE__))
-    thresholds = fields.Nested(
-        CrudServicePriceMetricThresholdSchema,
-        required=False,
-        allow_none=True,
-        many=True,
-    )
+    thresholds = fields.Nested(CrudServicePriceMetricThresholdSchema, required=False, allow_none=True, many=True)
 
 
 class CreateServicePriceMetricRequestSchema(Schema):

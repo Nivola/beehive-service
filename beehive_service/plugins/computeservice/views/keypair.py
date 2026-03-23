@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from marshmallow import Schema, fields
+from flasgger import Schema, fields
 from beecell.swagger import SwaggerHelper
-from beehive.common.apimanager import SwaggerApiView, ApiView, ApiManagerWarning
+from beehive.common.apimanager import SwaggerApiView, ApiView, ApiManagerWarning, XmlnsSchema
 from beehive.common.data import operation
 from beehive_service.plugins.computeservice import ApiComputeService
 from beehive_service.plugins.computeservice.controller import ApiComputeKeyPairs
@@ -20,50 +20,44 @@ class DescribeKeyPairItemResponseSchema(Schema):
     nvl_keyId = fields.String(
         required=True,
         allow_none=True,
-        example="123",
         data_key="nvl-keyId",
-        description="The id of the key pair",
+        metadata={"example": "123", "description": "The id of the key pair"},
     )
-    keyName = fields.String(
-        required=True,
-        allow_none=True,
-        example="",
-        description="The name of the key pair",
-    )
+    keyName = fields.String(required=True, allow_none=True, metadata={"description": "The name of the key pair"})
     keyFingerprint = fields.String(
         required=True,
         allow_none=True,
-        example="",
-        description="If you used CreateKeyPair to create the key pair, this is the SHA-1 "
+        metadata={"description": "If you used CreateKeyPair to create the key pair, this is the SHA-1 "
         "digest of the DER encoded private key. If you used ImportKeyPair to "
         "provide AWS the public key, this is the MD5 public key fingerprint "
-        "as specified in section 4 of RFC4716. ",
+        "as specified in section 4 of RFC4716. "},
     )
     nvl_ownerAlias = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="name of the account that owns the key",
         data_key="nvl-ownerAlias",
+        metadata={"description": "name of the account that owns the key"},
     )
     nvl_ownerId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="ID of the account that owns the key",
         data_key="nvl-ownerId",
+        metadata={"description": "ID of the account that owns the key"},
     )
+    bits = fields.Integer(required=False, allow_none=True, metadata={"description": "size in bits of the key"})
+    keytype = fields.String(
+        required=False,
+        allow_none=True,
+        data_key="type",
+        metadata={"example": "ssh-rsa", "description": "Key type"},
+    )
+
+
 
 
 class DescribeKeyPairResponseSchema(Schema):
-    nvl_keyTotal = fields.Integer(
-        required=True,
-        allow_none=True,
-        example="",
-        description="",
-        data_key="nvl-keyTotal",
-    )
-    requestId = fields.String(required=True, allow_none=True, example="", description="")
+    nvl_keyTotal = fields.Integer(required=True, allow_none=True, data_key="nvl-keyTotal", metadata={"description": ""})
+    requestId = fields.String(required=True, allow_none=True, metadata={"description": ""})
     keySet = fields.Nested(DescribeKeyPairItemResponseSchema, many=True, required=False)
     xmlns = fields.String(required=False, data_key="$xmlns")
 
@@ -80,7 +74,7 @@ class DescribeKeyPairsRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="key-name.N",
-        description="keypair name",
+        metadata={"description": "keypair name"},
     )
     keyName_N = fields.List(
         fields.String(example=""),
@@ -89,7 +83,7 @@ class DescribeKeyPairsRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="KeyName.N",
-        description="keypair name",
+        metadata={"description": "keypair name"},
     )
     # fingerprint_N = fields.List(fields.String(example=''), required=False,
     #                             allow_none=True, context='query',
@@ -102,21 +96,21 @@ class DescribeKeyPairsRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="owner-id.N",
-        description="account ID of the keypair owner",
+        metadata={"description": "account ID of the keypair owner"},
     )
     Nvl_MaxResults = fields.Integer(
         required=False,
-        default=10,
-        description="",
+        dump_default=10,
         context="query",
         data_key="Nvl-MaxResults",
+        metadata={"description": ""},
     )
     Nvl_NextToken = fields.String(
         required=False,
-        default="0",
-        description="",
+        dump_default="0",
         context="query",
         data_key="Nvl-NextToken",
+        metadata={"description": ""},
     )
 
 
@@ -144,7 +138,8 @@ class DescribeKeyPairs(ServiceApiView):
         instance_ids.extend(data.get("keyName_N", []))
 
         # check Account
-        account_id_list, zone_list = self.get_account_list(controller, data, ApiComputeService)
+        # account_id_list, zone_list = self.get_account_list(controller, data, ApiComputeService)
+        account_id_list = data.get("owner_id_N", [])
 
         # get key pair instance
         keys, total = controller.get_service_type_plugins(
@@ -173,45 +168,36 @@ class ExportKeyPairItemResponseSchema(Schema):
     nvl_keyId = fields.String(
         required=True,
         allow_none=True,
-        example="123",
         data_key="nvl-keyId",
-        description="The id of the key pair",
+        metadata={"example": "123", "description": "The id of the key pair"},
     )
-    keyName = fields.String(
-        required=True,
-        allow_none=True,
-        example="",
-        description="The name of the key pair",
-    )
+    keyName = fields.String(required=True, allow_none=True, metadata={"description": "The name of the key pair"})
     keyFingerprint = fields.String(
         required=True,
         allow_none=True,
-        example="",
-        description="If you used CreateKeyPair to create the key pair, this is the SHA-1 "
+        metadata={"description": "If you used CreateKeyPair to create the key pair, this is the SHA-1 "
         "digest of the DER encoded private key. If you used ImportKeyPair to "
         "provide AWS the public key, this is the MD5 public key fingerprint "
-        "as specified in section 4 of RFC4716. ",
+        "as specified in section 4 of RFC4716. "},
     )
     nvl_ownerAlias = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="name of the account that owns the key",
         data_key="nvl-ownerAlias",
+        metadata={"description": "name of the account that owns the key"},
     )
     nvl_ownerId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="ID of the account that owns the key",
         data_key="nvl-ownerId",
+        metadata={"description": "ID of the account that owns the key"},
     )
     priv_key = fields.String(required=True)
     pub_key = fields.String(required=True)
 
 
 class ExportKeyPairResponseSchema(Schema):
-    requestId = fields.String(required=True, allow_none=True, example="", description="")
+    requestId = fields.String(required=True, allow_none=True, metadata={"description": ""})
     instance = fields.Nested(ExportKeyPairItemResponseSchema, many=False, required=False)
     xmlns = fields.String(required=False, data_key="$xmlns")
 
@@ -228,7 +214,7 @@ class ExportKeyPairsRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="key-name.N",
-        description="keypair name",
+        metadata={"description": "keypair name"},
     )
     keyName_N = fields.List(
         fields.String(example=""),
@@ -237,7 +223,7 @@ class ExportKeyPairsRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="KeyName.N",
-        description="keypair name",
+        metadata={"description": "keypair name"},
     )
     owner_id_N = fields.List(
         fields.String(example=""),
@@ -246,7 +232,7 @@ class ExportKeyPairsRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="owner-id.N",
-        description="account ID of the keypair owner",
+        metadata={"description": "account ID of the keypair owner"},
     )
 
 
@@ -306,22 +292,20 @@ class CreateKeyPairParamRequestSchema(Schema):
     # AccountId managed by AWS Wrapper
     owner_id = fields.String(
         required=True,
-        example="1",
         data_key="owner-id",
-        description="account id or uuid associated to compute zone",
+        metadata={"example": "1", "description": "account id or uuid associated to compute zone"},
     )
     KeyName = fields.String(
         required=True,
-        example="ssh-key1",
         validate=Length(min=8, max=100),
-        description="name for the key pair",
+        metadata={"example": "ssh-key1", "description": "name for the key pair"},
     )
     Nvl_KeyPairType = fields.String(
         required=False,
-        missing=None,
-        description="Key pair type definition",
+        load_default=None,
         data_key="Nvl-KeyPairType",
         validate=OneOf(["DefaultKeyPair", "KeyPair.Private"]),
+        metadata={"description": "Key pair type definition"},
     )
 
 
@@ -334,24 +318,22 @@ class CreateKeyPairBodyRequestSchema(Schema):
 
 
 class CreateKeyPairApiResponse1Schema(Schema):
+    xmlns = fields.String(required=False, data_key="__xmlns")
     requestId = fields.String(required=True, allow_none=True)
     keyName = fields.String(
         required=False,
         allow_none=True,
-        example="my-key-name",
-        description="name of the key pair",
+        metadata={"example": "my-key-name", "description": "name of the key pair"},
     )
     keyFingerprint = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="The SHA-1 digest of the DER encoded private key",
+        metadata={"description": "The SHA-1 digest of the DER encoded private key"},
     )
     keyMaterial = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="An unencrypted PEM encoded RSA private key",
+        metadata={"description": "An unencrypted PEM encoded RSA private key"},
     )
 
 
@@ -409,6 +391,7 @@ class CreateKeyPair(ServiceApiView):
 
 
 class DeleteKeyPairResponse1Schema(Schema):
+    xmlns = fields.String(required=False, data_key="__xmlns")
     return_ = fields.Boolean(required=True, data_key="return")
     requestId = fields.String(required=True, allow_none=True)
 
@@ -423,11 +406,10 @@ class DeleteKeyPairRequestSchema(Schema):
     # description='account id or uuid associated to compute zone')
     Nvl_KeyPairId = fields.String(
         required=False,
-        example="1",
         data_key="Nvl-KeyPairId",
-        description="identifier key pair instance",
+        metadata={"example": "1", "description": "identifier key pair instance"},
     )
-    KeyName = fields.String(required=True, example="", description="name of the key pair")
+    KeyName = fields.String(required=True, metadata={"description": "name of the key pair"})
 
 
 class DeleteKeyPairBodyRequestSchema(Schema):
@@ -464,19 +446,14 @@ class DeleteKeyPair(ServiceApiView):
 
 
 class ImportKeyPairResponse1Schema(Schema):
-    requestId = fields.String(required=True, allow_none=True, example="", description="")
-    keyName = fields.String(
-        required=True,
-        allow_none=True,
-        example="",
-        description="The name of the key pair",
-    )
+    requestId = fields.String(required=True, allow_none=True, metadata={"description": ""})
+    keyName = fields.String(required=True, allow_none=True, metadata={"description": "The name of the key pair"})
     keyFingerprint = fields.String(
         required=True,
         allow_none=True,
-        example="",
-        description="the MD5 public key fingerprint",
+        metadata={"description": "the MD5 public key fingerprint"},
     )
+    xmlns = fields.String(required=False, data_key="$xmlns")
 
 
 class ImportKeyPairResponseSchema(Schema):
@@ -487,19 +464,18 @@ class ImportKeyPairParamRequestSchema(Schema):
     # AccountId managed by AWS Wrapper
     owner_id = fields.String(
         required=True,
-        example="1",
         data_key="owner-id",
-        description="account id or uuid associated to compute zone",
+        metadata={"example": "1", "description": "account id or uuid associated to compute zone"},
     )
-    KeyName = fields.String(required=True, example="", description="keypair name")
+    KeyName = fields.String(required=True, metadata={"description": "keypair name"})
     Nvl_KeyPairType = fields.String(
         required=False,
-        missing=None,
-        description="Key pair type definition",
+        load_default=None,
         data_key="Nvl-KeyPairType",
         validate=OneOf(["DefaultKeyPair", "KeyPair.Private"]),
+        metadata={"description": "Key pair type definition"},
     )
-    PublicKeyMaterial = fields.String(required=True, example="", description="public key base64-encoded")
+    PublicKeyMaterial = fields.String(required=True, metadata={"description": "public key base64-encoded"})
 
 
 class ImportKeyPairRequestSchema(Schema):

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from copy import deepcopy
 
@@ -16,7 +16,7 @@ from beehive_service.entity.service_type import (
 from beehive_service.model import SrvStatusType
 from beehive_service.controller import ApiServiceType
 from beehive.common.apimanager import ApiManagerWarning, ApiManagerError
-from six.moves.urllib.parse import urlencode
+from urllib.parse import urlencode
 from beehive_service.plugins.computeservice.controller import (
     ApiComputeSubnet,
     ApiComputeSecurityGroup,
@@ -796,8 +796,8 @@ class ApiAppEngineInstance(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=1)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # set resource uuid
         if uuid is not None and taskid is not None:

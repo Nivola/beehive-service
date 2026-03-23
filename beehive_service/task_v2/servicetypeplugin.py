@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.task_v2 import task_step, run_sync_task
-from beehive.common.task_v2.manager import task_manager
+#from beehive.common.task_v2.manager import get_task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_service.controller.api_account import ApiAccount
 from beehive_service.controller.api_service_tag import ApiServiceTag
 from beehive_service.entity.service_instance import ApiServiceInstance
@@ -12,9 +13,10 @@ from beehive_service.model import SrvStatusType
 from beehive_service.task_v2 import ServiceTask
 from datetime import datetime, timedelta
 import logging
-
+from celery import shared_task
 logger = logging.getLogger(__name__)
 
+task_manager = get_task_manager()
 
 class AccountDeleteTask(ServiceTask):
     """AccountDeleteTask task"""
@@ -222,6 +224,7 @@ class AbstractServiceTypePluginTask(ServiceTask):
         :param params.resource_params: input params
         :return: True, params
         """
+        # print("update_resource_step - params: %s" % params)
         instance_id = params.get("id")
         resource_params = params.get("resource_params")
         resource_uuid = params.get("resource_uuid")
@@ -347,7 +350,6 @@ class AbstractServiceTypePluginTask(ServiceTask):
 
         return True, params
 
-
 class TypePluginInstanceAddTask(AbstractServiceTypePluginTask):
     """TypePluginInstanceAdd task
 
@@ -373,7 +375,6 @@ class TypePluginInstanceAddTask(AbstractServiceTypePluginTask):
 
         self.steps = [TypePluginInstanceAddTask.create_resource_step]
 
-
 class TypePluginInstanceUpdateTask(AbstractServiceTypePluginTask):
     """TypePluginInstanceUpdate task
 
@@ -392,7 +393,6 @@ class TypePluginInstanceUpdateTask(AbstractServiceTypePluginTask):
         super().__init__(*args, **kwargs)
 
         self.steps = [TypePluginInstanceUpdateTask.update_resource_step]
-
 
 class TypePluginInstancePatchTask(AbstractServiceTypePluginTask):
     """TypePluginInstancePatch task
@@ -413,7 +413,6 @@ class TypePluginInstancePatchTask(AbstractServiceTypePluginTask):
 
         self.steps = [TypePluginInstancePatchTask.patch_resource_step]
 
-
 class TypePluginInstanceDeleteTask(AbstractServiceTypePluginTask):
     """TypePluginInstanceDelete task
 
@@ -432,7 +431,6 @@ class TypePluginInstanceDeleteTask(AbstractServiceTypePluginTask):
 
         self.steps = [TypePluginInstanceDeleteTask.delete_resource_step]
 
-
 class TypePluginInstanceActionTask(AbstractServiceTypePluginTask):
     """TypePluginInstanceAction task"""
 
@@ -441,9 +439,9 @@ class TypePluginInstanceActionTask(AbstractServiceTypePluginTask):
     entity_class = ApiServiceInstance
 
 
-task_manager.tasks.register(AccountDeleteTask())
-task_manager.tasks.register(TypePluginInstanceAddTask())
-task_manager.tasks.register(TypePluginInstanceUpdateTask())
-task_manager.tasks.register(TypePluginInstancePatchTask())
-task_manager.tasks.register(TypePluginInstanceDeleteTask())
-task_manager.tasks.register(TypePluginInstanceActionTask())
+task_manager.register_task(AccountDeleteTask())
+task_manager.register_task(TypePluginInstanceAddTask())
+task_manager.register_task(TypePluginInstanceUpdateTask())
+task_manager.register_task(TypePluginInstancePatchTask())
+task_manager.register_task(TypePluginInstanceDeleteTask())
+task_manager.register_task(TypePluginInstanceActionTask())

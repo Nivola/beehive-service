@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from copy import deepcopy
 from urllib.parse import urlencode
@@ -30,17 +30,7 @@ from beehive_service.plugins.computeservice.controller import (
 from pprint import pprint
 from uuid import uuid4
 from beecell.types.type_id import id_gen
-
-
-# class LoggingParamsNames(object):
-#     # TODO da capire quali sono i  params!
-#     # Nvl_FileSystem_Size = 'Nvl_FileSystem_Size'
-#     # Nvl_FileSystem_Type = 'Nvl_FileSystem_Type'
-#     # Nvl_shareProto = 'Nvl_shareProto'
-#     # Nvl_FileSystemId = 'Nvl_FileSystemId'
-#     # SubnetId = 'SubnetId'
-#     # owner_id = 'owner_id'
-#     CreationToken = 'CreationToken'
+from beehive_service.plugins.databaseservice.entity.instance_v2 import ApiDatabaseServiceInstanceV2
 
 
 class ApiLoggingService(ApiServiceTypeContainer):
@@ -207,8 +197,6 @@ class ApiLoggingService(ApiServiceTypeContainer):
         """
         data = {}
         for quota, value in quotas.items():
-            # TODO fv da capire!
-            # data['share.%s' % quota] = value
             data["logging.%s" % quota] = value
 
         res = self.set_resource_quotas(None, data)
@@ -401,7 +389,7 @@ class ApiLoggingSpace(AsyncApiServiceTypePlugin):
                 instance_item["dashboards"].append(
                     {
                         "dashboardId": d.get("id"),
-                        "dashboardName": d.get("desc"),
+                        "dashboardTitle": d.get("desc"),
                         "dashboardVersion": d.get("version"),
                         "dashboardScore": d.get("score"),
                         "modificationDate": d.get("updated_at"),
@@ -639,6 +627,70 @@ class ApiLoggingSpace(AsyncApiServiceTypePlugin):
         self.logger.debug("Get logging space resources: %s" % truncate(spaces))
         return spaces
 
+    def enable_dash_config(self, def_config, dashboard_item_selected, data):
+        """enable dashboard config in a space
+
+        :param module_params: module params
+        :param conf: dashboard name params
+        :return:
+        """
+        try:
+            resource_space_id = data["resource_space_id"]
+
+            triplet = data["triplet"]
+            # organization = data["organization"]
+            # division = data["division"]
+            # account = data["account"]
+
+            dashboard_space_from = def_config["dashboard_space_from"]
+            dashboard = []
+            dashboard.append(dashboard_item_selected)
+
+            # copy dashboard to space (don't execute just after creation, the resource sometimes isn't already active)
+            task = None
+            self.__create_resource_dashboard(
+                task, resource_space_id, dashboard_space_from, dashboard, triplet, check_default=False
+            )
+
+        except Exception:
+            self.logger.error("enable dash config", exc_info=2)
+            raise ApiManagerError("Error enabling dash config for space %s" % self.instance.uuid)
+
+        return True
+
+    def disable_dash_config(self, def_config, dashboard_item_selected, data):
+        """disable dashboard config in a space
+
+        :param module_params: module params
+        :param conf: dashboard name params
+        :return:
+        """
+        try:
+            resource_space_id = data["resource_space_id"]
+
+            dashboard = []
+            dashboard.append(dashboard_item_selected)
+
+            # copy dashboard to space (don't execute just after creation, the resource sometimes isn't already active)
+            task = None
+            self.__delete_resource_dashboard(
+                task,
+                resource_space_id,
+                dashboard,
+            )
+
+        except ApiManagerError as api_error:
+            self.logger.error("disable dash config", exc_info=2)
+            raise ApiManagerError(
+                "Error disabling dash config for space %s - error: %s" % (self.instance.uuid, api_error.value)
+            )
+
+        except Exception:
+            self.logger.error("disable dash config", exc_info=2)
+            raise ApiManagerError("Error disabling dash config for space %s" % self.instance.uuid)
+
+        return True
+
     def create_resource(self, task, *args, **kvargs):
         """Create resource
 
@@ -695,8 +747,8 @@ class ApiLoggingSpace(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         kibana_space_name = space_id
         self.logger.debug("create_resource - kibana_space_name: %s" % kibana_space_name)
@@ -730,7 +782,7 @@ class ApiLoggingSpace(AsyncApiServiceTypePlugin):
             )
 
             if norescreate is False:
-                # copy dashboard to folder (don't execute just after creation, the resource sometimes isn't already active)
+                # copy dashboard to space (don't execute just after creation, the resource sometimes isn't already active)
                 self.__create_resource_dashboard(task, resource_space_id, dashboard_space_from, dashboard, triplet)
 
         self.logger.debug("create_resource - end")
@@ -786,8 +838,8 @@ class ApiLoggingSpace(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # wait job
         if taskid is not None:
@@ -798,7 +850,9 @@ class ApiLoggingSpace(AsyncApiServiceTypePlugin):
         self.logger.debug("create_resource_role - role resource %s" % uuid)
         return name
 
-    def __create_resource_dashboard(self, task, resource_space_id, dashboard_space_from, dashboard, triplet):
+    def __create_resource_dashboard(
+        self, task, resource_space_id, dashboard_space_from, dashboard, triplet, check_default: bool = True
+    ):
         """Create dashboard
 
         :param task: celery task reference
@@ -812,8 +866,17 @@ class ApiLoggingSpace(AsyncApiServiceTypePlugin):
         self.logger.debug("create_resource_dashboard - dashboard_space_from: %s" % dashboard_space_from)
 
         for dashboard_item in dashboard:
+            # check default
+            default = False
+            if "default" in dashboard_item:
+                default = dashboard_item["default"]
+
             title = dashboard_item["title"]
             logtype = dashboard_item["logtype"]
+
+            if check_default and not default:
+                self.logger.info("__create_resource_dashboard - dashboard %s not default" % title)
+                continue
 
             # filebeat-*-logtype-*-account_name
             index_pattern = "filebeat-*-" + logtype + "-*-" + triplet.lower()
@@ -842,14 +905,15 @@ class ApiLoggingSpace(AsyncApiServiceTypePlugin):
                 )
                 taskid = res.get("taskid", None)
                 uuid = res.get("uuid", None)
+                self.logger.debug("create_resource_dashboard - resource %s" % uuid)
             except ApiManagerError as ex:
                 self.logger.error(ex, exc_info=True)
                 self.update_status(SrvStatusType.ERROR, error=ex.value)
                 raise
             except Exception as ex:
                 self.logger.error(ex, exc_info=True)
-                self.update_status(SrvStatusType.ERROR, error=ex.message)
-                raise ApiManagerError(ex.message)
+                self.update_status(SrvStatusType.ERROR, error=str(ex))
+                raise ApiManagerError(str(ex))
 
             # wait job
             if taskid is not None:
@@ -857,7 +921,68 @@ class ApiLoggingSpace(AsyncApiServiceTypePlugin):
             else:
                 raise ApiManagerError("dashboard_data job does not started")
 
-        self.logger.debug("create_resource_dashboard - resource %s" % uuid)
+        return True
+
+    def __delete_resource_dashboard(
+        self,
+        task,
+        resource_space_id,
+        dashboard,
+    ):
+        """Delete dashboard
+
+        :param task: celery task reference
+        :param resource_space_id: resource space id
+        :param organization: organization
+        :param division: division
+        :param account: account
+        :param dashboard: list of
+        :param triplet: account triplet
+        :rtype: bool
+        """
+        self.logger.debug("__delete_resource_dashboard - begin")
+
+        for dashboard_item in dashboard:
+            title = dashboard_item["title"]
+            dashboard_data = {
+                "action": {
+                    "delete_dashboard": {
+                        "dashboard_to_search": title,
+                    }
+                }
+            }
+            self.logger.debug("__delete_resource_dashboard - dashboard_data: %s" % dashboard_data)
+
+            try:
+                url_action = "/v1.0/nrs/provider/logging_spaces/%s/actions" % resource_space_id
+                self.logger.debug("__delete_resource_dashboard - url_action: %s" % url_action)
+                res = self.controller.api_client.admin_request(
+                    "resource",
+                    url_action,
+                    "put",
+                    data=dashboard_data,
+                    other_headers=None,
+                )
+                taskid = res.get("taskid", None)
+                uuid = res.get("uuid", None)
+                self.logger.debug("__delete_resource_dashboard - taskid %s" % taskid)
+                self.logger.debug("__delete_resource_dashboard - resource %s" % uuid)
+
+            except ApiManagerError as ex:
+                self.logger.error(ex, exc_info=True)
+                self.update_status(SrvStatusType.ERROR, error=ex.value)
+                raise
+            except Exception as ex:
+                self.logger.error(ex, exc_info=True)
+                self.update_status(SrvStatusType.ERROR, error=str(ex))
+                raise ApiManagerError(str(ex))
+
+            # wait job
+            if taskid is not None:
+                self.wait_for_task(taskid, delta=2, maxtime=600, task=task)
+            else:
+                raise ApiManagerError("dashboard_data job does not started")
+
         return True
 
     def __create_resource_role_mapping(
@@ -915,8 +1040,8 @@ class ApiLoggingSpace(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # wait job
         if taskid is not None:
@@ -1205,27 +1330,26 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
 
         instance_item = {}
 
-        inner_data = self.instance.config.get("instance")
-        compute_instance = None
-        if inner_data is not None and "ComputeInstanceId" in inner_data:
-            compute_instance = inner_data.get("ComputeInstanceId")
-            if detail:
-                try:
-                    apiServiceInstance: ApiServiceInstance = self.controller.get_service_instance(compute_instance)
-                    if apiServiceInstance is not None:
-                        subnet_id = apiServiceInstance.get_config("instance.SubnetId")
-                        self.logger.info("aws_info - subnet_id: %s" % subnet_id)
+        plugintype = self.instance.config.get("plugintype")
+        compute_instance = self.instance.config.get("ComputeInstanceId")
+        instance_item["computeInstanceId"] = compute_instance
+        if detail:
+            try:
+                apiServiceInstance: ApiServiceInstance = self.controller.get_service_instance(compute_instance)
+                if apiServiceInstance is not None:
+                    plugintype = apiServiceInstance.getPluginTypeName()
+                    subnet_id = apiServiceInstance.get_config("instance.SubnetId")
+                    self.logger.info("aws_info - subnet_id: %s" % subnet_id)
 
-                        apiServiceInstanceSubnet: ApiServiceInstance = self.controller.get_service_instance(subnet_id)
-                        if apiServiceInstanceSubnet is not None:
-                            site = apiServiceInstanceSubnet.get_config("site")
-                            self.logger.info("aws_info - site: %s" % site)
-                            instance_item["site"] = site
-                except ApiManagerError as ame:
-                    self.logger.error("aws_info - ame: %s" % ame)
+                    apiServiceInstanceSubnet: ApiServiceInstance = self.controller.get_service_instance(subnet_id)
+                    if apiServiceInstanceSubnet is not None:
+                        site = apiServiceInstanceSubnet.get_config("site")
+                        self.logger.info("aws_info - site: %s" % site)
+                        instance_item["site"] = site
+            except ApiManagerError as ame:
+                self.logger.error("aws_info - ame: %s" % ame)
 
-        modules = self.instance.config.get("modules")
-
+        instance_item["plugintype"] = plugintype
         instance_item["id"] = self.instance.uuid
         instance_item["name"] = self.instance.name
         instance_item["creationDate"] = format_date(self.instance.model.creation_date)
@@ -1246,7 +1370,7 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
                 "nvl-message": self.instance.last_error,
             }
 
-        instance_item["computeInstanceId"] = compute_instance
+        modules = self.instance.config.get("modules")
         instance_item["modules"] = modules
 
         return instance_item
@@ -1269,20 +1393,31 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         self.check_quotas(compute_zone, quotas)
 
         # read config
-        config = self.get_config("instance")
-        compute_instance_id = config.get("ComputeInstanceId")
-        norescreate = config.get("norescreate")
+        config_instance = self.get_config("instance")
+        compute_instance_id = config_instance.get("ComputeInstanceId")
+        norescreate = config_instance.get("norescreate")
+
+        plugintype = self.get_config("plugintype")
+        self.logger.debug("+++++ aaa pre_create - plugintype: %s" % plugintype)
 
         # get compute instance service instance
-        plugin: ApiComputeInstance = self.controller.get_service_type_plugin(compute_instance_id)
-        if plugin.get_simple_runstate() == "poweredOff":
-            raise ApiManagerError("Can't create logging instance. Compute instance not running")
+        plugin: ApiServiceTypePlugin = self.controller.get_service_type_plugin(compute_instance_id)
+        if isinstance(plugin, ApiComputeInstance):
+            if plugin.get_simple_runstate() == "poweredOff":
+                raise ApiManagerError("Can't create logging instance. Compute instance not running")
+        elif isinstance(plugin, ApiDatabaseServiceInstanceV2):
+            if plugin.get_runstate() == "poweredOff":
+                raise ApiManagerError("Can't create logging instance. Database instance not running")
+            
+            if plugin.sql_stack_version == "v1.0":
+                raise ApiManagerError("Can't create logging instance. Database instance v1.0 not supported")
 
         compute_instance_resource_uuid = plugin.instance.resource_uuid
         compute_instance_oid = plugin.instance.oid
 
         params["resource_params"] = {
             "compute_instance_resource_uuid": compute_instance_resource_uuid,
+            "plugintype": plugintype,
             "compute_instance_id": compute_instance_oid,
             "norescreate": norescreate,
         }
@@ -1370,9 +1505,11 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         :return: True
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
+        self.logger.debug("+++++ aaa create_resource - args: %s" % args)
         norescreate = args[0].pop("norescreate", None)
         compute_instance_id = args[0].pop("compute_instance_id", None)
         compute_instance_resource_uuid = args[0].pop("compute_instance_resource_uuid", None)
+        plugintype = args[0].pop("plugintype", None)
 
         # create link between instance and compute instance
         compute_service_instance: ApiServiceInstance = self.controller.get_service_instance(compute_instance_id)
@@ -1389,12 +1526,24 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
             files = None
             pipeline = 5051
             data = {"action": {"enable_logging": {"files": files, "logstash_port": pipeline}}}
-            uri = "/v1.0/nrs/provider/instances/%s/actions" % compute_instance_resource_uuid
-            res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
-            taskid = res.get("taskid", None)
-            if taskid is not None:
-                self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-            self.logger.debug("Update compute instance %s action resources: %s" % (compute_instance_resource_uuid, res))
+
+            self.logger.debug("+++++ aaa plugintype: %s" % plugintype)
+            uri = None
+            if plugintype == ApiComputeInstance.plugintype:
+                uri = "/v1.0/nrs/provider/instances/%s/actions" % compute_instance_resource_uuid
+            elif plugintype == ApiDatabaseServiceInstanceV2.plugintype:
+                uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % compute_instance_resource_uuid
+            else:
+                self.logger.error("+++++ plugintype %s not managed" % plugintype)
+
+            if uri is not None:
+                res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
+                taskid = res.get("taskid", None)
+                if taskid is not None:
+                    self.wait_for_task(taskid, delta=4, maxtime=1200, task=task)
+                self.logger.debug(
+                    "Update compute instance %s action resources: %s" % (compute_instance_resource_uuid, res)
+                )
 
         return self.instance.resource_uuid
 
@@ -1419,23 +1568,38 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         :return: resource uuid
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        config = self.get_config("instance")
-        compute_instance_id = config.get("ComputeInstanceId")
+        config_instance = self.get_config("instance")
+        compute_instance_id = config_instance.get("ComputeInstanceId")
 
         # get compute instance service instance
-        plugin: ApiComputeInstance = self.controller.get_service_type_plugin(compute_instance_id)
-        if plugin.get_simple_runstate() == "poweredOff":
-            raise ApiManagerError("Can't delete logging instance. Connected compute instance not running")
+        plugin: ApiServiceTypePlugin = self.controller.get_service_type_plugin(compute_instance_id)
+        # plugintype = self.get_config("plugintype")    # can be null
+        plugintype = plugin.plugintype
+        if isinstance(plugin, ApiComputeInstance):
+            if plugin.get_simple_runstate() == "poweredOff":
+                raise ApiManagerError("Can't create logging instance. Compute instance not running")
+        elif isinstance(plugin, ApiDatabaseServiceInstanceV2):
+            if plugin.get_runstate() == "poweredOff":
+                raise ApiManagerError("Can't create logging instance. Database instance not running")
 
         compute_instance_resource_uuid = plugin.instance.resource_uuid
 
-        data = {"action": {"disable_logging": {}}}
-        uri = "/v1.0/nrs/provider/instances/%s/actions" % compute_instance_resource_uuid
-        res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
-        taskid = res.get("taskid", None)
-        if taskid is not None:
-            self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-        self.logger.debug("Update compute instance %s action resources: %s" % (compute_instance_resource_uuid, res))
+        self.logger.debug("+++++ aaa plugintype: %s" % plugintype)
+        uri = None
+        if plugintype == ApiComputeInstance.plugintype:
+            uri = "/v1.0/nrs/provider/instances/%s/actions" % compute_instance_resource_uuid
+        elif plugintype == ApiDatabaseServiceInstanceV2.plugintype:
+            uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % compute_instance_resource_uuid
+        else:
+            self.logger.error("+++++ aaa plugintype %s not managed" % plugintype)
+
+        if uri is not None:
+            data = {"action": {"disable_logging": {}}}
+            res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
+            taskid = res.get("taskid", None)
+            if taskid is not None:
+                self.wait_for_task(taskid, delta=4, maxtime=1200, task=task)
+            self.logger.debug("Update compute instance %s action resources: %s" % (compute_instance_resource_uuid, res))
 
         return True
 
@@ -1469,18 +1633,24 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
         :return: True
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        config = self.get_config("instance")
-        compute_instance_id = config.get("ComputeInstanceId")
+        config_instance = self.get_config("instance")
+        compute_instance_id = config_instance.get("ComputeInstanceId")
 
         # get compute instance service instance
-        compute_service_instance: ApiServiceInstance = self.controller.get_service_instance(compute_instance_id)
-        compute_instance_resource_uuid = compute_service_instance.resource_uuid
+        # plugin: ApiServiceTypePlugin = self.controller.get_service_type_plugin(compute_instance_id)
+        # plugintype = self.get_config("plugintype")    # can be null
+        # plugintype = plugin.plugintype
+
+        # get compute instance service instance
+        apiServiceInstance: ApiServiceInstance = self.controller.get_service_instance(compute_instance_id)
+        instance_resource_uuid = apiServiceInstance.resource_uuid
+        plugintype = apiServiceInstance.getPluginTypeName()
 
         # create new rules
         action = kvargs.get("action", None)
         module_params = kvargs.get("module_params", None)
-        self.logger.warn("action_resource - action: %s" % action)
-        self.logger.warn("action_resource - module_params: %s" % module_params)
+        self.logger.debug("action_resource - action: %s" % action)
+        self.logger.debug("action_resource - module_params: %s" % module_params)
 
         if action == "enable-log-config":
             # get module name
@@ -1495,12 +1665,21 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
                     }
                 }
             }
-            uri = "/v1.0/nrs/provider/instances/%s/actions" % compute_instance_resource_uuid
+
+            self.logger.debug("+++++ aaa plugintype: %s" % plugintype)
+            uri = None
+            if plugintype == ApiComputeInstance.plugintype:
+                uri = "/v1.0/nrs/provider/instances/%s/actions" % instance_resource_uuid
+            elif plugintype == ApiDatabaseServiceInstanceV2.plugintype:
+                uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % instance_resource_uuid
+            else:
+                self.logger.error("+++++ plugintype %s not managed" % plugintype)
+
             res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
             taskid = res.get("taskid", None)
             if taskid is not None:
-                self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-            self.logger.debug("Update compute instance %s action resources: %s" % (compute_instance_resource_uuid, res))
+                self.wait_for_task(taskid, delta=4, maxtime=1200, task=task)
+            self.logger.debug("Update compute instance %s action resources: %s" % (instance_resource_uuid, res))
 
             # update service instance config
             # modules = json_cfg.get('modules')
@@ -1524,12 +1703,21 @@ class ApiLoggingInstance(AsyncApiServiceTypePlugin):
                     }
                 }
             }
-            uri = "/v1.0/nrs/provider/instances/%s/actions" % compute_instance_resource_uuid
+
+            self.logger.debug("+++++ aaa plugintype: %s" % plugintype)
+            uri = None
+            if plugintype == ApiComputeInstance.plugintype:
+                uri = "/v1.0/nrs/provider/instances/%s/actions" % instance_resource_uuid
+            elif plugintype == ApiDatabaseServiceInstanceV2.plugintype:
+                uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % instance_resource_uuid
+            else:
+                self.logger.error("+++++ plugintype %s not managed" % plugintype)
+
             res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
             taskid = res.get("taskid", None)
             if taskid is not None:
-                self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
-            self.logger.debug("Update compute instance %s action resources: %s" % (compute_instance_resource_uuid, res))
+                self.wait_for_task(taskid, delta=4, maxtime=1200, task=task)
+            self.logger.debug("Update compute instance %s action resources: %s" % (instance_resource_uuid, res))
 
             # update service instance config
             # modules = json_cfg.get('modules')

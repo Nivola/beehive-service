@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedRequestQuerySchema,
@@ -37,7 +37,7 @@ class GetConsumeParamsResponseSchema(AuditResponseSchema):
     cost_type_id = fields.Integer(Required=True)
     cost_type_name = fields.String(Required=True)
     job_id = fields.Integer(required=False)
-    evaluation_date = fields.DateTime(required=True, example="1990-12-31T23:59:59Z")
+    evaluation_date = fields.DateTime(required=True, metadata={"example": "1990-12-31T23:59:59Z"})
 
     @staticmethod
     def detail(m):
@@ -89,7 +89,7 @@ class ListConsumeRequestSchema(PaginatedRequestQuerySchema, ApiObjectRequestFilt
     id = fields.Integer(required=False, context="query")
     metric_type_id = fields.Integer(required=False, context="query")
     instance_oid = fields.Integer(required=False, context="query")
-    account_oid = fields.String(required=False)
+    account_oid = fields.String(required=False, context="query")
     evaluation_date_start = fields.DateTime(required=False, context="query")
     evaluation_date_end = fields.DateTime(required=False, context="query")
     period = fields.String(required=False, context="query")
@@ -102,11 +102,10 @@ class ListConsumeRequestSchema(PaginatedRequestQuerySchema, ApiObjectRequestFilt
             ["id", "metric_type_id", "evaluation_date", "period", "cost_type_id"],
             error="Field can be id, metric_type_id, evaluation_date, period, " "cost_type_id",
         ),
-        description="enitities list order field. Ex. id, platform_name",
-        default="id",
-        example="id",
-        missing="id",
+        dump_default="id",
+        load_default="id",
         context="query",
+        metadata={"description": "enitities list order field. Ex. id, platform_name", "example": "id"},
     )
 
 
@@ -141,7 +140,11 @@ class CreateConsumeParamRequestSchema(Schema):
     aggregation_type = fields.String(required=True, validate=OneOf(__AGGREGATION_COST_TYPE__))
     period = fields.String(required=True, validate=Length(10, 10))
     cost_type_id = fields.Integer(required=True)
-    evaluation_date = fields.DateTime(required=False, default="1970-01-01T00:00:00Z", example="1990-12-31T23:59:59Z")
+    evaluation_date = fields.DateTime(
+        required=False,
+        dump_default="1970-01-01T00:00:00Z",
+        metadata={"example": "1990-12-31T23:59:59Z"},
+    )
     job_id = fields.Integer(required=False)
 
     @validates_schema
@@ -187,10 +190,10 @@ class DeleteBatchConsumeParamRequestSchema(Schema):
     aggregation_type = fields.String(required=False, validate=OneOf(__AGGREGATION_COST_TYPE__))
     period = fields.String(required=False, validate=Length(10, 10))
     cost_type_id = fields.Integer(required=False)
-    evaluation_date_start = fields.DateTime(required=False, example="1990-12-31T23:59:59Z")
-    evaluation_date_end = fields.DateTime(required=False, example="1990-12-31T23:59:59Z")
+    evaluation_date_start = fields.DateTime(required=False, metadata={"example": "1990-12-31T23:59:59Z"})
+    evaluation_date_end = fields.DateTime(required=False, metadata={"example": "1990-12-31T23:59:59Z"})
     job_id = fields.Integer(required=False)
-    limit = fields.Integer(required=False, default=1000)
+    limit = fields.Integer(required=False, dump_default=1000)
 
 
 class DeleteBatchConsumeRequestSchema(Schema):
@@ -290,7 +293,7 @@ class GenerateConsume(ServiceApiView):
 # list e get metric consume extended
 #
 class GetConsumeExtParamsResponseSchema(Schema):
-    metric_id = fields.Integer(required=True, example=10)
+    metric_id = fields.Integer(required=True, metadata={"example": 10})
     value = fields.Float(required=True)
     metric_num = fields.Integer(required=True)
     type_id = fields.Integer(required=True)
@@ -298,7 +301,7 @@ class GetConsumeExtParamsResponseSchema(Schema):
     instance_id = fields.Integer(required=True)
     account_id = fields.Integer(required=True)
     job_id = fields.Integer(required=True)
-    extraction_date = fields.DateTime(required=True, example="1990-12-31T23:59:59Z")
+    extraction_date = fields.DateTime(required=True, metadata={"example": "1990-12-31T23:59:59Z"})
 
     @staticmethod
     def detail(m):
@@ -358,11 +361,10 @@ class ListConsumeExtRequestSchema(PaginatedRequestQuerySchema):
             ],
             error="Field can be id, metric_type_name, extraction_date, metric_num, instance_parent_id, " "instance_id",
         ),
-        description="enitities list order field. Ex. id, metric_type_name, ...",
-        default="id",
-        example="id",
-        missing="id",
+        dump_default="id",
+        load_default="id",
         context="query",
+        metadata={"description": "enitities list order field. Ex. id, metric_type_name, ...", "example": "id"},
     )
 
 

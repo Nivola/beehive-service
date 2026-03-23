@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
+from typing import TYPE_CHECKING
 from datetime import datetime
 from copy import deepcopy
 from beecell.simple import id_gen
@@ -28,14 +29,18 @@ from beehive_service.entity.service_instance import (
     ApiServiceInstance,
     ApiServiceLinkInst,
 )
-
+if TYPE_CHECKING:
+    from beehive_service.mod import ServiceModule
 
 class ServiceConsumerError(Exception):
     pass
 
 
 class ServiceConsumerRedis(ConsumerMixin):
-    def __init__(self, connection, api_manager):
+    api_module: 'ServiceModule'
+
+    def __init__(self, connection, api_manager: 'ApiManager'):
+        raise NotImplementedError("broken, do not use")
         self.logger = logging.getLogger(self.__class__.__module__ + "." + self.__class__.__name__)
 
         self.logger.info("ServiceConsumerRedis.__init__(...) ")
@@ -47,7 +52,7 @@ class ServiceConsumerRedis(ConsumerMixin):
         self.id = id_gen()
         self.manager = EventDbManager()
 
-        self.api_module = api_manager.modules["ServiceModule"]
+        self.api_module: 'ServiceModule' = api_manager.modules["ServiceModule"]
 
         # print(self.api_module)
         if self.api_module is not None:

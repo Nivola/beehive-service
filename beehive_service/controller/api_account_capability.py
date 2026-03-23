@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import json
-from typing import List
+from typing import List, TYPE_CHECKING
 
 from beehive_service.entity import ServiceApiObject
-from beehive_service.model.account_capability import AccountCapability
-
+if TYPE_CHECKING:
+    from beehive_service.model.account_capability import AccountCapability
 
 class ApiAccountCapability(ServiceApiObject):
     objdef = "AccountCapability"
@@ -15,12 +15,14 @@ class ApiAccountCapability(ServiceApiObject):
     objname = "accountcapabilities"
     objdesc = "accountcapabilities"
 
+    model: 'AccountCapability'
+
     def __init__(self, *args, **kvargs):
         """ """
         ServiceApiObject.__init__(self, *args, **kvargs)
         self.update_object = self.manager.update_capability
         self.delete_object = self.manager.delete
-        self.model: AccountCapability
+
 
     def __repr__(self):
         return "<%s id=%s objid=%s name=%s>" % (

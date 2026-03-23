@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import import_class
 from beehive.common.apimanager import ApiManagerError
@@ -135,7 +135,7 @@ class ApiAccountServiceDefinition(ServiceApiObject):
         :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        info = self.service_definition.info(self)
+        info = self.service_definition.info()
         return info
 
     def detail(self) -> dict:

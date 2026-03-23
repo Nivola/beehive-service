@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from sqlalchemy import Column, String, Integer, ForeignKey, Index
 from sqlalchemy.orm import relationship
@@ -23,6 +23,7 @@ class Account(ApiBusinessObject, Base):
 
     __tablename__ = "account"
     __table_args__ = {"mysql_engine": "InnoDB"}
+    __allow_unmapped__ = True # TODO check impact
 
     acronym = Column(String(10))
     note = Column(String(500))
@@ -95,10 +96,10 @@ class Account(ApiBusinessObject, Base):
         self.acronym = acronym
 
     def capabilities_list(self):
-        """return a list of capabilities  association description (name, plugin_name) and association status (status)
-        for the account
+        """return a list of capabilities  association description (name, params, description)
+        and association status (status, application_date) for the account
 
-        :return: list of dictionary {"name", "plugin_name", "status"}
+        :return: list of dictionary {"name", "params", "description", "status", "application_date"}
         """
         return map(lambda capa: capa.association_dict(), self.capabilities)
 
@@ -168,6 +169,7 @@ class AccountServiceDefinition(ApiBusinessObject, Base):
         ),
         {"mysql_engine": "InnoDB"},
     )
+    __allow_unmapped__ = True # TODO check impact
 
     """ The realation among the account and his service definitions
     """

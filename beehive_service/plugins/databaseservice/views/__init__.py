@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beehive.common.data import operation
@@ -24,21 +24,21 @@ class DescribeDatabaseServiceRequestSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
 
 
 class StateReasonResponseSchema(Schema):
-    code = fields.Integer(required=False, allow_none=True, description="reason code for the state change")
-    message = fields.String(required=False, allow_none=True, description="message for the state change")
+    code = fields.Integer(required=False, allow_none=True, metadata={"description": "reason code for the state change"})
+    message = fields.String(required=False, allow_none=True, metadata={"description": "message for the state change"})
 
 
 class DatabaseSetSchema(Schema):
     id = fields.String(required=True)
     name = fields.String(required=True)
-    creationDate = fields.DateTime(required=False, allow_none=True, description="date creation")
+    creationDate = fields.DateTime(required=False, allow_none=True, metadata={"description": "date creation"})
     description = fields.String(required=False)
-    state = fields.String(required=False, default=SrvStatusType.DRAFT)
+    state = fields.String(required=False, dump_default=SrvStatusType.DRAFT)
     owner = fields.String(required=True)
     owner_name = fields.String(required=False)
     template = fields.String(required=True)
@@ -48,21 +48,24 @@ class DatabaseSetSchema(Schema):
         many=False,
         required=False,
         allow_none=False,
-        description="array of status reason",
+        metadata={"description": "array of status reason"},
     )
     resource_uuid = fields.String(required=False, allow_none=True)
 
 
 class DescribeDatabaseResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
-    requestId = fields.String(required=True, description="request id")
+    requestId = fields.String(required=True, metadata={"description": "request id"})
     databaseSet = fields.Nested(DatabaseSetSchema, required=False, many=True, allow_none=True)
     databaseTotal = fields.Integer(required=False)
 
 
 class DescribeDatabaseServiceResponseSchema(Schema):
     DescribeDatabaseResponse = fields.Nested(
-        DescribeDatabaseResponseSchema, required=True, many=False, allow_none=False
+        DescribeDatabaseResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
     )
 
 
@@ -107,10 +110,10 @@ class DescribeDatabaseService(ServiceApiView):
 
 class CreateDatabaseServiceApiRequestSchema(Schema):
     owner_id = fields.String(required=True)
-    name = fields.String(required=False, default="")
-    desc = fields.String(required=False, default="")
-    service_def_id = fields.String(required=True, example="")
-    resource_desc = fields.String(required=False, default="")
+    name = fields.String(required=False, dump_default="")
+    desc = fields.String(required=False, dump_default="")
+    service_def_id = fields.String(required=True)
+    resource_desc = fields.String(required=False, dump_default="")
 
 
 class CreateDatabaseServiceApiBodyRequestSchema(Schema):
@@ -157,12 +160,12 @@ class UpdateDatabaseServiceApiRequestParamSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
-    # params_resource = fields.String(required=False, default='{}')
-    name = fields.String(required=False, default="")
-    desc = fields.String(required=False, default="")
-    service_def_id = fields.String(required=False, default="")
+    # params_resource = fields.String(required=False, dump_default='{}')
+    name = fields.String(required=False, dump_default="")
+    desc = fields.String(required=False, dump_default="")
+    service_def_id = fields.String(required=False, dump_default="")
 
 
 class UpdateDatabaseServiceApiRequestSchema(Schema):
@@ -216,12 +219,12 @@ class DescribeAccountAttributesRequestSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
 
 
 class DescribeAccountAttributeSetResponseSchema(Schema):
-    uuid = fields.String(required=True, example="")
+    uuid = fields.String(required=True)
 
 
 class DescribeAccountAttributeResponseSchema(Schema):
@@ -314,7 +317,7 @@ class DescribeAccountAttributes(ServiceApiView):
 
 class ModifyAccountAttributeBodyRequestSchema(Schema):
     owner_id = fields.String(required=True)
-    quotas = fields.Dict(required=True, example="")
+    quotas = fields.Dict(required=True)
 
 
 class ModifyAccountAttributesBodyRequestSchema(Schema):
@@ -322,7 +325,7 @@ class ModifyAccountAttributesBodyRequestSchema(Schema):
 
 
 class ModifyAccountAttributeSetResponseSchema(Schema):
-    uuid = fields.String(required=True, example="")
+    uuid = fields.String(required=True)
 
 
 class ModifyAccountAttributeResponseSchema(Schema):
@@ -385,8 +388,8 @@ class ModifyAccountAttributes(ServiceApiView):
 
 
 class DeleteDatabaseServiceResponseSchema(Schema):
-    uuid = fields.String(required=True, description="Instance id")
-    taskid = fields.String(required=True, description="task id")
+    uuid = fields.String(required=True, metadata={"description": "Instance id"})
+    taskid = fields.String(required=True, metadata={"description": "task id"})
 
 
 class DeleteDatabaseServiceRequestSchema(Schema):
@@ -394,7 +397,7 @@ class DeleteDatabaseServiceRequestSchema(Schema):
         required=True,
         allow_none=True,
         context="query",
-        description="Instance uuid or name",
+        metadata={"description": "Instance uuid or name"},
     )
 
 

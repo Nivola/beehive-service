@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from typing import TYPE_CHECKING
 from sqlalchemy import Index, Column, String, ForeignKey, Boolean, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped
 
 from beehive_service.model.base import (
     Base,
@@ -22,6 +23,8 @@ class ServiceType(ApiBusinessObject, Base):
         Index("idx_srvtyp_name_version", "name", "version", unique=True),
         {"mysql_engine": "InnoDB"},
     )
+    __allow_unmapped__ = True # TODO check impact
+
 
     plugintype: ServicePluginType = relationship(
         "ServicePluginType",

@@ -1,27 +1,29 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from __future__ import annotations
+from numbers import Number
 import hashlib
 import ipaddress
-from typing import List
+from typing import Any, Set, Optional, List, Dict, TYPE_CHECKING, Tuple
 from logging import getLogger
 from copy import deepcopy
 from datetime import datetime, timedelta
 from random import randint
 from base64 import b64encode, b64decode
-from six.moves.urllib.parse import urlencode
-from six import ensure_binary, ensure_text
+from urllib.parse import urlencode
+from beecell.util import ensure_binary, ensure_text
+from marshmallow.fields import Boolean
 from Crypto.PublicKey import RSA
 from paramiko.rsakey import RSAKey
-from paramiko.py3compat import StringIO
+from io import StringIO
 from beecell.types import is_int, is_string
 from beecell.types.type_id import id_gen
 from beecell.types.type_dict import dict_get
 from beecell.types.type_date import format_date
 from beecell.types.type_string import truncate
-from beecell.simple import obscure_data, import_class
+from beecell.simple import obscure_data, import_class, id_gen
 from beehive.common.data import trace, operation
 from beehive.common.apiclient import BeehiveApiClientError
 from beehive.common.apimanager import ApiManagerError, ApiManagerWarning
@@ -31,15 +33,20 @@ from beehive_service.entity.service_type import (
     ApiServiceTypePlugin,
     AsyncApiServiceTypePlugin,
 )
-from beehive_service.controller import ServiceController
 from beehive_service.model import SrvStatusType, Division, Organization
-from beehive_service.service_util import __RULE_GROUP_INGRESS__, __RULE_GROUP_EGRESS__
+from beehive_service.service_util import __RULE_GROUP_INGRESS__, __RULE_GROUP_EGRESS__, __NIVOLA_NETWORKS__
+
+
+if TYPE_CHECKING:
+    from beehive_service.controller import ServiceController
 
 logger = getLogger(__name__)
 
 
 class ApiComputeKeyPairsHelper(object):
-    def __init__(self, controller):
+    controller: "ServiceController"
+
+    def __init__(self, controller: "ServiceController"):
         self.controller = controller
 
     def __ssh_key_check(self, key_name, sshkey):
@@ -71,14 +78,15 @@ To create a new robust SSH key, run 'beehive bu cpaas keypairs add <account_id> 
 Then, rerun the command using the -sshkey <new_key_name> argument.
 """
             logger.error(message)
-            raise ApiManagerError(message)
+            # @TODO when we decide to make 4098 bit RSA keys mandatory it should be commented on
+            # raise ApiManagerError(message)
         logger.info(message + "is valid.")
 
-    def __ssh_get_key(self, key_name):
+    def __ssh_get_key(self, key_name: str):
         uri = "/v1.0/gas/keys/%s" % key_name
-        return self.controller.api_client.user_request("ssh", uri, "get", data="").get("key")
+        return self.controller.api_client.admin_request("ssh", uri, "get", data="").get("key")
 
-    def check_service_instance(self, key_name, account_id=None):
+    def check_service_instance(self, key_name: str, account_id=None):
         try:
             ssh_key = self.__ssh_get_key(key_name)
             self.__ssh_key_check(key_name, ssh_key)
@@ -155,7 +163,7 @@ class ApiComputeService(ApiServiceTypeContainer):
 
     @staticmethod
     def customize_list(
-        controller: ServiceController,
+        controller: "ServiceController",
         entities: List[ApiComputeService],
         *args,
         **kvargs,
@@ -387,8 +395,8 @@ class ApiComputeService(ApiServiceTypeContainer):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # set resource uuid
         if uuid is not None:
@@ -429,8 +437,8 @@ class ApiComputeService(ApiServiceTypeContainer):
         except Exception as ex:
             self.logger.debug("Create compute zone %s availability zone %s - ERROR" % (compute_zone, avz_id))
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # set resource uuid
         if taskid is not None:
@@ -463,8 +471,8 @@ class ApiComputeService(ApiServiceTypeContainer):
                 raise
             except Exception as ex:
                 self.logger.error(ex, exc_info=True)
-                self.update_status(SrvStatusType.ERROR, error=ex.message)
-                raise ApiManagerError(ex.message)
+                self.update_status(SrvStatusType.ERROR, error=str(ex))
+                raise ApiManagerError(str(ex))
 
             if taskid is not None:
                 self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
@@ -552,6 +560,8 @@ class ApiComputeInstanceBackup(AsyncApiServiceTypePlugin):
             "usage": job.get("usage"),
             "policy": job.get("policy"),
         }
+        if not isinstance(job_item["usage"], Number):
+            job_item.pop("usage")
 
         # get instances
         instances = job.get("instances")
@@ -559,8 +569,19 @@ class ApiComputeInstanceBackup(AsyncApiServiceTypePlugin):
         if isinstance(instances, list) is True:
             for instance in instances:
                 try:
-                    item = self.controller.get_service_instance_by_resource_uuid(instance.get("uuid"))
-                    instance_service_list.append({"uuid": item.uuid, "name": item.name})
+                    item: ApiServiceInstance = self.controller.get_service_instance_by_resource_uuid(
+                        instance.get("uuid"), details=False
+                    )
+                    # self.logger.debug("+++++ aws_job_info - item: %s" % item)
+                    plugin = item.get_service_type_plugin()
+                    # self.logger.debug("+++++ aws_job_info - plugin: %s" % plugin)
+                    instance_service_list.append(
+                        {
+                            "uuid": item.uuid,
+                            "name": item.name,
+                            "plugintype": plugin.plugintype,
+                        }
+                    )
                 except ApiManagerError as ame:
                     self.logger.warning(ame)
             job_item["instanceSet"] = instance_service_list
@@ -633,7 +654,7 @@ class ApiComputeInstanceBackup(AsyncApiServiceTypePlugin):
             seconds_diff = end_hour.timestamp() - start_hour.timestamp()
 
         self.logger.debug("seconds_diff: %s" % seconds_diff)
-        minutes_diff = seconds_diff / 60
+        minutes_diff = int(seconds_diff / 60)
         self.logger.debug("minutes_diff: %s" % minutes_diff)
         minutes_random = randint(0, minutes_diff)
         self.logger.debug("minutes_random: %s" % minutes_random)
@@ -1171,7 +1192,7 @@ class ApiComputeImage(AsyncApiServiceTypePlugin):
 
     @staticmethod
     def customize_list(
-        controller: ServiceController, entities: List[ApiComputeImage], *args, **kvargs
+        controller: "ServiceController", entities: List[ApiComputeImage], *args, **kvargs
     ) -> List[ApiComputeImage]:
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
@@ -1379,7 +1400,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
 
     @staticmethod
     def customize_list(
-        controller: ServiceController,
+        controller: "ServiceController",
         entities: List[ApiComputeInstance],
         *args,
         **kvargs,
@@ -1440,7 +1461,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         if len(zones) > 0:
             api_compute_inst = ApiComputeInstance(controller)
             resources = []
-            res_uuids_threshold = 3
+            res_uuids_threshold = 20
             for zone in zones:
                 resource_uuids = uuids = zones[zone]
                 """
@@ -1455,6 +1476,99 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         # assign resources
         for entity in entities:
             entity.resource = resources_idx.get(entity.instance.resource_uuid)
+
+        return entities
+
+    @staticmethod
+    def customize_simple_list(
+        controller: "ServiceController",
+        entities: List[ApiComputeInstance],
+        *args,
+        **kvargs,
+    ) -> List[ApiComputeInstance]:
+        """Post list function. Extend this function to execute some operation after entity was created. Used only for
+        synchronous creation.
+
+        :param controller: controller instance
+        :param entities: list of entities
+        :param args: custom params
+        :param kvargs: custom params
+        :return: None
+        :raise ApiManagerError:
+        """
+        account_ids = {e.instance.account_id for e in entities}
+        account_idx = controller.get_account_idx(id_list=account_ids)
+
+        # divisions
+        division_ids: List[int] = []
+        from beehive_service.controller.api_account import ApiAccount
+        apiAccounts: List[ApiAccount] = account_idx.values()
+        for apiAccount in apiAccounts:
+            div_oid = apiAccount.model.division.id
+            if div_oid not in division_ids:
+                division_ids.append(div_oid)
+        logger.debug2("fv - customize_simple_list - division_ids: %s" % division_ids)
+        division_idx = controller.get_division_idx(id_list=division_ids)
+        logger.debug2("fv - customize_simple_list - division_idx: %s" % division_idx)
+
+        # subnet_idx = controller.get_service_instance_idx(ApiComputeSubnet.plugintype, account_id_list=account_ids)
+        # vpc_idx = controller.get_service_instance_idx(ApiComputeVPC.plugintype, account_id_list=account_ids)
+
+        image_idx = controller.get_service_instance_idx(ApiComputeImage.plugintype, account_id_list=account_ids)
+        security_group_idx = controller.get_service_instance_idx(
+            ApiComputeSecurityGroup.plugintype, account_id_list=account_ids
+        )
+        # volume_idx = controller.get_service_instance_idx(ApiComputeVolume.plugintype, account_id_list=account_ids)
+        compute_service_idx = controller.get_service_instance_idx(
+            ApiComputeService.plugintype, account_id_list=account_ids, index_key="account_id"
+        )
+        # instance_type_idx = controller.get_service_definition_idx(ApiComputeInstance.plugintype)
+        instance_tags_idx = controller.get_service_tags_idx(account_id_list=account_ids)
+
+        # get resources
+        resource_uuids = []
+        for entity in entities:
+            entity_instance = entity.instance
+            account_id = "%s" % entity_instance.account_id
+            entity.account = account_idx.get(account_id)
+            entity.division = division_idx.get(str(entity.account.model.division.id))
+
+            # entity.subnet_idx = subnet_idx
+            # entity.vpc_idx = vpc_idx
+            entity.image_idx = image_idx
+            entity.security_group_idx = security_group_idx
+            # entity.volume_idx = volume_idx
+            entity.tag_set = [{"key": k, "value": ""} for k in instance_tags_idx.get(entity_instance.oid, [])]
+            # instance_type = instance_type_idx.get("%s" % entity_instance.service_definition_id)
+            # if instance_type is not None:
+            #     entity.instance_type_name = instance_type.name
+            entity.compute_service = compute_service_idx.get(account_id)
+
+            res_id = entity_instance.resource_uuid
+            if res_id is not None:
+                resource_uuids.append(res_id)
+
+        resources_idx = {}
+        if len(resource_uuids) > 0:
+            sg_info = kvargs.get("sg_info", False)
+            flavor_info = kvargs.get("flavor_info", False)
+            api_compute_inst = ApiComputeInstance(controller)
+            resources = []
+
+            block_size = 80
+            blocks = [resource_uuids[i:i + block_size] for i in range(0, len(resource_uuids), block_size)]
+            # logger.debug2(f"fv - customize_simple_list - blocks: {blocks}")
+            for block in blocks:
+                logger.debug2(f"fv - customize_simple_list - block length: {len(block)}")
+                resources += api_compute_inst.list_simple_resources(
+                    uuids=block, sg_info=sg_info, flavor_info=flavor_info
+                )
+            resources_idx = {r["uuid"]: r for r in resources}
+
+        # assign resources
+        for entity in entities:
+            entity.resource = resources_idx.get(entity.instance.resource_uuid)
+            # logger.debug(f"fv - customize_simple_list - entity.resource: {entity.resource}")
 
         return entities
 
@@ -1511,6 +1625,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         :param runstate:
         :return:
         """
+        self.logger.info(f"state_mapping - state {state}, runstate {runstate}")
         mapping = {
             SrvStatusType.DRAFT: self.state_enum.pending,  # 'pending',
             SrvStatusType.PENDING: self.state_enum.pending,  # 'pending',
@@ -1533,6 +1648,8 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
             inst_state = self.state_enum.stopped
         elif state == SrvStatusType.ACTIVE and runstate == "update":
             inst_state = self.state_enum.building  # 'building'
+        elif runstate == "crashed":
+            inst_state = self.state_enum.error  # 'error'
 
         return inst_state
 
@@ -1709,6 +1826,103 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
             instance_item["nvl-LoggingEnabled"] = self.is_logging_enabled()
             instance_item["nvl-BackupEnabled"] = self.is_backup_enabled()
             instance_item["nvl-targetGroups"] = self.get_target_groups()
+
+        middleware = resource.get("middleware", None)
+        if middleware is not None:
+            instance_item["middleware"] = middleware
+
+        return instance_item
+
+    def aws_simple_info(self):
+        """Get info as required by aws api
+
+        :return:
+        """
+
+        if self.resource is None:
+            self.logger.debug("fv - aws_simple_info - resource None")
+            self.resource = {}
+
+        resource = self.resource
+        sgs = []
+        sgs = resource.get("security_groups", [])
+
+        image_id = None
+        image_name = None
+        config = self.get_config("instance")
+        if config is not None:
+            # subnet_id = config.get("SubnetId")
+            image_id = config.get("ImageId")
+
+            # subnet = self.subnet_idx.get(subnet_id)
+            # if subnet is not None:
+            #     subnet_vpc = self.vpc_idx.get(subnet.get_parent_id())
+            #     subnet_id = subnet.uuid
+            #     subnet_vpc_id = subnet_vpc.uuid
+            #     subnet_name = subnet.name
+            #     subnet_vpc_name = subnet_vpc.name
+
+            image = self.image_idx.get(image_id)
+            if image is not None:
+                image_id = image.uuid
+                image_name = image.name
+
+        instance = self.instance
+        instance_item = {}
+
+        instance_item["nvl-imageName"] = image_name
+
+        instance_item["instanceId"] = instance.uuid
+        # instance_item["instanceType"] = self.instance_type_name
+
+        status = instance.status
+        if len(resource) > 0:
+            state = resource.get("state")
+            runstate = dict_get(resource, "attributes.last_runstate")
+        else:
+            state = status
+            runstate = "poweredOn" if instance.active else "poweredOff"
+
+        instance_state = self.state_mapping(state, runstate)
+        instance_item["instanceState"] = {"name": instance_state}
+
+        instance_item["dnsName"] = dict_get(resource, "attributes.fqdn")
+        instance_item["privateIpAddress"] = dict_get(resource, "attributes.ip_address")
+
+        instance_item["placement"] = {"availabilityZone": dict_get(resource, "attributes.availability_zone_name")}
+        instance_item["tagSet"] = self.tag_set
+
+        instance_item["groupSet"] = []
+        security_group_idx = self.security_group_idx
+        for sg in sgs:
+            sg_obj = security_group_idx.get(sg["uuid"])
+            sg_name = None
+            sg_uuid = sg["uuid"]
+            if sg_obj is not None:
+                sg_name = sg_obj.name
+                sg_uuid = sg_obj.uuid
+            instance_item["groupSet"].append({"groupId": sg_uuid, "groupName": sg_name})
+
+        # custom params
+        account = self.account
+        instance_item["nvl-ownerAlias"] = account.name
+        instance_item["nvl-ownerId"] = account.uuid
+
+        from beehive_service.controller.api_division import ApiDivision
+
+        division: ApiDivision = self.division
+        if division:
+            instance_item["nvl-divisionAlias"] = division.name
+            instance_item["nvl-divisionId"] = division.uuid
+
+        instance_item["nvl-name"] = instance.name
+
+        instance_item["nvl-InstanceTypeExt"] = {}
+        flavor = resource.get("flavor")
+        if flavor is not None:
+            flavor.pop("uuid")
+            flavor.pop("name")
+            instance_item["nvl-InstanceTypeExt"] = flavor
 
         return instance_item
 
@@ -1935,11 +2149,13 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
     def __check_ssh_key(self, data_instance, account_id, os_name, is_clone):
         # get key
         key_name = data_instance.get("KeyName")
+        if "windows" in os_name.lower():
+            return key_name
         if is_clone and key_name is None:
             key_name = self.get_config("SshKeyName")
         if key_name is not None:
             ApiComputeKeyPairsHelper(self.controller).check_service_instance(key_name, account_id)
-        elif os_name != "Windows":
+        else:
             raise ApiManagerError("Ssh keyname is required")
         return key_name
 
@@ -1955,6 +2171,7 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
 
         subnet = subnet_inst.get_config("cidr")
         av_zone = subnet_inst.get_config("site")
+        subnet_name = subnet_inst.name
 
         # check availability zone status
         if not self.is_availability_zone_active(compute_zone, av_zone):
@@ -1974,6 +2191,21 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         vpc_resource_uuid = self.controller.get_service_instance(
             subnet_inst.model.linkParent[0].start_service_id
         ).resource_uuid
+        uri = f"/v2.0/nrs/provider/vpcs/{vpc_resource_uuid}/available-ips"
+        data = {"orchestrator_type": type_provider, "site": av_zone}
+        res = self.controller.api_client.admin_request("resource", uri, "get", data=data)
+        available_ips = res.get("available_ips")
+        if available_ips is not None:
+            available_ips = int(available_ips)
+            if available_ips <= 0:
+                msg = f"""\
+No more available ips on subnet {subnet_name} for hypervisor {type_provider} due to full allocation; \
+consider requesting a new subnet or selecting another one.
+"""
+                raise ApiManagerError(msg)
+        else:
+            msg = "Failed to retrieve available IP count for %s on %s. Attempting to proceed."
+            self.logger.warning(msg, subnet_name, type_provider)
 
         network = {
             "subnet": subnet,
@@ -2392,6 +2624,12 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         attached = security_group.resource_uuid in sgs
 
         if attached is True and action == "DEL":
+            if len(sgs) == 1:
+                raise ApiManagerError(
+                    "Can't delete security group. Server %s must have al least one security group"
+                    % (self.instance.uuid)
+                )
+
             action_param = {
                 "name": "del_security_group",
                 "args": {"security_group": security_group.resource_uuid},
@@ -2866,6 +3104,34 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
         return instances
 
     @trace(op="view")
+    def list_simple_resources(self, uuids=None, page=0, size=-1, **kvargs):
+        """Get resources info
+
+        :return: Dictionary with resources info.
+        :rtype: dict
+        :raises ApiManagerError: raise :class:`.ApiManagerError`
+        """
+        data = {
+            "size": size,
+            "page": page,
+            "sg_info": kvargs.get("sg_info"),
+            "flavor_info": kvargs.get("flavor_info"),
+        }
+        if uuids is not None:
+            data["uuids"] = ",".join(uuids)
+        self.logger.debug("list_simple_resources %s" % data)
+
+        resources = self.controller.api_client.admin_request(
+            "resource",
+            "/v1.0/nrs/simple_entities",
+            "get",
+            data=urlencode(data),
+            timeout=600,
+        ).get("resources", [])
+        self.logger.debug("Get compute instance simple resources: %s" % truncate(resources))
+        return resources
+
+    @trace(op="view")
     def get_resource_console(self):
         """Get resource native console
 
@@ -2992,8 +3258,8 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
                 raise
             except Exception as ex:
                 self.logger.error(ex, exc_info=True)
-                self.update_status(SrvStatusType.ERROR, error=ex.message)
-                raise ApiManagerError(ex.message)
+                self.update_status(SrvStatusType.ERROR, error=str(ex))
+                raise ApiManagerError(str(ex))
 
             if taskid is not None:
                 self.wait_for_task(taskid, delta=4, maxtime=7200, task=task)
@@ -3022,8 +3288,8 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
                 raise
             except Exception as ex:
                 self.logger.error(ex, exc_info=True)
-                self.update_status(SrvStatusType.ERROR, error=ex.message)
-                raise ApiManagerError(ex.message)
+                self.update_status(SrvStatusType.ERROR, error=str(ex))
+                raise ApiManagerError(str(ex))
 
             # set resource uuid
             if uuid is not None and taskid is not None:
@@ -3054,9 +3320,10 @@ class ApiComputeInstance(AsyncApiServiceTypePlugin):
             # multi actions
             actions = kvargs.pop("actions", [])
             for action in actions:
-                if action is not None:
-                    data = {"action": {action.get("name"): action.get("args")}}
-                    uri = "/v1.0/nrs/provider/instances/%s/actions" % self.instance.resource_uuid
+                if action is None:
+                    continue
+                data = {"action": {action.get("name"): action.get("args")}}
+                uri = "/v1.0/nrs/provider/instances/%s/actions" % self.instance.resource_uuid
                 res = self.controller.api_client.admin_request("resource", uri, "put", data=data)
                 taskid = res.get("taskid", None)
                 if taskid is not None:
@@ -3234,7 +3501,7 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
         return info
 
     @staticmethod
-    def get_ssh_keys_idx(controller: ServiceController, ssh_key_names=None):
+    def get_ssh_keys_idx(controller: "ServiceController", ssh_key_names=None):
         if ssh_key_names is None:
             return []
         data = {"key_names": ssh_key_names, "size": -1, "page": 0}
@@ -3245,7 +3512,7 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
 
     @staticmethod
     def customize_list(
-        controller: ServiceController,
+        controller: "ServiceController",
         entities: List[ApiComputeKeyPairs],
         *args,
         **kvargs,
@@ -3272,7 +3539,7 @@ class ApiComputeKeyPairs(ApiServiceTypePlugin):
             ent_inst_name = ent_inst.name
             ssh_key = ssh_keys_idx.get(f"{ent_inst_name}")
             if ssh_key is None:
-                self.logger.error(f"Compute key pair {ent_inst.uuid} has no ssh nodes with name {ent_inst_name}")
+                controller.logger.error(f"Compute key pair {ent_inst.uuid} has no ssh nodes with name {ent_inst_name}")
                 continue
             entity.key_type = ssh_key.get("type")
             entity.key_bits = ssh_key.get("bits")
@@ -3593,6 +3860,7 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
         ApiServiceTypePlugin.__init__(self, *args, **kvargs)
 
         self.child_classes = []
+        self.rules = []
 
     def info(self):
         """Get object info
@@ -3604,7 +3872,7 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
 
     @staticmethod
     def customize_list(
-        controller: ServiceController,
+        controller: "ServiceController",
         entities: List[ApiComputeSecurityGroup],
         *args,
         **kvargs,
@@ -3744,16 +4012,30 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
                 group_list.append(sg_perm_inst.resource_uuid)
         return group_list
 
+    def check_egress_to_any(self, data, rule_type):
+        """Check whether an egress rule to any destination for any protocol and port exists in security group
+
+        :param data: rule data
+        :param rule_type: ingress or egress
+        :return: a list of rules
+        """
+        # only one filter is supported for the moment
+        others = ["Cidr:0.0.0.0/0"]
+        service = "*:*"
+        rules = self.list_rule_resources(others, service, rule_type)
+        self.logger.debug("Get rules from filter: %s" % truncate(rules))
+        return rules
+
     def get_rule_from_filter(self, data, rule_type):
         """Get list of rules from a filter
 
         :param data: input data to parse
-        :param rule_type: type of rule. Can bu RULE_GROUP_INGRESS, RULE_GROUP_EGRESS
+        :param rule_type: type of rule. Can be RULE_GROUP_INGRESS, RULE_GROUP_EGRESS
         :return: list of rule
         """
         ip_permission_list = data.get("IpPermissions_N", [])
         if not ip_permission_list:
-            raise ApiManagerError("The parameter IpPermissions.N is empty, provide at least  an item", 400)
+            raise ApiManagerError("The parameter IpPermissions.N is empty, provide at least an item", 400)
 
         # only one filter is supported for the moment
         ip_permission = ip_permission_list[0]
@@ -3776,7 +4058,7 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
                 port = "%s-%s" % (ip_from_port_range, ip_to_port_range)
             service = "%s:%s" % (proto, port)
 
-        # check source/destionation
+        # check source/destination
         if len(ip_permission.get("UserIdGroupPairs", [])) > 0 and (
             len(ip_permission.get("IpRanges", [])) > 0 or len(ip_permission.get("Ipv6Ranges", [])) > 0
         ):
@@ -3796,6 +4078,7 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
                 400,
             )
 
+        others = []
         # get cidr ipv4
         ipv4_range_list = self.get_ipv_range_list(ip_permission, "IpRanges")
         if len(ipv4_range_list) > 0:
@@ -3806,7 +4089,6 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
         if len(ipv6_range_list) > 0:
             others = ["Cidr:%s" % i for i in ipv6_range_list]
 
-        others = []
         # get security group
         group_list = self.get_group_list(ip_permission)
         if len(group_list) > 0:
@@ -3832,8 +4114,20 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
         # ip_from_port_range = -1
         # ip_to_port_range = -1
         # ip_protocol = '*'
+        rule_perm_params = {}
 
-        ip_permission_list = data.get("rule").get("IpPermissions_N", [])
+        rule_input = data.get("rule")
+
+        rule_orchestrators = None
+        orchestrators: str = rule_input.get("orchestrators", None)
+        self.logger.debug("+++++ rule - orchestrators: %s" % orchestrators)
+        if orchestrators is not None:
+            rule_orchestrators = orchestrators.split(",")
+            for rule_orchestrator in rule_orchestrators:
+                if rule_orchestrator not in ["openstack", "vsphere"]:
+                    raise ApiManagerError("Orchestrator is invalid %s" % rule_orchestrator)
+
+        ip_permission_list = rule_input.get("IpPermissions_N", [])
         if not ip_permission_list:
             raise ApiManagerError("The parameter IpPermissions.N is empty, provide at least  an item", 400)
 
@@ -3890,6 +4184,7 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
                             details=False,
                         )
                         sg_perm_inst = sg_perm_plugin.instance
+                        rule_perm_params.update({"perm_obj": sg_perm_inst, "perm_type": "SecurityGroup"})
                         sg_perm_inst_value = sg_perm_inst.resource_uuid
 
             ipv_range_list = ApiComputeSecurityGroup(self.controller).get_ipv_range_list(ip_permission, "IpRanges")
@@ -3898,22 +4193,85 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
             for ipv_range in ipv_range_list:
                 sg_perm_inst_value = ipv_range
                 sg_perm_type = "Cidr"
+                rule_perm_params.update({"perm_obj": ipv_range, "perm_type": "Cidr"})
                 break
+
+        # set rule logging
+        rule_logs = self.set_rule_logging(rule_type, sg_inst, rule_perm_params)
 
         # create rule
         rule = {}
         if rule_type == __RULE_GROUP_EGRESS__:
             rule["source"] = {"type": "SecurityGroup", "value": sg_inst.resource_uuid}
             rule["destination"] = {"type": sg_perm_type, "value": sg_perm_inst_value}
+            rule["direction"] = "egress"
         else:
             rule["source"] = {"type": sg_perm_type, "value": sg_perm_inst_value}
-            rule["destination"] = {
-                "type": "SecurityGroup",
-                "value": sg_inst.resource_uuid,
-            }
+            rule["destination"] = {"type": "SecurityGroup", "value": sg_inst.resource_uuid}
+            rule["direction"] = "ingress"
         rule["service"] = service
+        rule["orchestrators"] = rule_orchestrators
+        rule["logging"] = rule_logs
 
         return rule
+
+    def set_rule_logging(self, rule_type: str, sg_inst: "ApiServiceInstance", perm_params) -> bool:
+        """Set rule logging.
+
+        :param rule_type: rule type, ingress or egress
+        :param sg_inst: security group instance
+        :param perm_params: dictionary of rule permissions
+        :return: boolean
+        """
+        perm_type = perm_params.get("perm_type")
+        perm_obj = perm_params.get("perm_obj")
+
+        # ingress rule
+        if rule_type == __RULE_GROUP_INGRESS__:
+            if perm_type == "SecurityGroup":
+                src_sg: ApiServiceInstance = perm_obj
+                return self._set_logging(sg_inst, src_sg, None)
+            elif perm_type == "Cidr":
+                src_cidr: str = perm_obj
+                return self._set_logging(sg_inst, None, src_cidr)
+        # egress rule
+        else:
+            if perm_type == "SecurityGroup":
+                dst_sg: ApiServiceInstance = perm_obj
+                return self._set_logging(sg_inst, dst_sg, None)
+            elif perm_type == "Cidr":
+                dst_cidr: str = perm_obj
+                return self._set_logging(sg_inst, None, dst_cidr)
+
+    def _set_logging(self, sg_inst: "ApiServiceInstance", perm_sg: "ApiServiceInstance", perm_cidr: str) -> bool:
+        """Implement the logic to determine whether a rule should be logged or not.
+
+        :param sg_inst: security group instance
+        :param perm_sg: source or destination security group according to rule type
+        :param perm_cidr: source or destination ip range according to rule type
+        :return: boolean
+        """
+        # source or destination is a security group
+        if perm_sg:
+            sg_account = sg_inst.get_account()
+            perm_sg_account = perm_sg.get_account()
+            # both security groups belong to the same accounts
+            if sg_account.uuid == perm_sg_account.uuid:
+                rule_logs = False
+            # security groups belong to different accounts
+            else:
+                rule_logs = True
+        # source or destination is a cidr
+        elif perm_cidr:
+            rule_logs = False
+            for netw in __NIVOLA_NETWORKS__:
+                # ip range is included in Nivola networks
+                if ipaddress.ip_network(perm_cidr).overlaps(ipaddress.ip_network(netw)):
+                    rule_logs = True
+                    break
+        else:
+            raise ApiManagerError("Rule source/destination permission object is neither a security group nor a cidr")
+        return rule_logs
 
     def convert_rule_proto(self, proto):
         mapping = {
@@ -4036,8 +4394,16 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
         instance_item = {}
 
         res_uuid = None
+        compute_zone = None
+        rules_optimization = False
         if isinstance(self.resource, dict):
             res_uuid = self.resource.get("uuid")
+            compute_zone = self.resource.get("compute_zone")
+        if compute_zone is not None:
+            uri = "/v1.0/nrs/provider/compute_zones/%s" % compute_zone
+            res = self.controller.api_client.admin_request("resource", uri, "get")
+            rules_optimization = dict_get(res, "compute_zone.attributes.netaas.rules_optimization", default=False)
+
         instance_item["vpcId"] = ""
         instance_item["nvl-vpcName"] = ""
         instance_item["nvl-sgOwnerAlias"] = ""
@@ -4059,6 +4425,7 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
         instance_item["tagSet"] = []
         instance_item["ipPermissions"] = []
         instance_item["ipPermissionsEgress"] = []
+
         for rule in self.rules:
             state = rule.get("state", None)
             rule = rule.get("attributes", {})
@@ -4067,10 +4434,23 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
             source = rule.get("source", {})
             dest = rule.get("destination", {})
 
-            if dest.get("type") == "SecurityGroup" and dest.get("value") == res_uuid:
-                instance_item["ipPermissions"].append(self.get_rule_info(rule, "ingress", reserved, state))
-            if source.get("type") == "SecurityGroup" and source.get("value") == res_uuid:
-                instance_item["ipPermissionsEgress"].append(self.get_rule_info(rule, "egress", reserved, state))
+            src_type = source.get("type")
+            dst_type = dest.get("type")
+
+            if rules_optimization:
+                if src_type == "SecurityGroup" and dst_type == "SecurityGroup" and dest.get("value") == res_uuid:
+                    instance_item["ipPermissions"].append(self.get_rule_info(rule, "ingress", reserved, state))
+                elif src_type == "SecurityGroup" and dst_type == "SecurityGroup" and source.get("value") == res_uuid:
+                    instance_item["ipPermissionsEgress"].append(self.get_rule_info(rule, "egress", reserved, state))
+                elif src_type == "Cidr" and dst_type == "SecurityGroup" and dest.get("value") == res_uuid:
+                    instance_item["ipPermissions"].append(self.get_rule_info(rule, "ingress", reserved, state))
+                elif src_type == "SecurityGroup" and dst_type == "Cidr" and source.get("value") == res_uuid:
+                    instance_item["ipPermissionsEgress"].append(self.get_rule_info(rule, "egress", reserved, state))
+            else:
+                if dst_type == "SecurityGroup" and dest.get("value") == res_uuid:
+                    instance_item["ipPermissions"].append(self.get_rule_info(rule, "ingress", reserved, state))
+                if src_type == "SecurityGroup" and source.get("value") == res_uuid:
+                    instance_item["ipPermissionsEgress"].append(self.get_rule_info(rule, "egress", reserved, state))
 
         # custom params
         instance_item["nvl-state"] = self.state_mapping(self.instance.status)
@@ -4164,8 +4544,6 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
         :param rule_type: rule type: ingress or egress
         :return:
         """
-        res = False
-
         # checks authorization
         # todo: authorization must be reconsidered when use process
         self.controller.check_authorization(
@@ -4179,6 +4557,15 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
         rules = self.get_rule_from_filter(rule, rule_type)
         if len(rules) > 0:
             raise ApiManagerError("Rule with the same parameters already exists")
+
+        # check an egress rule to any destination (0.0.0.0/0) already exists
+        rules = self.check_egress_to_any(rule, rule_type)
+        if len(rules) > 0:
+            raise ApiManagerWarning(
+                "The egress rule being created is redundant, as a general egress rule "
+                "allowing any protocol and port to any destination already exists in "
+                "security group %s" % security_group.name
+            )
 
         rule_data = self.get_rule_ip_permission({"rule": rule}, self.instance, rule_type)
         self.rule_factory(rule_data, reserved=False)
@@ -4314,8 +4701,8 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # set resource uuid
         if uuid is not None and taskid is not None:
@@ -4358,9 +4745,11 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
                 "compute_zone": compute,
                 "source": rule.get("source"),
                 "destination": rule.get("destination"),
+                "direction": rule.get("direction"),
                 "service": rule.get("service"),
                 "rule_orchestrator_types": rule.get("orchestrators"),
                 "reserved": reserved,
+                "logging": rule.get("logging", False),
             }
         }
         self.logger.debug("Rule data: %s" % rule_data)
@@ -4576,8 +4965,8 @@ class ApiComputeSecurityGroup(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # set resource uuid
         if taskid is not None:
@@ -4619,34 +5008,240 @@ class ApiComputeSubnet(AsyncApiServiceTypePlugin):
         return info
 
     @staticmethod
-    def customize_list(
-        controller: ServiceController, entities: List[ApiComputeSubnet], *args, **kvargs
-    ) -> List[ApiComputeSubnet]:
-        """Post list function. Extend this function to execute some operation after entity was created. Used only for
-        synchronous creation.
+    def build_site_vpc_res_set(
+        controller: "ServiceController", vpc_idx: Dict[str, Any], entities: List["ApiComputeSubnet"]
+    ) -> Set[Tuple[str, str]]:
+        """
+        Build a set of (site, vpc_resource_uuid) pairs for the given subnets.
+
+        Example:
+        --------
+        Input:
+            vpc_idx = {
+                "parent1": Vpc(resource_uuid="uuid-vpc1"),
+                "parent2": Vpc(resource_uuid="uuid-vpc2"),
+            }
+            entities = [
+                Subnet(config={"site": "SiteA"}, parent_id="parent1"),
+                Subnet(config={"site": "SiteB"}, parent_id="parent2"),
+            ]
+
+        Output:
+            {("SiteA", "uuid-vpc1"), ("SiteB", "uuid-vpc2")}
+        :param controller: Service controller instance
+        :param vpc_idx: Mapping from parent_id to VPC objects
+        :param entities: List of entities (must support get_config("site") and .instance.get_parent_id())
+        :return: Set of tuples (site, vpc_resource_uuid)
+        """
+        vpc_ress: Set[Tuple[str, str]] = set()
+
+        for e in entities:
+            site: Optional[str] = e.get_config("site")
+            if not site:
+                controller.logger.warning("Skip entity %s: missing site", getattr(e, "id", str(e)))
+                continue
+
+            parent_id: Optional[str] = getattr(e.instance, "get_parent_id", lambda: None)()
+            if parent_id is None:
+                controller.logger.warning("Skip entity %s: missing parent_id", getattr(e, "id", str(e)))
+                continue
+
+            vpc = vpc_idx.get(parent_id)
+            if vpc is None or not getattr(vpc, "resource_uuid", None):
+                controller.logger.warning(
+                    "Skip entity %s: invalid VPC or missing resource_uuid", getattr(e, "id", str(e))
+                )
+                continue
+
+            vpc_ress.add((site, vpc.resource_uuid))
+
+        return vpc_ress
+
+    @staticmethod
+    def fetch_available_ips(
+        controller: "ServiceController",
+        vpc_idx: dict,
+        entities: List["ApiComputeSubnet"],
+        pool_size: Optional[int] = None,
+        parallel: bool = True,
+    ) -> Dict[str, Dict[str, Dict[str, int]]]:
+        """
+        Get IP availability for multiple VPCs.
+        If parallel=True, requests are executed concurrently using gevent greenlets,
+        otherwise a single batched request is sent.
+
+        Returns a mapping: site -> vpc_resource_uuid -> {"vsphere": int, "openstack": int}
+
+        Example
+        -------
+        Input:
+            vpc_ress = {("SiteA", "uuid-vpc1"), ("SiteB", "uuid-vpc2")}
+
+        Output:
+            {
+                "SiteA": {
+                    "uuid-vpc1": {"vsphere": 646, "openstack": 1113}
+                },
+                "SiteB": {
+                    "uuid-vpc2": {"vsphere": 407, "openstack": 757}
+                }
+            }
 
         :param controller: controller instance
-        :param entities: list of entities
-        :param args: custom params
-        :param kvargs: custom params
-        :return: None
-        :raise ApiManagerError:
+        :param vpc_idx: mapping {parent_id -> VPC instance}
+        :param entities: list of subnet entities
+        :param pool_size: max number of concurrent greenlets (defaults to len(vpc_ress))
+        :param parallel: if False, perform one request with all VPCs at once
+        :return: dict {site: {vpc_id: {"vsphere": int, "openstack": int}}}
         """
+        vpc_ress = ApiComputeSubnet.build_site_vpc_res_set(controller, vpc_idx, entities)
+        from ujson import dumps
+
+        uri = "/v2.0/nrs/provider/vpcs/available-ips"
+        if not parallel:
+            data = {"vpcs": [{"site": site, "vpc_id": vpc_id} for site, vpc_id in vpc_ress]}
+            try:
+                return controller.api_client.admin_request("resource", uri, "post", data=dumps(data))["available_ips"]
+            except Exception as ex:
+                controller.logger.error("Failed to fetch available IPs in non-parallel mode", exc_info=True)
+                return {}
+
+        import gevent
+        from gevent.pool import Pool
+        from beehive.common.data import operation, get_operation_params, set_operation_params
+
+        def fetch_one(site: str, vpc_id: str) -> Dict[str, Dict[str, Dict[str, int]]]:
+            """Fetch available IPs for a single (site, vpc_id) pair."""
+            from uuid import uuid4
+            from urllib.parse import urlencode
+
+            operation.id = str(uuid4())
+            set_operation_params(operation_params)
+
+            data = {"vpcs": [{"site": site, "vpc_id": vpc_id}]}
+            try:
+                return controller.api_client.admin_request("resource", uri, "post", data=dumps(data))["available_ips"]
+            except Exception as ex:
+                controller.logger.error("Failed to fetch available IPs for site=%s vpc=%s", site, vpc_id, exc_info=True)
+                return {}
+
+        if pool_size is None:
+            pool_size = len(vpc_ress)
+
+        uri = "/v2.0/nrs/provider/vpcs/available-ips"
+        pool = Pool(pool_size)
+        operation_params = get_operation_params()
+        jobs = [pool.spawn(fetch_one, site, vpc_id) for site, vpc_id in vpc_ress]
+
+        gevent.joinall(jobs)
+
+        merged: Dict[str, Dict[str, Dict[str, int]]] = {}
+        for job in jobs:
+            site_map = job.value or {}
+            for site, vpcs_map in site_map.items():
+                try:
+                    if site not in merged:
+                        merged[site] = {}
+                    merged[site].update(vpcs_map)
+                except Exception:
+                    controller.logger.error(
+                        "Failed to merge available IPs for site '%s'. Skipping this site's data.", site, exc_info=True
+                    )
+
+        return merged
+
+    @staticmethod
+    def add_allocation_pools_details(vpc_d: Dict[str, Any], entity: ApiComputeSubnet) -> Any:
+        """
+        Enrich a single entity with available IPs, if present in vpc_d.
+
+        Looks up:
+          site = entity.get_config("site")
+          vpc_uuid = entity.vpc.resource_uuid
+        and sets:
+          entity.vsphere_available_ips = <int or None>
+          entity.ops_available_ips     = <int or None>
+
+        Example
+        -------
+        Input:
+            vpc_d = {
+                "SiteVercelli01": {
+                    "uuid-vpc-123": {"vsphere": 646, "openstack": 1113}
+                }
+            }
+            entity:
+                entity.get_config("site") -> "SiteVercelli01"
+                entity.vpc.resource_uuid  -> "uuid-vpc-123"
+
+        Effect on entity:
+            entity.vsphere_available_ips == 646
+            entity.ops_available_ips == 1113
+
+        If site or vpc_uuid not found in vpc_d, both attributes are set to None.
+
+        Returns:
+            The same entity instance (mutated).
+
+        :param vpc_d: Mapping {site -> {vpc_id -> {"vsphere": int, "openstack": int}}}
+        :param entity: Entity to enrich with available IPs
+        :return: Updated entity
+        """
+        av_zone: Optional[str] = entity.get_config("site")
+        vpc_resource_uuid: str = entity.vpc.resource_uuid
+
+        vsphere_available_ips: Optional[int] = None
+        ops_available_ips: Optional[int] = None
+
+        if av_zone in vpc_d:
+            zone_item = vpc_d[av_zone]
+            if vpc_resource_uuid in zone_item:
+                res_item = zone_item[vpc_resource_uuid]
+                vsphere_available_ips = res_item.get("vsphere")
+                ops_available_ips = res_item.get("openstack")
+
+        entity.vsphere_available_ips = vsphere_available_ips
+        entity.ops_available_ips = ops_available_ips
+        return entity
+
+    @staticmethod
+    def customize_list(
+        controller: "ServiceController", entities: List["ApiComputeSubnet"], *args: Any, **kvargs: Any
+    ) -> List["ApiComputeSubnet"]:
+        """
+        Post-list customization hook.
+
+        Executed after the entities are created (synchronous mode only).
+        Used to enrich each entity with account, service, VPC, and optionally allocation pools details.
+
+        :param controller: Service controller instance
+        :param entities: List of ApiComputeSubnet entities
+        :param args: Extra positional args (unused)
+        :param kvargs: Extra keyword args
+        :return: Updated list of ApiComputeSubnet entities
+        """
+        allocation_pools_details: bool = kvargs.get("allocation_pools_details", False)
+
         account_idx = controller.get_account_idx()
         compute_service_idx = controller.get_service_instance_idx(ApiComputeService.plugintype, index_key="account_id")
         vpc_idx = controller.get_service_instance_idx(ApiComputeVPC.plugintype)
 
-        # get resources
+        vpc_d: Dict[str, Any] = {}
+        if allocation_pools_details:
+            vpc_d = ApiComputeSubnet.fetch_available_ips(controller, vpc_idx, entities)
+
         for entity in entities:
-            account_id = str(entity.instance.account_id)
+            entity_instance = entity.instance
+            entity.vpc = vpc_idx.get(entity_instance.get_parent_id())
             entity.vpc_idx = vpc_idx
+            account_id = str(entity_instance.account_id)
             entity.account = account_idx.get(account_id)
             entity.compute_service = compute_service_idx.get(account_id)
-            entity.vpc = vpc_idx.get(entity.instance.get_parent_id())
 
-        # assign resources
-        for entity in entities:
-            entity.resource = None
+            if allocation_pools_details:
+                ApiComputeSubnet.add_allocation_pools_details(vpc_d, entity)
+
+            entity.resource = None  # placeholder for resource binding
 
         return entities
 
@@ -4675,19 +5270,21 @@ class ApiComputeSubnet(AsyncApiServiceTypePlugin):
         :return:
         """
         inst_service = self.instance
-        instance_item = {}
-        instance_item["assignIpv6AddressOnCreation"] = False
+        instance_item = dict()
         instance_item["availableIpAddressCount"] = None
+        instance_item["assignIpv6AddressOnCreation"] = False
         instance_item["defaultForAz"] = True
         instance_item["mapPublicIpOnLaunch"] = False
         instance_item["tagSet"] = []
+        av_zone = self.get_config("site")
 
         if self.get_config("site") is not None:
-            instance_item["availabilityZone"] = self.get_config("site")
+            instance_item["availabilityZone"] = av_zone
             instance_item["cidrBlock"] = self.get_config("cidr")
 
+        vpc_uuid = self.vpc.uuid
         instance_item["subnetId"] = inst_service.uuid
-        instance_item["vpcId"] = self.vpc.uuid
+        instance_item["vpcId"] = vpc_uuid
         instance_item["state"] = self.state_mapping(inst_service.status)
         instance_item["ownerId"] = self.account.uuid
         # custom params
@@ -4695,6 +5292,13 @@ class ApiComputeSubnet(AsyncApiServiceTypePlugin):
         instance_item["nvl-vpcName"] = self.vpc.name
         instance_item["nvl-subnetOwnerAlias"] = self.account.name
         instance_item["nvl-subnetOwnerId"] = self.account.uuid
+
+        # Add available IP counts only if the attributes exist
+        if hasattr(self, "vsphere_available_ips"):
+            instance_item["vsphereAvailableIpAddressCount"] = self.vsphere_available_ips
+
+        if hasattr(self, "ops_available_ips"):
+            instance_item["openstackAvailableIpAddressCount"] = self.ops_available_ips
 
         return instance_item
 
@@ -4790,8 +5394,8 @@ class ApiComputeSubnet(AsyncApiServiceTypePlugin):
                 raise
             except Exception as ex:
                 self.logger.error(ex, exc_info=True)
-                self.update_status(SrvStatusType.ERROR, error=ex.message)
-                raise ApiManagerError(ex.message)
+                self.update_status(SrvStatusType.ERROR, error=str(ex))
+                raise ApiManagerError(str(ex))
 
             # set resource uuid
             if uuid is not None and taskid is not None:
@@ -4849,8 +5453,8 @@ class ApiComputeSubnet(AsyncApiServiceTypePlugin):
                 raise
             except Exception as ex:
                 self.logger.error(ex, exc_info=True)
-                self.update_status(SrvStatusType.ERROR, error=ex.message)
-                raise ApiManagerError(ex.message)
+                self.update_status(SrvStatusType.ERROR, error=str(ex))
+                raise ApiManagerError(str(ex))
 
             # set resource uuid
             if uuid is not None and taskid is not None:
@@ -4876,7 +5480,7 @@ class ApiComputeTag(ApiServiceTypePlugin):
 
     @staticmethod
     def customize_list(
-        controller: ServiceController, entities: List[ApiComputeTag], *args, **kvargs
+        controller: "ServiceController", entities: List[ApiComputeTag], *args, **kvargs
     ) -> List[ApiComputeTag]:
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
@@ -4953,7 +5557,6 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = AsyncApiServiceTypePlugin.info(self)
-        info.update({})
         return info
 
     def state_mapping(self, state, resource=None):
@@ -4971,7 +5574,7 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
 
     @staticmethod
     def customize_list(
-        controller: ServiceController,
+        controller: "ServiceController",
         entities: List["ApiComputeVolume"],
         *args,
         **kvargs,
@@ -5068,7 +5671,7 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
                 if key is not None:
                     tags_list.append(key)
 
-        name = self.instance.name
+        name = f"{self.instance.name}-{id_gen()}"
 
         data = {
             "availability_zone": av_zone,
@@ -5182,7 +5785,7 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
         if self.resource is None:
             self.resource = {}
 
-        data_instance: dict = self.get_config("volume")
+        data_instance: Dict = self.get_config("volume")
         if data_instance is None:
             data_instance = {}
         # get instance
@@ -5240,7 +5843,14 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
 
         :return:
         """
-        resource = self.get_resource()
+        resource = None
+        try:
+            resource = self.get_resource()
+        except Exception as ex:
+            self.logger.error(ex, exc_info=True)
+
+        if resource is None:
+            return False
         return resource.get("used")
 
     def attach(self, instance_id, device):
@@ -5327,8 +5937,9 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
         """
         if uuid is None:
             uuid = self.instance.resource_uuid
-        uri = "/v1.0/nrs/provider/volumes/%s" % uuid
-        instances = self.controller.api_client.admin_request("resource", uri, "get", data="").get("volume")
+        if uuid is not None:
+            uri = "/v1.0/nrs/provider/volumes/%s" % uuid
+            instances = self.controller.api_client.admin_request("resource", uri, "get", data="").get("volume")
         self.logger.debug("Get compute volume resource: %s" % truncate(instances))
         return instances
 
@@ -5384,8 +5995,8 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # set resource uuid
         if uuid is not None and taskid is not None:
@@ -5424,13 +6035,52 @@ class ApiComputeVolume(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         if taskid is not None:
             self.wait_for_task(taskid, delta=4, maxtime=600, task=task)
         self.logger.debug("Update compute volume resources: %s" % res)
 
+        return True
+
+    def _update_metadata_volume_size_from_resource(self, task=None):
+        try:
+            res = self.get_resource()
+            res_volume_size = dict_get(res, "attributes.configs.size")
+        except Exception as ex:
+            self.logger.error(ex, exc_info=True)
+            raise ApiManagerError(str(ex))
+
+        try:
+            ser_volume_size = self.instance.get_config("volume.Size")
+            if ser_volume_size != res_volume_size:
+                self.logger.debug("Patching compute volume size...")
+                self.instance.set_config("volume.Size", res_volume_size)
+                self.logger.debug("Patch compute volume size. old:%s - new:%s", ser_volume_size, res_volume_size)
+                if task:
+                    task.progress(msg="Patch compute volume size. old:%s - new:%s" % (ser_volume_size, res_volume_size))
+            else:
+                self.logger.info(
+                    "Patch compute volume size: nothing to do (service:%s - resource:%s)",
+                    ser_volume_size,
+                    res_volume_size,
+                )
+                if task:
+                    task.progress(
+                        msg="Patch compute volume size: nothing to do (service:%s - resource:%s)"
+                        % (ser_volume_size, res_volume_size)
+                    )
+        except Exception as ex:
+            self.logger.error(ex, exc_info=True)
+            raise ApiManagerError(str(ex))
+
+    def pre_patch(self, **params):
+        ret = {"resource_params": {}}
+        return ret
+
+    def patch_resource(self, task, *args, **kwargs):
+        self._update_metadata_volume_size_from_resource(task)
         return True
 
     def delete_resource(self, task, *args, **kvargs):
@@ -5499,7 +6149,7 @@ class ApiComputeVPC(AsyncApiServiceTypePlugin):
 
     @staticmethod
     def customize_list(
-        controller: ServiceController, entities: List[ApiComputeVPC], *args, **kvargs
+        controller: "ServiceController", entities: List[ApiComputeVPC], *args, **kvargs
     ) -> List[ApiComputeVPC]:
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
@@ -5679,8 +6329,8 @@ class ApiComputeVPC(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # set resource uuid
         if uuid is not None and taskid is not None:
@@ -5705,8 +6355,8 @@ class ApiComputeVPC(AsyncApiServiceTypePlugin):
                 raise
             except Exception as ex:
                 self.logger.error(ex, exc_info=True)
-                self.update_status(SrvStatusType.ERROR, error=ex.message)
-                raise ApiManagerError(ex.message)
+                self.update_status(SrvStatusType.ERROR, error=str(ex))
+                raise ApiManagerError(str(ex))
 
             # set resource uuid
             if uuid is not None and taskid is not None:
@@ -5727,6 +6377,8 @@ class ApiComputeVPC(AsyncApiServiceTypePlugin):
         :return: True
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
+        taskid = None
+
         # get site networks to deassign
         networks = self.get_config("networks")
 
@@ -5749,14 +6401,14 @@ class ApiComputeVPC(AsyncApiServiceTypePlugin):
                 self.logger.error(ex, exc_info=True)
                 self.update_status(SrvStatusType.ERROR, error=ex.value)
                 raise
-            except TypeError:
+            except TypeError as ex:
                 self.logger.error(ex, exc_info=True)
                 self.update_status(SrvStatusType.ERROR, error="TypeError")
-                raise ApiManagerError(ex.message)
+                raise ApiManagerError(str(ex))
             except Exception as ex:
                 self.logger.error(ex, exc_info=True)
-                self.update_status(SrvStatusType.ERROR, error=ex.message)
-                raise ApiManagerError(ex.message)
+                self.update_status(SrvStatusType.ERROR, error=str(ex))
+                raise ApiManagerError(str(ex))
 
             # set resource uuid
             if uuid is not None and taskid is not None:
@@ -5801,7 +6453,7 @@ class ApiComputeCustomization(AsyncApiServiceTypePlugin):
 
     @staticmethod
     def customize_list(
-        controller: ServiceController,
+        controller: "ServiceController",
         entities: List[ApiComputeInstance],
         *args,
         **kvargs,

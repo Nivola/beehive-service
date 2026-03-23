@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beecell.simple import id_gen, format_date
+from beehive_service.service_util import __SITE_NAMES__
 from beehive_service.views import ServiceApiView
 from beecell.swagger import SwaggerHelper
 from beehive.common.apimanager import SwaggerApiView, ApiView
@@ -19,8 +20,8 @@ from beehive.common.data import operation
 from typing import List, Type, Tuple, Any, Union, Dict
 
 
-class DescribeVolumesApiItemResponseSchema(Schema):
-    pass
+#class DescribeVolumesApiItemResponseSchema(Schema):
+#    pass
     # attachmentSet
     # availabilityZone = fields.String(required=False, example='site01',
     #                                  description='The Availability Zone for the volume.')
@@ -82,33 +83,34 @@ class DescribeVolumesApiItemResponseSchema(Schema):
 
 
 class DescribeVolumesAttachmentSetResponseSchema(Schema):
-    requestId = fields.String(required=False, example="", description="api request id")
-    volumeId = fields.String(required=False, example="", description="volume id")
-    instanceId = fields.String(required=False, example="", description="instance id")
-    device = fields.String(required=False, allow_none=True, example="", description="instance device")
-    status = fields.String(required=False, example="", description="volume attachment status")
-    attachTime = fields.String(required=False, example="", description="volume attachment status")
+    requestId = fields.String(required=False, metadata={"description": "api request id"})
+    volumeId = fields.String(required=False, allow_none=True, metadata={"description": "volume id"})
+    instanceId = fields.String(required=False, allow_none=True, metadata={"description": "instance id"})
+    device = fields.String(required=False, allow_none=True, metadata={"description": "instance device"})
+    status = fields.String(required=False, metadata={"description": "volume attachment status"})
+    attachTime = fields.String(required=False, allow_none=True, metadata={"description": "volume attachment status"})
     deleteOnTermination = fields.Bool(
         required=False,
-        example="True",
-        description="Indicates whether the volume is deleted on instance termination.",
+        metadata={"example": True, "description": "Indicates whether the volume is deleted on instance termination."},
     )
 
 
 class DescribeVolumesApi1ItemResponseSchema(Schema):
-    volumeId = fields.String(required=False, allow_none=True, example="", description="instance id")
-    size = fields.Integer(required=False, example=10, description="The size of the volume, in GiBs")
-    snapshotId = fields.String(required=False, allow_none=True, example="123", description="The snapshot ID")
+    volumeId = fields.String(required=False, allow_none=True, metadata={"description": "instance id"})
+    size = fields.Integer(required=False, metadata={"example": 10, "description": "The size of the volume, in GiBs"})
+    snapshotId = fields.String(
+        required=False,
+        allow_none=True,
+        metadata={"example": "123", "description": "The snapshot ID"},
+    )
     availabilityZone = fields.String(
         required=False,
-        example="site01",
-        description="The Availability Zone for the volume.",
+        metadata={"example": "site01", "description": "The Availability Zone for the volume."},
     )
-    status = fields.String(required=False, allow_none=True, description="volume status")
+    status = fields.String(required=False, allow_none=True, metadata={"description": "volume status"})
     createTime = fields.String(
         required=False,
-        example="1999-03-17",
-        description="The time stamp when volume creation was initiated.",
+        metadata={"example": "1999-03-17", "description": "The time stamp when volume creation was initiated."},
     )
     attachmentSet = fields.Nested(
         DescribeVolumesAttachmentSetResponseSchema,
@@ -116,106 +118,93 @@ class DescribeVolumesApi1ItemResponseSchema(Schema):
         required=False,
         allow_none=False,
     )
-    volumeType = fields.String(required=False, description="The volume type")
-    encrypted = fields.Boolean(required=False, allow_none=True, description="volume is encrypted")
-    multiAttachEnabled = fields.Boolean(required=False, allow_none=True, description="volume is multi attach")
+    volumeType = fields.String(required=False, metadata={"description": "The volume type"})
+    encrypted = fields.Boolean(required=False, allow_none=True, metadata={"description": "volume is encrypted"})
+    multiAttachEnabled = fields.Boolean(
+        required=False,
+        allow_none=True,
+        metadata={"description": "volume is multi attach"},
+    )
     nvl_hypervisor = fields.String(
         required=False,
         allow_none=True,
-        example="vmware | openstack",
-        description="type of the hypervisor",
         data_key="nvl-hypervisor",
+        metadata={"example": "vmware | openstack", "description": "type of the hypervisor"},
     )
     nvl_name = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="name of the instance",
         data_key="nvl-name",
+        metadata={"description": "name of the instance"},
     )
     nvl_volumeOwnerAlias = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="Owner Alias",
         data_key="nvl-volumeOwnerAlias",
+        metadata={"description": "Owner Alias"},
     )
     nvl_volumeOwnerId = fields.String(
         required=False,
         allow_none=True,
-        example="",
         data_key="nvl-volumeOwnerId",
-        description="ID of the account that owns the instance",
+        metadata={"description": "ID of the account that owns the instance"},
     )
     nvl_resourceId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="ID of the instance resource",
         data_key="nvl-resourceId",
+        metadata={"description": "ID of the instance resource"},
     )
 
 
 class DescribeVolumesApi1ResponseSchema(Schema):
     nextToken = fields.String(required=True, allow_none=True)
     requestId = fields.String(required=True)
-    volumesSet = fields.Nested(
-        DescribeVolumesApi1ItemResponseSchema,
-        many=True,
-        required=True,
-        allow_none=False,
-    )
+    volumesSet = fields.Nested(DescribeVolumesApi1ItemResponseSchema, many=True, required=True, allow_none=False)
     nvl_volumeTotal = fields.Integer(
         required=False,
         allow_none=True,
-        example=2,
         data_key="nvl-volumeTotal",
-        description="ID of the instance resource",
+        metadata={"example": 2, "description": "ID of the instance resource"},
     )
     xmlns = fields.String(required=False, data_key="__xmlns")
 
 
 class DescribeVolumesApiResponseSchema(Schema):
     DescribeVolumesResponse = fields.Nested(
-        DescribeVolumesApi1ResponseSchema, required=True, many=False, allow_none=False
+        DescribeVolumesApi1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
     )
 
 
 class DescribeVolumesAttachmentApiRequestSchema(Schema):
-    # attach_time = fields.String(example='1999-09-23', required=False, allow_none=True, data_key='attach-time',
-    #                             description='The time stamp when the attachment initiated.')
-    # delete_on_termination = fields.Boolean(example=False, required=False, allow_none=True,
-    #                                        data_key='delete-on-termination',
-    #                                        description='Whether the volume is deleted on instance termination.')
-    # device = fields.String(example='/dev/sda1', required=False, allow_none=True, data_key='device',
-    #                        description='The device name specified in the block device mapping')
     instance_id = fields.String(
-        example="1999-09-23",
         required=False,
         allow_none=True,
         data_key="instance-id",
-        description="The ID of the instance the volume is attached to.",
+        metadata={"example": "1999-09-23", "description": "The ID of the instance the volume is attached to."},
     )
-    # status = fields.String(example='attaching', required=False, allow_none=True, data_key='status',
-    #                        validate=OneOf(['attaching', ' attached', 'detaching']),
-    #                        description='The attachment state (attaching | attached | detaching). ')
 
 
 class DescribeVolumesApiRequestSchema(Schema):
     MaxResults = fields.Integer(
         required=False,
-        default=10,
-        description="",
+        dump_default=10,
         data_key="MaxResults",
         context="query",
+        metadata={"description": ""},
     )
+
     NextToken = fields.String(
         required=False,
-        default="0",
-        description="",
+        dump_default="0",
         data_key="NextToken",
         context="query",
+        metadata={"description": ""},
     )
+
     owner_id_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -223,18 +212,19 @@ class DescribeVolumesApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="owner-id.N",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
+
     Nvl_Name_N = fields.List(
         fields.String(),
         required=False,
-        example="",
-        description="name of the volume",
         allow_none=True,
         context="query",
         collection_format="multi",
         data_key="Nvl_Name.N",
+        metadata={"description": "name of the volume"},
     )
+
     VolumeId_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -242,8 +232,9 @@ class DescribeVolumesApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="VolumeId.N",
-        description="volume id",
+        metadata={"description": "volume id"},
     )
+
     volume_id_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -251,8 +242,9 @@ class DescribeVolumesApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="volume-id.N",
-        description="volume id",
+        metadata={"description": "volume id"},
     )
+
     volume_type_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -260,8 +252,9 @@ class DescribeVolumesApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="volume-type.N",
-        description="The volume type.",
+        metadata={"description": "The volume type."},
     )
+
     status_N = fields.List(
         fields.String(
             example="",
@@ -272,8 +265,9 @@ class DescribeVolumesApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="status.N",
-        description="The status of the volume (creating | available | " "in-use | deleting | deleted | error)",
+        metadata={"description": "The status of the volume (creating | available | " "in-use | deleting | deleted | error)"},
     )
+
     tag_key_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -281,8 +275,9 @@ class DescribeVolumesApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="tag-key.N",
-        descriptiom="value of a tag assigned to the resource",
+        metadata={"description": "value of a tag assigned to the resource"},
     )
+
     create_time_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -290,17 +285,9 @@ class DescribeVolumesApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="create-time.N",
-        description="The time stamp when the volume was created.",
+        metadata={"description": "The time stamp when the volume was created."},
     )
-    # encrypted_N = fields.List(fields.Boolean(example=False), required=False, allow_none=True, context='query',
-    #                           collection_format='multi', data_key='encrypted.N',
-    #                           description='Indicates whether the volume is encrypted (true | false)')
-    # size_N = fields.List(fields.Integer(example=10), required=False, allow_none=True, context='query',
-    #                      collection_format='multi', data_key='size.N',
-    #                      description='The size of the volume, in GiB.')
-    # availability_zone_N = fields.List(fields.String(example=''), required=False, allow_none=True, context='query',
-    #                                   collection_format='multi', data_key='availability-zone.N',
-    #                                   description='The Availability Zone in which the volume was created.')
+
     attachment_N = fields.Nested(
         DescribeVolumesAttachmentApiRequestSchema,
         many=True,
@@ -309,7 +296,7 @@ class DescribeVolumesApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="attachment.N",
-        description="Attachment",
+        metadata={"description": "Attachment"},
     )
 
 
@@ -400,79 +387,52 @@ class DescribeVolumes(ServiceApiView):
         }
         return res
 
-
-# class TagRequestSchema(Schema):
-#     Key = fields.String(required=True, validate=Length(max=127), example='', description='tag key')
-#     # Value = fields.String(required=False, validate=Length(max=255), example='', description='tag value')
-#
-#     @validates_schema
-#     def validate_unsupported_parameters(self, data):
-#         keys = data.keys()
-#         if 'Value' in keys:
-#             raise ValidationError('Parameters Tags.Value is not supported. Can be used only the parameter '
-#                                   'Parameters Tags.Key')
-#
-#
-# class TagSpecificationMappingApiRequestSchema(Schema):
-#     ResourceType = fields.String(required=False, example='', missing=__SRV_AWS_TAGS_RESOURCE_TYPE_INSTANCE__,
-#                                  validate=OneOf([__SRV_AWS_TAGS_RESOURCE_TYPE_INSTANCE__]),
-#                                  description='type of resource to tag')
-#     Tags = fields.Nested(TagRequestSchema, missing=[], required=False, many=True, allow_none=False,
-#                          description='list of tags to apply to the resource')
-
-
 class CreateVolumeApiParamRequestSchema(Schema):
     # AccountId managed by AWS Wrapper
     owner_id = fields.String(
         required=True,
-        example="1",
         data_key="owner-id",
-        description="account id or uuid associated to compute zone",
+        metadata={"example": "1", "description": "account id or uuid associated to compute zone"},
     )
-    VolumeType = fields.String(required=True, example="vol.default", description="The volume type")
+    VolumeType = fields.String(required=True, metadata={"example": "vol.default", "description": "The volume type"})
     SnapshotId = fields.String(
         required=False,
-        example="123",
-        description="The snapshot from which to create the " "volume. You must specify either a snapshot ID",
+        metadata={"example": "123", "description": "The snapshot from which to create the " "volume. You must specify either a snapshot ID"},
     )
     # TagSpecification_N = fields.Nested(TagSpecificationMappingApiRequestSchema, required=False, many=True,
     #                                    allow_none=False, data_key='TagSpecification.N',
     #                                    description='The tags to apply to the resources during launch')
-    Size = fields.Integer(required=True, example=10, description="The size of the volume, in GiBs")
+    Size = fields.Integer(required=True, metadata={"example": 10, "description": "The size of the volume, in GiBs"})
     Iops = fields.Integer(
         required=False,
-        example=1000,
-        missing=-1,
-        description="The number of I/O operations per "
-        "second (IOPS) to provision for the volume, with a maximum ratio of xx IOPS/GiB",
+        load_default=-1,
+        metadata={"example": 1000, "description": "The number of I/O operations per "
+        "second (IOPS) to provision for the volume, with a maximum ratio of xx IOPS/GiB"},
     )
     AvailabilityZone = fields.String(
         required=True,
-        example="Pod1",
-        description="The Availability Zone in which to create the volume",
+        validate=OneOf(__SITE_NAMES__),
+        metadata={"example": "SiteTorino01", "description": "The Availability Zone in which to create the volume"},
     )
     MultiAttachEnabled = fields.Bool(
         required=False,
-        example=True,
-        missing=False,
-        description="Specifies whether to "
+        load_default=False,
+        metadata={"example": True, "description": "Specifies whether to "
         "enable volume Multi-Attach. If you enable Multi-Attach, you can attach the "
-        "volume to up to xx instances in the same Availability Zone",
+        "volume to up to xx instances in the same Availability Zone"},
     )
     Encrypted = fields.Bool(
         required=False,
-        example=True,
-        missing=False,
-        description="Specifies whether the volume should be encrypted",
+        load_default=False,
+        metadata={"example": True, "description": "Specifies whether the volume should be encrypted"},
     )
     Nvl_Hypervisor = fields.String(
-        example="openstack",
-        missing="openstack",
+        load_default="openstack",
         required=False,
         validate=OneOf(["openstack", "vsphere"]),
-        description="hypervisor type",
+        metadata={"example": "openstack", "description": "hypervisor type"},
     )
-    Nvl_Name = fields.String(required=False, example="test", description="volume name")
+    Nvl_Name = fields.String(required=False, metadata={"example": "test", "description": "volume name"})
 
 
 class CreateVolumeApiRequestSchema(Schema):
@@ -480,18 +440,26 @@ class CreateVolumeApiRequestSchema(Schema):
 
 
 class CreateVolumeApi1ResponseSchema(Schema):
-    requestId = fields.String(required=True, allow_none=True, description="api request id")
-    volumeId = fields.String(required=True, allow_none=True, description="volume id")
-    size = fields.String(required=True, allow_none=True, description="volume size")
-    iops = fields.String(required=True, allow_none=True, description="volume iops")
-    snapshotId = fields.String(required=False, allow_none=True, description="volume snapshot id")
-    availabilityZone = fields.String(required=True, allow_none=True, description="volume availability zone")
-    status = fields.String(required=True, allow_none=True, description="volume status")
-    createTime = fields.String(required=True, allow_none=True, description="volume creation time")
-    volumeType = fields.String(required=True, allow_none=True, description="volume type")
-    encrypted = fields.String(required=True, allow_none=True, description="volume is encrypted")
-    multiAttachEnabled = fields.String(required=True, allow_none=True, description="volume is multi attach")
-
+    xmlns = fields.String(required=False, data_key="__xmlns")
+    requestId = fields.String(required=True, allow_none=True, metadata={"description": "api request id"})
+    volumeId = fields.String(required=True, allow_none=True, metadata={"description": "volume id"})
+    size = fields.Integer(required=True, allow_none=True, metadata={"description": "volume size"})
+    iops = fields.String(required=True, allow_none=True, metadata={"description": "volume iops"})
+    snapshotId = fields.String(required=False, allow_none=True, metadata={"description": "volume snapshot id"})
+    availabilityZone = fields.String(
+        required=True,
+        allow_none=True,
+        metadata={"description": "volume availability zone"},
+    )
+    status = fields.String(required=True, allow_none=True, metadata={"description": "volume status"})
+    createTime = fields.String(required=True, allow_none=True, metadata={"description": "volume creation time"})
+    volumeType = fields.String(required=True, allow_none=True, metadata={"description": "volume type"})
+    encrypted = fields.Boolean(required=True, allow_none=True, metadata={"description": "volume is encrypted"})
+    multiAttachEnabled = fields.Boolean(
+        required=True,
+        allow_none=True,
+        metadata={"description": "volume is multi attach"},
+    )
 
 class CreateVolumeApiResponseSchema(Schema):
     CreateVolumeResponse = fields.Nested(CreateVolumeApi1ResponseSchema, required=True)
@@ -547,9 +515,9 @@ class CreateVolume(ServiceApiView):
                 "requestId": operation.id,
                 "volumeId": inst.instance.uuid,
                 "size": inner_data.get("Size"),
-                "iops": inner_data.get("Size"),
-                "snapshotId": inner_data.get("Size"),
-                "availabilityZone": inner_data.get("Size"),
+                "iops": None,
+                "snapshotId": inner_data.get("SnapshotId"),
+                "availabilityZone": inner_data.get("AvailabilityZone"),
                 "status": "creating",
                 "createTime": format_date(inst.model.creation_date),
                 "volumeType": inner_data.get("VolumeType"),
@@ -563,9 +531,10 @@ class CreateVolume(ServiceApiView):
 
 
 class DeleteVolumeResponseItemSchema(Schema):
-    requestId = fields.String(required=True, example="", description="api request id")
+    xmlns = fields.String(required=False, data_key="__xmlns")
+    requestId = fields.String(required=True, metadata={"description": "api request id"})
     # nvl_return = fields.Integer(required=True, example=True, data_key='return', description='return status')
-    nvl_return = fields.Boolean(required=True, data_key="return", description="return status")
+    nvl_return = fields.Boolean(required=True, data_key="return", metadata={"description": "return status"})
 
 
 class DeleteVolumeResponseSchema(Schema):
@@ -610,12 +579,13 @@ class DeleteVolume(ServiceApiView):
 
 
 class AttachVolumeApi1ResponseSchema(Schema):
-    requestId = fields.String(required=True, example="", description="api request id")
-    volumeId = fields.String(required=True, example="", description="volume id")
-    instanceId = fields.String(required=True, example="", description="instance id")
-    device = fields.String(required=True, example="", description="instance device")
-    status = fields.String(required=True, example="", description="volume attachment status")
-    attachTime = fields.String(required=True, example="", description="volume attachment status")
+    requestId = fields.String(required=True, metadata={"description": "api request id"})
+    volumeId = fields.String(required=True, metadata={"description": "volume id"})
+    instanceId = fields.String(required=True, metadata={"description": "instance id"})
+    device = fields.String(required=True, metadata={"description": "instance device"})
+    status = fields.String(required=True, metadata={"description": "volume attachment status"})
+    attachTime = fields.String(required=True, metadata={"description": "volume attachment status"})
+    xmlns = fields.String(required=False, data_key="__xmlns")
 
 
 class AttachVolumeApiResponseSchema(Schema):
@@ -623,12 +593,11 @@ class AttachVolumeApiResponseSchema(Schema):
 
 
 class AttachVolumeApiRequestSchema(Schema):
-    Device = fields.String(required=True, example="/dev/sdh", description="The device name")
-    InstanceId = fields.String(required=True, example="123", description="The ID of the instance")
+    Device = fields.String(required=True, metadata={"example": "/dev/sdh", "description": "The device name"})
+    InstanceId = fields.String(required=True, metadata={"example": "123", "description": "The ID of the instance"})
     VolumeId = fields.String(
         required=True,
-        example="123",
-        description="The ID of the volume. The volume and instance " "must be within the same Availability Zone.",
+        metadata={"example": "123", "description": "The ID of the volume. The volume and instance " "must be within the same Availability Zone."},
     )
 
 
@@ -665,24 +634,24 @@ class AttachVolume(ServiceApiView):
                 "instanceId": instance_id,
                 "device": device,
                 "status": "attaching",
-                "attachTime": None,
+                "attachTime": "",
             }
         }
         return res
 
 
 class DetachVolumeApi1ResponseSchema(Schema):
-    requestId = fields.String(required=True, example="", description="api request id")
-    volumeId = fields.String(required=True, example="", description="volume id")
-    instanceId = fields.String(required=True, example="", description="instance id")
-    device = fields.String(required=True, example="", description="instance device")
-    status = fields.String(required=True, example="", description="volume attachment status")
-    attachTime = fields.String(required=True, example="", description="volume attachment status")
+    requestId = fields.String(required=True, metadata={"description": "api request id"})
+    volumeId = fields.String(required=True, metadata={"description": "volume id"})
+    instanceId = fields.String(required=True, metadata={"description": "instance id"})
+    device = fields.String(required=True, metadata={"description": "instance device"})
+    status = fields.String(required=True, metadata={"description": "volume attachment status"})
+    attachTime = fields.String(required=True, metadata={"description": "volume attachment status"})
     deleteOnTermination = fields.Bool(
         required=True,
-        example="True",
-        description="Indicates whether the volume is deleted on instance termination.",
+        metadata={"example": "True", "description": "Indicates whether the volume is deleted on instance termination."},
     )
+    xmlns = fields.String(required=False, data_key="__xmlns")
 
 
 class DetachVolumeApiResponseSchema(Schema):
@@ -692,19 +661,17 @@ class DetachVolumeApiResponseSchema(Schema):
 class DetachVolumeApiRequestSchema(Schema):
     Force = fields.Bool(
         required=False,
-        example=True,
-        missing=False,
-        description="Forces detachment if the previous "
+        load_default=False,
+        metadata={"example": True, "description": "Forces detachment if the previous "
         "detachment attempt did not occur cleanly (for example, logging into an instance, unmounting "
         "the volume, and detaching normally). This option can lead to data loss or a corrupted file "
-        "system. Use this option only as a last resort to detach a volume from a failed instance",
+        "system. Use this option only as a last resort to detach a volume from a failed instance"},
     )
-    Device = fields.String(required=True, example="/dev/sdh", description="The device name")
-    InstanceId = fields.String(required=True, example="123", description="The ID of the instance")
+    Device = fields.String(required=True, metadata={"example": "/dev/sdh", "description": "The device name"})
+    InstanceId = fields.String(required=True, metadata={"example": "123", "description": "The ID of the instance"})
     VolumeId = fields.String(
         required=True,
-        example="123",
-        description="The ID of the volume. The volume and instance " "must be within the same Availability Zone.",
+        metadata={"example": "123", "description": "The ID of the volume. The volume and instance " "must be within the same Availability Zone."},
     )
 
 
@@ -741,7 +708,7 @@ class DetachVolume(ServiceApiView):
                 "instanceId": instance_id,
                 "device": device,
                 "status": "detaching",
-                "attachTime": None,
+                "attachTime": "",
                 "deleteOnTermination": True,
             }
         }
@@ -749,17 +716,17 @@ class DetachVolume(ServiceApiView):
 
 
 class InstanceTypeFeatureResponseSchema(Schema):
-    vcpus = fields.String(required=False, allow_none=True, example="", description="")
-    ram = fields.String(required=False, allow_none=True, example="", description="")
-    disk = fields.String(required=False, allow_none=True, example="", description="")
+    vcpus = fields.String(required=False, allow_none=True, metadata={"description": ""})
+    ram = fields.String(required=False, allow_none=True, metadata={"description": ""})
+    disk = fields.String(required=False, allow_none=True, metadata={"description": ""})
 
 
 class InstanceTypeResponseSchema(Schema):
-    id = fields.Integer(required=True, example="", description="")
-    uuid = fields.String(required=True, example="", description="")
-    name = fields.String(required=True, example="", description="")
-    resource_id = fields.String(required=False, allow_none=True, example="", description="")
-    description = fields.String(required=True, allow_none=True, example="", description="")
+    id = fields.Integer(required=True, metadata={"description": ""})
+    uuid = fields.String(required=True, metadata={"description": ""})
+    name = fields.String(required=True, metadata={"description": ""})
+    resource_id = fields.String(required=False, allow_none=True, metadata={"description": ""})
+    description = fields.String(required=True, allow_none=True, metadata={"description": ""})
     features = fields.Nested(InstanceTypeFeatureResponseSchema, required=True, many=False, allow_none=False)
 
 
@@ -781,15 +748,15 @@ class DescribeVolumeTypesApiResponseSchema(Schema):
 class DescribeVolumeTypesApiRequestSchema(Schema):
     MaxResults = fields.Integer(
         required=False,
-        default=10,
-        description="entities list page size",
+        dump_default=10,
         context="query",
+        metadata={"description": "entities list page size"},
     )
     NextToken = fields.String(
         required=False,
-        default="0",
-        description="entities list page selected",
+        dump_default="0",
         context="query",
+        metadata={"description": "entities list page selected"},
     )
     volume_type_N = fields.List(
         fields.String(example=""),
@@ -798,7 +765,7 @@ class DescribeVolumeTypesApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="volume-type.N",
-        description="list of volume type uuid",
+        metadata={"description": "list of volume type uuid"},
     )
 
 

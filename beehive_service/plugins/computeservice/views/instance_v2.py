@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from typing import Dict
 from flasgger import fields, Schema
 from marshmallow import validates_schema, ValidationError
+
+from beecell.types.type_dict import dict_get
 from beehive_service.views import ServiceApiView
 from beecell.swagger import SwaggerHelper
 from beehive.common.apimanager import SwaggerApiView, ApiView, ApiManagerError
@@ -36,110 +38,100 @@ class InstanceProductCodesResponseSchema(Schema):
     productCode = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="product code AMI used to launch the instance",
+        metadata={"description": "product code AMI used to launch the instance"},
     )
-    type = fields.String(required=False, allow_none=True, example="", description="type of product code")
+    type = fields.String(required=False, allow_none=True, metadata={"description": "type of product code"})
 
 
 class InstancePlacementsResponseSchema(Schema):
     affinity = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="affinity setting for the instance on the dedicated host",
+        metadata={"description": "affinity setting for the instance on the dedicated host"},
     )
     availabilityZone = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="availability zone of the instance id",
+        metadata={"description": "availability zone of the instance id"},
     )
     groupName = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="name of the placement group the instance",
+        metadata={"description": "name of the placement group the instance"},
     )
-    spreadDomain = fields.String(required=False, allow_none=True, example="", description="instance id")
+    spreadDomain = fields.String(required=False, allow_none=True, metadata={"description": "instance id"})
     hostId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="host id on which the instance reside",
+        metadata={"description": "host id on which the instance reside"},
     )
     tenancy = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="tenancy of the instance (if the instance is running in a VPC)",
+        metadata={"description": "tenancy of the instance (if the instance is running in a VPC)"},
     )
 
 
 class InstanceMonitoringResponseSchema(Schema):
-    state = fields.String(required=False, allow_none=True, example="", description="status of monitoring")
+    state = fields.String(required=False, allow_none=True, metadata={"description": "status of monitoring"})
 
 
 class InstanceGroupSetResponseSchema(Schema):
-    groupName = fields.String(required=False, allow_none=True, example="", description="security group name")
-    groupId = fields.String(required=False, allow_none=True, example="", description="security group id")
+    groupName = fields.String(required=False, allow_none=True, metadata={"description": "security group name"})
+    groupId = fields.String(required=False, allow_none=True, metadata={"description": "security group id"})
 
 
 class InstanceBlockDeviceMappingV20Item1ResponseSchema(Schema):
-    volumeId = fields.String(required=False, allow_none=True, example="", description="id volume ebs")
-    status = fields.String(required=False, allow_none=True, example="", description="attachment status")
-    attachTime = fields.DateTime(required=False, allow_none=True, example="", description="attachment timestamp")
+    volumeId = fields.String(required=False, allow_none=True, metadata={"description": "id volume ebs"})
+    status = fields.String(required=False, allow_none=True, metadata={"description": "attachment status"})
+    attachTime = fields.DateTime(required=False, allow_none=True, metadata={"description": "attachment timestamp"})
     deleteOnTermination = fields.Boolean(
         required=False,
-        description="boolean to know if the volume is deleted on " "instance termination.",
+        metadata={"description": "boolean to know if the volume is deleted on " "instance termination."},
     )
     volumeSize = fields.Integer(
         required=False,
         allow_none=True,
-        example=10,
-        description="The size of the volume, in GiB.",
+        metadata={"example": 10, "description": "The size of the volume, in GiB."},
     )
 
 
 class InstanceBlockDeviceMappingV20ResponseSchema(Schema):
-    deviceName = fields.String(required=False, allow_none=True, example="", description="device name")
+    deviceName = fields.String(required=False, allow_none=True, metadata={"description": "device name"})
     ebs = fields.Nested(InstanceBlockDeviceMappingV20Item1ResponseSchema, many=False, required=False)
 
 
 class InstanceTagSetResponseSchema(Schema):
-    key = fields.String(required=False, description="tag key")
-    value = fields.String(required=False, description="tag value")
+    key = fields.String(required=False, metadata={"description": "tag key"})
+    value = fields.String(required=False, metadata={"description": "tag value"})
 
 
 class InstanceAssociationResponseSchema(Schema):
-    publicIp = fields.String(required=False, allow_none=True, example="", description="public IP address ")
+    publicIp = fields.String(required=False, allow_none=True, metadata={"description": "public IP address "})
 
 
 class InstancePrivateIpAddressesSetResponseSchema(Schema):
     privateIpAddress = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="private IPv4 address associated with the network interface",
+        metadata={"description": "private IPv4 address associated with the network interface"},
     )
     association = fields.Nested(InstanceAssociationResponseSchema, many=True, required=False)
 
 
 class InstanceNetworkInterfaceSetResponseSchema(Schema):
-    networkInterfaceId = fields.String(required=False, allow_none=True, example="", description="network interface id")
-    subnetId = fields.String(required=False, allow_none=True, example="", description="subnet id")
-    vpcId = fields.String(required=False, allow_none=True, example="", description="vpc id")
-    status = fields.String(
+    networkInterfaceId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="status of the network interface",
+        metadata={"description": "network interface id"},
     )
+    subnetId = fields.String(required=False, allow_none=True, metadata={"description": "subnet id"})
+    vpcId = fields.String(required=False, allow_none=True, metadata={"description": "vpc id"})
+    status = fields.String(required=False, allow_none=True, metadata={"description": "status of the network interface"})
     privateDnsName = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="private DNS name of the network interface",
+        metadata={"description": "private DNS name of the network interface"},
     )
     groupSet = fields.Nested(InstanceGroupSetResponseSchema, many=True, required=False)
     association = fields.Nested(InstanceAssociationResponseSchema, many=False, required=False)
@@ -150,8 +142,7 @@ class InstanceStateResponseSchema(Schema):
     code = fields.Integer(
         required=False,
         allow_none=True,
-        example="0",
-        description="code of instance state",
+        metadata={"example": "0", "description": "code of instance state"},
     )
     name = fields.String(
         required=False,
@@ -159,190 +150,178 @@ class InstanceStateResponseSchema(Schema):
         description="name of instance state",
         validate=OneOf(
             [
-                "pending",
-                "running",
+                getattr(ApiComputeInstance.state_enum, x)
+                for x in dir(ApiComputeInstance.state_enum)
+                if not x.startswith("__")
+            ] + [
+                # these probably don't exist in practice TODO verify
                 "shutting-down",
-                "terminated",
                 "stopping",
-                "stopped",
-                "error",
-                "unknown",
             ]
         ),
     )
 
 
 class InstanceTypeExtResponseSchema(Schema):
-    vcpus = fields.Integer(required=False, example="1", description="number of virtual cpu")
-    bandwidth = fields.Integer(required=False, example="0", description="bandwidth")
-    memory = fields.Integer(required=False, example="0", description="RAM")
-    disk_iops = fields.Integer(required=False, example="0", description="available disk IOPS")
-    disk = fields.Integer(required=False, example="0", description="number of virtual disk")
-    name = fields.String(required=False, example="vm.m4.large")
+    vcpus = fields.Integer(required=False, metadata={"example": "1", "description": "number of virtual cpu"})
+    bandwidth = fields.Integer(required=False, metadata={"example": "0", "description": "bandwidth"})
+    memory = fields.Integer(required=False, metadata={"example": "0", "description": "RAM"})
+    disk_iops = fields.Integer(required=False, metadata={"example": "0", "description": "available disk IOPS"})
+    disk = fields.Integer(required=False, metadata={"example": "0", "description": "number of virtual disk"})
+    name = fields.String(required=False, metadata={"example": "vm.m4.large"})
 
 
 class StateReasonResponseSchema(Schema):
-    code = fields.Integer(required=False, allow_none=True, example="400")
+    code = fields.Integer(required=False, allow_none=True, metadata={"example": "400"})
     message = fields.String(
         required=False,
         allow_none=True,
-        example="Parent instance <ServiceInstance at 0x7f3158628d90> is not bound to a Session",
+        metadata={"example": "Parent instance <ServiceInstance at 0x7f3158628d90> is not bound to a Session"},
     )
 
 
 class InstanceInstancesSetResponseSchema(Schema):
-    instanceId = fields.String(required=False, allow_none=True, example="", description="instance id")
-    imageId = fields.String(required=False, allow_none=True, example="", description="image instance id")
+    instanceId = fields.String(required=False, allow_none=True, metadata={"description": "instance id"})
+    imageId = fields.String(required=False, allow_none=True, metadata={"description": "image instance id"})
     instanceState = fields.Nested(InstanceStateResponseSchema, many=False, required=False)
     privateDnsName = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="private dns name assigned to the instance",
+        metadata={"description": "private dns name assigned to the instance"},
     )
     dnsName = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="public dns name assigned to the instance",
+        metadata={"description": "public dns name assigned to the instance"},
     )
     reason = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="reason for the current state of the instance",
+        metadata={"description": "reason for the current state of the instance"},
     )
     keyName = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="name of the key pair used to create the instance",
+        metadata={"description": "name of the key pair used to create the instance"},
     )
     instanceType = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="instance definition for the instance",
+        metadata={"description": "instance definition for the instance"},
     )
     productCodes = fields.Nested(InstanceProductCodesResponseSchema, many=False, required=False)
-    launchTime = fields.DateTime(
-        required=False,
-        example="",
-        description="the timestamp the instance was launched",
-    )
+    launchTime = fields.DateTime(required=False, metadata={"description": "the timestamp the instance was launched"})
     placement = fields.Nested(InstancePlacementsResponseSchema, many=False, required=False)
     monitoring = fields.Nested(InstanceMonitoringResponseSchema, many=False, required=False)
-    subnetId = fields.String(required=False, allow_none=True, example="", description="subnet id ")
-    vpcId = fields.String(required=False, allow_none=True, example="", description="vpc id ")
-    privateIpAddress = fields.String(required=False, allow_none=True, example="###.###.###.###", description="")
-    ipAddress = fields.String(required=False, allow_none=True, example="###.###.###.###", description="")
+    subnetId = fields.String(required=False, allow_none=True, metadata={"description": "subnet id "})
+    vpcId = fields.String(required=False, allow_none=True, metadata={"description": "vpc id "})
+    privateIpAddress = fields.String(
+        required=False,
+        allow_none=True,
+        metadata={"example": "###.###.###.###", "description": ""},
+    )
+    ipAddress = fields.String(
+        required=False,
+        allow_none=True,
+        metadata={"example": "###.###.###.###", "description": ""},
+    )
     groupSet = fields.Nested(InstanceGroupSetResponseSchema, many=True, required=False)
-    architecture = fields.String(required=False, allow_none=True, example="i386 | x86_64", description="")
+    architecture = fields.String(
+        required=False,
+        allow_none=True,
+        metadata={"example": "i386 | x86_64", "description": ""},
+    )
     rootDeviceType = fields.String(
         required=False,
         allow_none=True,
-        example="ebs",
-        description="root device type used by the AMI.",
+        metadata={"example": "ebs", "description": "root device type used by the AMI."},
     )
     blockDeviceMapping = fields.Nested(InstanceBlockDeviceMappingV20ResponseSchema, many=True, required=False)
     virtualizationType = fields.String(
         required=False,
         allow_none=True,
-        example="hvm | paravirtual",
-        description="virtualization type of the instance",
+        metadata={"example": "hvm | paravirtual", "description": "virtualization type of the instance"},
     )
     tagSet = fields.Nested(InstanceTagSetResponseSchema, many=True, required=False)
     hypervisor = fields.String(
         required=False,
         allow_none=True,
-        example="vmware | openstack",
-        description="type of the hypervisor",
+        metadata={"example": "vmware | openstack", "description": "type of the hypervisor"},
     )
     networkInterfaceSet = fields.Nested(InstanceNetworkInterfaceSetResponseSchema, many=True, required=False)
     ebsOptimized = fields.Boolean(
         required=False,
-        description="indicates whether the instance is optimized for Amazon EBS I/O",
+        metadata={"description": "indicates whether the instance is optimized for Amazon EBS I/O"},
     )
     nvl_name = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="name of the instance",
         data_key="nvl-name",
+        metadata={"description": "name of the instance"},
     )
     nvl_subnetName = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="subnet name of the instance",
         data_key="nvl-subnetName",
+        metadata={"description": "subnet name of the instance"},
     )
     nvl_vpcName = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="vpc name of the instance",
         data_key="nvl-vpcName",
+        metadata={"description": "vpc name of the instance"},
     )
     nvl_imageName = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="image name of the instance",
         data_key="nvl-imageName",
+        metadata={"description": "image name of the instance"},
     )
     nvl_ownerAlias = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="name of the account that owns the instance",
         data_key="nvl-ownerAlias",
+        metadata={"description": "name of the account that owns the instance"},
     )
     nvl_ownerId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="ID of the account that owns the instance",
         data_key="nvl-ownerId",
+        metadata={"description": "ID of the account that owns the instance"},
     )
     nvl_resourceId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="ID of the instance resource",
         data_key="nvl-resourceId",
+        metadata={"description": "ID of the instance resource"},
     )
     nvl_InstanceTypeExt = fields.Nested(
         InstanceTypeExtResponseSchema,
         many=False,
         required=True,
         data_key="nvl-InstanceTypeExt",
-        description="flavor attributes",
+        metadata={"description": "flavor attributes"},
     )
     nvl_MonitoringEnabled = fields.Boolean(
         required=True,
-        example=True,
         data_key="nvl-MonitoringEnabled",
-        description="if True monitoring is enabled",
+        metadata={"example": True, "description": "if True monitoring is enabled"},
     )
     nvl_LoggingEnabled = fields.Boolean(
         required=True,
-        example=True,
         data_key="nvl-LoggingEnabled",
-        description="if True log forward is enabled",
+        metadata={"example": True, "description": "if True log forward is enabled"},
     )
     nvl_BackupEnabled = fields.Boolean(
         required=True,
-        example=True,
         data_key="nvl-BackupEnabled",
-        description="if True backup is enabled",
+        metadata={"example": True, "description": "if True backup is enabled"},
     )
     nvl_HostGroup = fields.String(
-        example="oracle",
-        missing=None,
+        load_default=None,
         required=False,
         data_key="nvl-HostGroup",
-        description="hypervisor host group",
+        metadata={"example": "oracle", "description": "hypervisor host group"},
     )
     nvl_targetGroups = fields.List(
         fields.String(
@@ -351,21 +330,24 @@ class InstanceInstancesSetResponseSchema(Schema):
             example="6f0fdc6b-c368-460a-84f0-16d555d63a99",
         ),
         required=False,
-        description="List of load balancer target groups the instance belongs to",
         allow_none=True,
-        example=["6f0fdc6b-c368-460a-84f0-16d555d63a99", "07e55950-8037-47b8-b5b9-7019303664f8"],
         data_key="nvl-targetGroups",
+        metadata={
+            "description": "List of load balancer target groups the instance belongs to",
+            "example": ["6f0fdc6b-c368-460a-84f0-16d555d63a99", "07e55950-8037-47b8-b5b9-7019303664f8"]
+        },
     )
     stateReason = fields.Nested(StateReasonResponseSchema, many=False, required=False)
+    middleware = fields.String(required=False, allow_none=True)
 
 
 class InstanceReservationSetResponseSchema(Schema):
     groupSet = fields.Nested(InstanceGroupSetResponseSchema, required=False, many=True, allow_none=True)
     instancesSet = fields.Nested(InstanceInstancesSetResponseSchema, required=False, many=True, allow_none=True)
-    ownerId = fields.String(required=False, description="")
-    requesterId = fields.String(required=False, description="")
-    reservationId = fields.String(required=False, description="")
-    nvl_instanceTotal = fields.Integer(required=True, data_key="nvl-instanceTotal", example="", description="")
+    ownerId = fields.String(required=False, metadata={"description": ""})
+    requesterId = fields.String(required=False, metadata={"description": ""})
+    reservationId = fields.String(required=False, metadata={"description": ""})
+    nvl_instanceTotal = fields.Integer(required=True, data_key="nvl-instanceTotal", metadata={"description": ""})
 
 
 class DescribeInstancesV20Api1ResponseSchema(Schema):
@@ -385,85 +367,89 @@ class DescribeInstancesV20ApiResponseSchema(Schema):
 
 
 class IamInstanceProfileApiRequestSchema(Schema):
-    arn = fields.List(fields.String(), required=False, description="")
+    arn = fields.List(fields.String(), required=False, metadata={"description": ""})
 
 
 class NetworkInterfaceAddresses2ApiRequestSchema(Schema):
-    public_ip = fields.List(fields.String(), required=False, description="network public IPv4 address")
+    public_ip = fields.List(fields.String(), required=False, metadata={"description": "network public IPv4 address"})
     ip_owner_id = fields.List(
         fields.String(),
         required=False,
-        description="owner of the IPv4 associated with the " "network interface",
+        metadata={"description": "owner of the IPv4 associated with the " "network interface"},
     )
 
 
 class NetworkInterfaceAddresses1ApiRequestSchema(Schema):
-    private_ip_address = fields.List(fields.String(), required=False, description="network private IPv4 address")
+    private_ip_address = fields.List(
+        fields.String(),
+        required=False,
+        metadata={"description": "network private IPv4 address"},
+    )
     primary = fields.List(
         fields.Boolean(),
         required=False,
-        description="Specify if the IPv4 address of the network " "interface is the primary private IPv4 " "address",
+        metadata={"description": "Specify if the IPv4 address of the network " "interface is the primary private IPv4 " "address"},
     )
     association = fields.Nested(NetworkInterfaceAddresses2ApiRequestSchema, required=False, context="query")
 
 
 class NetworkInterfaceAssociationApiRequestSchema(Schema):
-    public_ip = fields.List(fields.String(), required=False, description="network public IPv4 address")
+    public_ip = fields.List(fields.String(), required=False, metadata={"description": "network public IPv4 address"})
     ip_owner_id = fields.List(
         fields.String(),
         required=False,
-        description="owner of the IPv4 associated with the network interface",
+        metadata={"description": "owner of the IPv4 associated with the network interface"},
     )
     allocation_id = fields.List(
         fields.String(),
         required=False,
-        description="allocation ID for the network IPv4 address",
+        metadata={"description": "allocation ID for the network IPv4 address"},
     )
     association_id = fields.List(
         fields.String(),
         required=False,
-        description="association ID for the network IPv4 address",
+        metadata={"description": "association ID for the network IPv4 address"},
     )
 
 
 class NetworkInterfaceAttachmentApiRequestSchema(Schema):
-    attachment_id = fields.List(fields.String(), required=False, description="")
-    instance_id = fields.List(fields.String(), required=False, description="")
-    instance_owner_id = fields.List(fields.String(), required=False, description="")
-    device_index = fields.List(fields.String(), required=False, description="")
-    status = fields.List(fields.String(), required=False, description="")
+    attachment_id = fields.List(fields.String(), required=False, metadata={"description": ""})
+    instance_id = fields.List(fields.String(), required=False, metadata={"description": ""})
+    instance_owner_id = fields.List(fields.String(), required=False, metadata={"description": ""})
+    device_index = fields.List(fields.String(), required=False, metadata={"description": ""})
+    status = fields.List(fields.String(), required=False, metadata={"description": ""})
     attach_time = (fields.List(fields.DateTime(), required=False, description=""),)
-    delete_on_termination = fields.List(fields.Boolean(), required=False, description="")
+    delete_on_termination = fields.List(fields.Boolean(), required=False, metadata={"description": ""})
 
 
 class NetworkInterfaceIpv6ApiRequestSchema(Schema):
-    ipv6_address = fields.List(fields.String(), required=False, description="")
+    ipv6_address = fields.List(fields.String(), required=False, metadata={"description": ""})
 
 
 class NetworkInterfaceApiRequestSchema(Schema):
     addresses = fields.Nested(NetworkInterfaceAddresses1ApiRequestSchema, required=False, context="query")
     association = fields.Nested(NetworkInterfaceAssociationApiRequestSchema, required=False, context="query")
     attachment = fields.Nested(NetworkInterfaceAttachmentApiRequestSchema, required=False, context="query")
-    availability_zone = fields.List(fields.String(), required=False, description="availability zone")
-    description = fields.List(fields.String(), required=False, description="")
-    group_id = fields.List(fields.String(), required=False, description="security group id")
-    group_name = fields.List(fields.String(), required=False, description="security group name")
+    availability_zone = fields.List(fields.String(), required=False, metadata={"description": "availability zone"})
+    description = fields.List(fields.String(), required=False, metadata={"description": ""})
+    group_id = fields.List(fields.String(), required=False, metadata={"description": "security group id"})
+    group_name = fields.List(fields.String(), required=False, metadata={"description": "security group name"})
     ipv6_addresses = fields.Nested(NetworkInterfaceIpv6ApiRequestSchema, required=False, context="query")
-    mac_address = fields.List(fields.String(), required=False, description="")
-    network_interface_id = fields.List(fields.String(), required=False, description="")
-    owner_id = fields.List(fields.String(), required=False, description="")
-    private_dns_name = fields.List(fields.String(), required=False, description="")
-    requester_id = fields.List(fields.String(), required=False, description="")
-    requester_managed = fields.List(fields.String(), required=False, description="")
-    status = fields.List(fields.String(), required=False, description="")
-    source_dest_check = fields.List(fields.String(), required=False, description="")
-    subnet_id = fields.List(fields.String(), required=False, description="subnet id")
-    vpc_id = fields.List(fields.String(), required=False, description="vpc id")
+    mac_address = fields.List(fields.String(), required=False, metadata={"description": ""})
+    network_interface_id = fields.List(fields.String(), required=False, metadata={"description": ""})
+    owner_id = fields.List(fields.String(), required=False, metadata={"description": ""})
+    private_dns_name = fields.List(fields.String(), required=False, metadata={"description": ""})
+    requester_id = fields.List(fields.String(), required=False, metadata={"description": ""})
+    requester_managed = fields.List(fields.String(), required=False, metadata={"description": ""})
+    status = fields.List(fields.String(), required=False, metadata={"description": ""})
+    source_dest_check = fields.List(fields.String(), required=False, metadata={"description": ""})
+    subnet_id = fields.List(fields.String(), required=False, metadata={"description": "subnet id"})
+    vpc_id = fields.List(fields.String(), required=False, metadata={"description": "vpc id"})
 
 
 class DescribeInstancesV20ApiRequestSchema(Schema):
-    MaxResults = fields.Integer(required=False, default=10, description="", context="query")
-    NextToken = fields.String(required=False, default="0", description="", context="query")
+    MaxResults = fields.Integer(required=False, dump_default=10, context="query", metadata={"description": ""})
+    NextToken = fields.String(required=False, dump_default="0", context="query", metadata={"description": ""})
     owner_id_N = fields.List(
         fields.String(example=""),
         required=False,
@@ -471,26 +457,24 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="owner-id.N",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
     name_N = fields.List(
         fields.String(),
         required=False,
-        example="",
-        description="name of the instance",
         allow_none=True,
         context="query",
         collection_format="multi",
         data_key="name.N",
+        metadata={"description": "name of the instance"},
     )
     name_pattern = fields.String(
         required=False,
-        example="",
-        description="name of the instance",
         allow_none=True,
         context="query",
         collection_format="multi",
         data_key="name-pattern",
+        metadata={"description": "name of the instance"},
     )
     InstanceId_N = fields.List(
         fields.String(example=""),
@@ -499,7 +483,7 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="instanceId.N",
-        description="instance id",
+        metadata={"description": "instance id"},
     )
     instance_id_N = fields.List(
         fields.String(example=""),
@@ -508,7 +492,7 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="instance-id.N",
-        description="instance id",
+        metadata={"description": "instance id"},
     )
     instance_state_name_N = fields.List(
         fields.String(example="", validate=OneOf(["pending", "running", "terminated", "error"])),
@@ -517,7 +501,7 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="instance-state-name.N",
-        description="state name of the instance",
+        metadata={"description": "state name of the instance"},
     )
     instance_type_N = fields.List(
         fields.String(example=""),
@@ -526,7 +510,7 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="instance-type.N",
-        description="instance type",
+        metadata={"description": "instance type"},
     )
     launch_time_N = fields.List(
         fields.String(example=""),
@@ -535,7 +519,7 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="launch-time.N",
-        description="time when the instance was created",
+        metadata={"description": "time when the instance was created"},
     )
     requester_id_N = fields.List(
         fields.String(example=""),
@@ -544,7 +528,7 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="requester-id.N",
-        description="ID of the entity that launched the instance",
+        metadata={"description": "ID of the entity that launched the instance"},
     )
     tag_key_N = fields.List(
         fields.String(example=""),
@@ -553,7 +537,7 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="tag-key.N",
-        description="value of a tag assigned to the resource",
+        metadata={"description": "value of a tag assigned to the resource"},
     )
     group_id_N = fields.List(
         fields.String(example=""),
@@ -562,7 +546,7 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="instance.group-id.N",
-        description="ID of the security group. Only one is supported for the moment",
+        metadata={"description": "ID of the security group. Only one is supported for the moment"},
     )
     group_name_N = fields.List(
         fields.String(example=""),
@@ -571,7 +555,7 @@ class DescribeInstancesV20ApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="instance.group-name.N",
-        description="Name of the security group. Only one is supported for the moment",
+        metadata={"description": "Name of the security group. Only one is supported for the moment"},
     )
 
 
@@ -705,60 +689,394 @@ class DescribeInstancesV20(ServiceApiView):
             }
         }
         return res
+    
+
+class SimpleInstanceInstancesSetResponseSchema(Schema):
+    instanceId = fields.String(required=False, allow_none=True, example="", description="instance id")
+    imageId = fields.String(required=False, allow_none=True, example="", description="image instance id")
+    instanceState = fields.Nested(InstanceStateResponseSchema, many=False, required=False)
+    privateDnsName = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="private dns name assigned to the instance",
+    )
+    dnsName = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="public dns name assigned to the instance",
+    )
+    reason = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="reason for the current state of the instance",
+    )
+    keyName = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="name of the key pair used to create the instance",
+    )
+    instanceType = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="instance definition for the instance",
+    )
+    productCodes = fields.Nested(InstanceProductCodesResponseSchema, many=False, required=False)
+    launchTime = fields.DateTime(
+        required=False,
+        example="",
+        description="the timestamp the instance was launched",
+    )
+    placement = fields.Nested(InstancePlacementsResponseSchema, many=False, required=False)
+    monitoring = fields.Nested(InstanceMonitoringResponseSchema, many=False, required=False)
+    subnetId = fields.String(required=False, allow_none=True, example="", description="subnet id ")
+    vpcId = fields.String(required=False, allow_none=True, example="", description="vpc id ")
+    privateIpAddress = fields.String(required=False, allow_none=True, example="###.###.###.###", description="")
+    ipAddress = fields.String(required=False, allow_none=True, example="###.###.###.###", description="")
+    groupSet = fields.Nested(InstanceGroupSetResponseSchema, many=True, required=False)
+    architecture = fields.String(required=False, allow_none=True, example="i386 | x86_64", description="")
+    rootDeviceType = fields.String(
+        required=False,
+        allow_none=True,
+        example="ebs",
+        description="root device type used by the AMI.",
+    )
+    blockDeviceMapping = fields.Nested(InstanceBlockDeviceMappingV20ResponseSchema, many=True, required=False)
+    virtualizationType = fields.String(
+        required=False,
+        allow_none=True,
+        example="hvm | paravirtual",
+        description="virtualization type of the instance",
+    )
+    tagSet = fields.Nested(InstanceTagSetResponseSchema, many=True, required=False)
+    hypervisor = fields.String(
+        required=False,
+        allow_none=True,
+        example="vmware | openstack",
+        description="type of the hypervisor",
+    )
+    networkInterfaceSet = fields.Nested(InstanceNetworkInterfaceSetResponseSchema, many=True, required=False)
+    ebsOptimized = fields.Boolean(
+        required=False,
+        description="indicates whether the instance is optimized for Amazon EBS I/O",
+    )
+    nvl_name = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="name of the instance",
+        data_key="nvl-name",
+    )
+    nvl_subnetName = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="subnet name of the instance",
+        data_key="nvl-subnetName",
+    )
+    nvl_vpcName = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="vpc name of the instance",
+        data_key="nvl-vpcName",
+    )
+    nvl_imageName = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="image name of the instance",
+        data_key="nvl-imageName",
+    )
+    nvl_ownerAlias = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="name of the account that owns the instance",
+        data_key="nvl-ownerAlias",
+    )
+    nvl_ownerId = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="ID of the account that owns the instance",
+        data_key="nvl-ownerId",
+    )
+    nvl_divisionAlias = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="name of the division that owns the instance",
+        data_key="nvl-divisionAlias",
+    )
+    nvl_divisionId = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="ID of the division that owns the instance",
+        data_key="nvl-divisionId",
+    )
+    nvl_resourceId = fields.String(
+        required=False,
+        allow_none=True,
+        example="",
+        description="ID of the instance resource",
+        data_key="nvl-resourceId",
+    )
+    nvl_InstanceTypeExt = fields.Nested(
+        InstanceTypeExtResponseSchema,
+        many=False,
+        required=True,
+        data_key="nvl-InstanceTypeExt",
+        description="flavor attributes",
+    )
+    nvl_HostGroup = fields.String(
+        example="oracle",
+        load_default=None,
+        required=False,
+        data_key="nvl-HostGroup",
+        description="hypervisor host group",
+    )
+    nvl_targetGroups = fields.List(
+        fields.String(
+            required=False,
+            description="Target group uuid",
+            example="6f0fdc6b-c368-460a-84f0-16d555d63a99",
+        ),
+        required=False,
+        description="List of load balancer target groups the instance belongs to",
+        allow_none=True,
+        example=["6f0fdc6b-c368-460a-84f0-16d555d63a99", "07e55950-8037-47b8-b5b9-7019303664f8"],
+        data_key="nvl-targetGroups",
+    )
+    stateReason = fields.Nested(StateReasonResponseSchema, many=False, required=False)
+    middleware = fields.String(required=False, allow_none=True)
+
+
+class SimpleInstanceReservationSetResponseSchema(Schema):
+    groupSet = fields.Nested(InstanceGroupSetResponseSchema, required=False, many=True, allow_none=True)
+    instancesSet = fields.Nested(SimpleInstanceInstancesSetResponseSchema, required=False, many=True, allow_none=True)
+    ownerId = fields.String(required=False, description="")
+    requesterId = fields.String(required=False, description="")
+    reservationId = fields.String(required=False, description="")
+    nvl_instanceTotal = fields.Integer(required=True, data_key="nvl-instanceTotal", example="", description="")
+
+
+class DescribeSimpleInstancesV20Api1ResponseSchema(Schema):
+    nextToken = fields.String(required=True, allow_none=True)
+    requestId = fields.String(required=True)
+    reservationSet = fields.Nested(SimpleInstanceReservationSetResponseSchema, many=True, required=True, allow_none=False)
+    xmlns = fields.String(required=False, data_key="__xmlns")
+
+
+class DescribeSimpleInstancesV20ApiResponseSchema(Schema):
+    DescribeInstancesResponse = fields.Nested(
+        DescribeSimpleInstancesV20Api1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
+    )
+
+
+class DescribeSimpleInstancesV20ApiRequestSchema(DescribeInstancesV20ApiRequestSchema):
+    nocount = fields.Boolean(
+        required=False,
+        description="not execute total count",
+    )
+    sg_info = fields.Boolean(
+        required=False,
+        description="return sg info",
+    )
+    flavor_info = fields.Boolean(
+        required=False,
+        description="return flavor info",
+    )
+    
+
+class DescribeSimpleInstancesV20(ServiceApiView):
+    summary = "Describe compute instance"
+    description = "Describe compute instance"
+    tags = ["computeservice"]
+    definitions = {
+        "DescribeSimpleInstancesV20ApiRequestSchema": DescribeSimpleInstancesV20ApiRequestSchema,
+        "DescribeSimpleInstancesV20ApiResponseSchema": DescribeSimpleInstancesV20ApiResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(DescribeSimpleInstancesV20ApiRequestSchema)
+    parameters_schema = DescribeSimpleInstancesV20ApiRequestSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": DescribeSimpleInstancesV20ApiResponseSchema,
+            }
+        }
+    )
+    response_schema = DescribeSimpleInstancesV20ApiResponseSchema
+    # TODO filter to select only instances of a specific owner
+
+    def get(self, controller: ServiceController, data: Dict, *args, **kwargs):
+        data_search = {
+            "details": False,   # avoid customize_list
+            "simple": True,     # call customize_simple_list
+        }
+        data_search["nocount"] = data.get("nocount", False)     # not execute total count
+        data_search["sg_info"] = data.get("sg_info", False)
+        data_search["flavor_info"] = data.get("flavor_info", False)
+
+        data_search["size"] = data.get("MaxResults", 10)
+        data_search["page"] = int(data.get("NextToken", 0))
+
+        # check Account
+        account_id_list = data.get("owner_id_N", [])
+        account_id_list.extend(data.get("requester_id_N", []))
+
+        # get instance identifier
+        instance_id_list = data.get("instance_id_N", [])
+        instance_id_list.extend(data.get("InstanceId_N", []))
+
+        # get instance name
+        instance_name_list = data.get("name_N", [])
+
+        # get instance name pattern
+        instance_name_pattern = data.get("name_pattern", None)
+
+        # get instance service definition
+        instance_def_list = data.get("instance_type_N", [])
+        instance_def_list = [controller.get_service_def(instance_def).oid for instance_def in instance_def_list]
+
+        # get instance launch time
+        instance_launch_time_list = data.get("launch_time_N", [])
+        if not isinstance(instance_launch_time_list, list):
+            instance_launch_time_list = [instance_launch_time_list]
+        instance_launch_time_start = None
+        instance_launch_time_stop = None
+        if len(instance_launch_time_list) == 1:
+            (
+                instance_launch_time_start,
+                instance_launch_time_stop,
+            ) = instance_launch_time_list[
+                0
+            ].split(":")
+        elif len(instance_launch_time_list) > 1:
+            self.logger.warn("For the moment only one instance_launch_time can be submitted as filter")
+
+        # get tags
+        tag_values = data.get("tag_key_N", None)
+        # resource_tags = ['nws$%s' % t for t in tag_values]
+
+        # get security groups
+        sgs = data.get("group_id_N", [])
+        sgs.extend(data.get("group_name_N", []))
+        if len(sgs) > 1:
+            self.logger.warn("For the moment only one security group can be submitted as filter")
+
+        # make search using security group
+        if len(sgs) > 0 and sgs[0] is not None:
+            sg = controller.get_service_instance(sgs[0])
+            res, total = sg.get_linked_services(link_type="sg", filter_expired=False)
+            for instSrv in res:
+                instance_id_list.append(instSrv.uuid)
+
+        # get status
+        status_mapping = {
+            "pending": SrvStatusType.PENDING,
+            "running": SrvStatusType.ACTIVE,
+            "terminated": SrvStatusType.TERMINATED,
+            "error": SrvStatusType.ERROR,
+        }
+
+        status_name_list = None
+        status_list = data.get("instance_state_name_N", None)
+        if status_list is not None:
+            status_name_list = [status_mapping[i] for i in status_list if i in status_mapping.keys()]
+
+        # resource_uuid_list
+        resource_uuid_list = None
+
+        # get instances list
+        res, total = controller.get_service_type_plugins(
+            service_uuid_list=instance_id_list,
+            service_name_list=instance_name_list,
+            name=instance_name_pattern,
+            account_id_list=account_id_list,
+            filter_creation_date_start=instance_launch_time_start,
+            filter_creation_date_stop=instance_launch_time_stop,
+            service_definition_id_list=instance_def_list,
+            servicetags_or=tag_values,
+            service_status_name_list=status_name_list,
+            plugintype=ApiComputeInstance.plugintype,
+            resource_uuid_list=resource_uuid_list,
+            **data_search,
+        )
+        
+
+        # format result
+        instances_set = [r.aws_simple_info() for r in res]
+
+        res = {
+            "DescribeInstancesResponse": {
+                "__xmlns": self.xmlns,
+                "nextToken": str(data_search["page"] + 1),
+                "requestId": operation.id,
+                "reservationSet": [
+                    {
+                        "requesterId": "",
+                        "reservationId": "",
+                        "ownerId": "",
+                        "groupSet": [{}],
+                        "instancesSet": instances_set,
+                        "nvl-instanceTotal": total,
+                    }
+                ],
+            }
+        }
+        return res
 
 
 class EbsBlockDeviceMappingV20ApiRequestSchema(Schema):
     DeleteOnTermination = fields.Boolean(
         required=False,
         allow_none=True,
-        example=True,
-        missing=True,
-        description="Indicates whether the EBS volume is deleted on instance " "termination.",
+        load_default=True,
+        metadata={"example": True, "description": "Indicates whether the EBS volume is deleted on instance " "termination."},
     )
     Encrypted = fields.Boolean(
         required=False,
         allow_none=True,
-        example=False,
-        missing=False,
-        description="Indicates whether the EBS volume is encrypted",
+        load_default=False,
+        metadata={"example": False, "description": "Indicates whether the EBS volume is encrypted"},
     )
     Iops = fields.Integer(
         required=False,
         allow_none=True,
-        example=10,
-        description="The number of I/O operations per second (IOPS) that the volume supports.",
+        metadata={"example": 10, "description": "The number of I/O operations per second (IOPS) that the volume supports."},
     )
     KmsKeyId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="Identifier (key ID, key alias, ID ARN, or alias ARN) for a user-managed "
-        "CMK under which the EBS volume is encrypted. ",
+        metadata={"description": "Identifier (key ID, key alias, ID ARN, or alias ARN) for a user-managed "
+        "CMK under which the EBS volume is encrypted. "},
     )
-    SnapshotId = fields.String(
-        required=False,
-        allow_none=True,
-        example="",
-        description="The ID of the snapshot.",
-    )
+    SnapshotId = fields.String(required=False, allow_none=True, metadata={"description": "The ID of the snapshot."})
     Nvl_VolumeId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="The ID of the volume to clone",
+        metadata={"description": "The ID of the volume to clone"},
     )
     VolumeSize = fields.Integer(
         required=False,
         allow_none=True,
-        example=10,
-        description="The size of the volume, in GiB.",
+        metadata={"example": 10, "description": "The size of the volume, in GiB."},
     )
     VolumeType = fields.String(
         required=False,
         allow_none=True,
-        example="default",
-        missing=None,
-        description="The volume type: default, oracle.",
+        load_default=None,
+        metadata={"example": "default", "description": "The volume type: default, oracle."},
     )
 
 
@@ -766,36 +1084,32 @@ class BlockDeviceMappingV20ApiRequestSchema(Schema):
     DeviceName = fields.String(
         required=False,
         allow_none=True,
-        example="/dev/sdh",
-        description="The device name (for example, /dev/sdh or xvdh).",
+        metadata={"example": "/dev/sdh", "description": "The device name (for example, /dev/sdh or xvdh)."},
     )
     Ebs = fields.Nested(
         EbsBlockDeviceMappingV20ApiRequestSchema,
         required=False,
         allow_none=True,
-        example="",
-        description="Parameters used to automatically set up EBS volumes when the instance is " "launched.",
+        metadata={"description": "Parameters used to automatically set up EBS volumes when the instance is " "launched."},
     )
     NoDevice = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="Suppresses the specified device included in the block device mapping of " "the AMI.",
+        metadata={"description": "Suppresses the specified device included in the block device mapping of " "the AMI."},
     )
     VirtualName = fields.String(
         required=False,
         allow_none=True,
-        example="/dev/sdh",
-        description="The virtual device name (ephemeralN). Instance store volumes are "
+        metadata={"example": "/dev/sdh", "description": "The virtual device name (ephemeralN). Instance store volumes are "
         "numbered starting from 0. An instance type with 2 available instance "
         "store volumes can specify mappings for ephemeral0 and ephemeral1.The "
         "number of available instance store volumes depends on the instance type. "
-        "After you connect to the instance, you must mount the volume.",
+        "After you connect to the instance, you must mount the volume."},
     )
 
 
 class TagRequestSchemaV20(Schema):
-    Key = fields.String(required=True, validate=Length(max=127), example="", description="tag key")
+    Key = fields.String(required=True, validate=Length(max=127), metadata={"description": "tag key"})
     # Value = fields.String(required=False, validate=Length(max=255), example='', description='tag value')
 
     @validates_schema
@@ -810,18 +1124,17 @@ class TagRequestSchemaV20(Schema):
 class TagSpecificationMappingV20ApiRequestSchema(Schema):
     ResourceType = fields.String(
         required=False,
-        example="",
-        missing="instance",
+        load_default="instance",
         validate=OneOf(["instance"]),
-        description="type of resource to tag",
+        metadata={"description": "type of resource to tag"},
     )
     Tags = fields.Nested(
         TagRequestSchemaV20,
-        missing=[],
+        load_default=[],
         required=False,
         many=True,
         allow_none=False,
-        description="list of tags to apply to the resource",
+        metadata={"description": "list of tags to apply to the resource"},
     )
 
 
@@ -829,37 +1142,43 @@ class RunInstancesV20ApiParamRequestSchema(Schema):
     Name = fields.String(
         required=False,
         allow_none=True,
-        missing="default istance name",
-        description="instance name",
+        load_default="default istance name",
+        metadata={"description": "instance name"},
     )
-    AdditionalInfo = fields.String(required=False, allow_none=True, description="instance description")
-    SubnetId = fields.String(required=False, example="12", description="instance id or uuid of the subnet")
+    AdditionalInfo = fields.String(required=False, allow_none=True, metadata={"description": "instance description"})
+    SubnetId = fields.String(
+        required=False,
+        metadata={"example": "12", "description": "instance id or uuid of the subnet"},
+    )
     # AccountId managed by AWS Wrapper
     owner_id = fields.String(
         required=True,
-        example="1",
         data_key="owner-id",
-        description="account id or uuid associated to compute zone",
+        metadata={"example": "1", "description": "account id or uuid associated to compute zone"},
     )
     InstanceType = fields.String(
         required=True,
-        example="small2",
-        description="service definition of the instance",
+        metadata={"example": "small2", "description": "service definition of the instance"},
     )
-    AdminPassword = fields.String(required=False, example="myPwd1$", description="admin password to set")
-    ImageId = fields.String(required=True, example="12", description="instance id or uuid of the image")
+    AdminPassword = fields.String(
+        required=False,
+        metadata={"example": "myPwd1$", "description": "admin password to set"},
+    )
+    ImageId = fields.String(
+        required=True,
+        metadata={"example": "12", "description": "instance id or uuid of the image"},
+    )
     SecurityGroupId_N = fields.List(
         fields.String(example="12"),
         required=False,
         allow_none=False,
         data_key="SecurityGroupId.N",
-        description="list of instance security group ids",
+        metadata={"description": "list of instance security group ids"},
     )
-    KeyName = fields.String(required=False, example="1ffd", description="The name of the key pair")
+    KeyName = fields.String(required=False, metadata={"example": "1ffd", "description": "The name of the key pair"})
     PrivateIpAddress = fields.String(
         required=False,
-        example="###.###.###.###",
-        description="The primary IPv4 address. You must specify a value from the IPv4 " "address range of the subnet. ",
+        metadata={"example": "###.###.###.###", "description": "The primary IPv4 address. You must specify a value from the IPv4 " "address range of the subnet. "},
     )
     BlockDeviceMapping_N = fields.Nested(
         BlockDeviceMappingV20ApiRequestSchema,
@@ -869,37 +1188,56 @@ class RunInstancesV20ApiParamRequestSchema(Schema):
         allow_none=True,
     )
     Nvl_Hypervisor = fields.String(
-        example="openstack",
-        missing="openstack",
+        load_default="openstack",
         required=False,
         validate=OneOf(["openstack", "vsphere"]),
-        description="hypervisor type",
+        metadata={"example": "openstack", "description": "hypervisor type"},
     )
     Nvl_Metadata = fields.Dict(
-        example='{"cluster":"","dvp":""}',
         allow_none=True,
         required=False,
-        description="custom configuration keys",
+        metadata={"example": '{"cluster":"","dvp":""}', "description": "custom configuration keys"},
     )
     Nvl_MultiAvz = fields.Boolean(
-        example=True,
-        missing=True,
+        load_default=True,
         required=False,
-        description="Define if instance must be deployed to work in all the availability "
-        "zone or only in the selected one",
+        metadata={"example": True, "description": "Define if instance must be deployed to work in all the availability "
+        "zone or only in the selected one"},
     )
     Nvl_HostGroup = fields.String(
-        example="oracle",
-        missing=None,
+        load_default=None,
         required=False,
-        description="hypervisor host group",
+        metadata={"example": "oracle", "description": "hypervisor host group"},
     )
     CheckMainVolSize = fields.Boolean(
-        example=True,
-        missing=True,
+        load_default=True,
         required=False,
-        description="whether to explicitly check that the requested main volume size is at least as big as the minimum",
+        metadata={"example": True, "description": "whether to explicitly check that the requested main volume size is at least as big as the minimum"},
     )
+
+    @validates_schema
+    def validate_parameters(self, data, *args, **kvargs):
+        # amco and sirmet accounts checks
+        AMCO = "amco"
+        SIRMET = "sirmet"
+        hostgroup = data.get("Nvl_HostGroup")
+        volumes = data.get("BlockDeviceMapping_N")
+        if hostgroup == AMCO:
+            for volume in volumes:
+                volume_type = dict_get(volume, "Ebs.VolumeType")
+                if volume_type is None or AMCO not in volume_type:
+                    raise ValidationError(
+                        f"You need to specify {AMCO} dedicated volume type together with volume size, "
+                        "e.g. -main-disk 40:vol.amco.gold -other-disk 10:vol.amco.gold"
+                    )
+        elif hostgroup == SIRMET:
+            for volume in volumes:
+                volume_type = dict_get(volume, "Ebs.VolumeType")
+                if volume_type is None or SIRMET not in volume_type:
+                    raise ValidationError(
+                        f"You need to specify {SIRMET} dedicated volume type together with volume size, "
+                        "e.g. -main-disk 40:vol.sirmet.gold -other-disk 10:vol.sirmet.gold"
+                    )
 
 
 class RunInstancesV20ApiRequestSchema(Schema):
@@ -911,8 +1249,8 @@ class RunInstancesV20ApiBodyRequestSchema(Schema):
 
 
 class RunInstancesV20Api3ResponseSchema(Schema):
-    code = fields.Integer(required=False, default=0)
-    name = fields.String(required=True, example="PENDING")
+    code = fields.Integer(required=False, dump_default=0)
+    name = fields.String(required=True, metadata={"example": "PENDING"})
 
 
 class RunInstancesV20Api2ResponseSchema(Schema):
@@ -921,6 +1259,7 @@ class RunInstancesV20Api2ResponseSchema(Schema):
 
 
 class RunInstancesV20Api1ResponseSchema(Schema):
+    xmlns = fields.String(required=False, data_key="__xmlns")
     requestId = fields.String(required=True, allow_none=True)
     instancesSet = fields.Nested(RunInstancesV20Api2ResponseSchema, many=True, required=True)
 
@@ -974,7 +1313,7 @@ class RunInstancesV20(ServiceApiView):
         )
         self.logger.warn(service_defs)
         if total < 1:
-            raise ApiManagerError("InstanceType is wrong")
+            raise ApiManagerError(f"InstanceType {service_definition_id} is wrong")
 
         # Must be specified only when cloning a vsphere VM
         instanceId = inner_data.get("InstanceId")
@@ -1026,23 +1365,22 @@ class RebootInstancesV20(RebootInstances):
 class GetConsoleV20Api2ResponseSchema(Schema):
     url = fields.String(
         required=True,
-        example="https://localhost:443/vnc_auto.html?path=%3Ftoken%3D2317d" "94c-b82a-4262-8193-f7fc01a03874",
-        description="console url",
+        metadata={"example": "https://localhost:443/vnc_auto.html?path=%3Ftoken%3D2317d" "94c-b82a-4262-8193-f7fc01a03874", "description": "console url"},
     )
-    type = fields.String(required=True, example="novnc", description="console type")
-    protocol = fields.String(required=True, example="vnc", description="console protocol")
+    type = fields.String(required=True, metadata={"example": "novnc", "description": "console type"})
+    protocol = fields.String(required=True, metadata={"example": "vnc", "description": "console protocol"})
 
 
 class GetConsoleV20Api1ResponseSchema(Schema):
-    requestId = fields.String(required=True, default="", description="request id")
-    instancesId = fields.String(required=False, description="instance id")
+    requestId = fields.String(required=True, dump_default="", metadata={"description": "request id"})
+    instancesId = fields.String(required=False, metadata={"description": "instance id"})
     console = fields.Nested(
         GetConsoleV20Api2ResponseSchema,
         required=True,
         many=False,
-        description="console data",
+        metadata={"description": "console data"},
     )
-    instanceId = fields.String(required=False, description="elk-04-ubuntu")
+    instanceId = fields.String(required=False, metadata={"description": "elk-04-ubuntu"})
     xmlns = fields.String(required=False, data_key="__xmlns")
 
 
@@ -1051,8 +1389,12 @@ class GetConsoleV20ApiResponseSchema(Schema):
 
 
 class GetConsoleV20ApiRequestSchema(Schema):
-    owner_id = fields.String(required=False, context="query", description="account ID of the instance owner")
-    InstanceId = fields.String(required=True, context="query", description="instance id")
+    owner_id = fields.String(
+        required=False,
+        context="query",
+        metadata={"description": "account ID of the instance owner"},
+    )
+    InstanceId = fields.String(required=True, context="query", metadata={"description": "instance id"})
 
 
 class GetConsoleV20(ServiceApiView):
@@ -1085,17 +1427,17 @@ class GetConsoleV20(ServiceApiView):
 
 
 class InstanceTypeFeatureResponseSchema(Schema):
-    vcpus = fields.String(required=False, allow_none=True, example="", description="")
-    ram = fields.String(required=False, allow_none=True, example="", description="")
-    disk = fields.String(required=False, allow_none=True, example="", description="")
+    vcpus = fields.String(required=False, allow_none=True, metadata={"description": ""})
+    ram = fields.String(required=False, allow_none=True, metadata={"description": ""})
+    disk = fields.String(required=False, allow_none=True, metadata={"description": ""})
 
 
 class InstanceTypeResponseSchema(Schema):
-    id = fields.Integer(required=True, example="", description="")
-    uuid = fields.String(required=True, example="", description="")
-    name = fields.String(required=True, example="", description="")
-    resource_id = fields.String(required=False, allow_none=True, example="", description="")
-    description = fields.String(required=True, allow_none=True, example="", description="")
+    id = fields.Integer(required=True, metadata={"description": ""})
+    uuid = fields.String(required=True, metadata={"description": ""})
+    name = fields.String(required=True, metadata={"description": ""})
+    resource_id = fields.String(required=False, allow_none=True, metadata={"description": ""})
+    description = fields.String(required=True, allow_none=True, metadata={"description": ""})
     features = fields.Nested(InstanceTypeFeatureResponseSchema, required=True, many=False, allow_none=False)
 
 
@@ -1118,32 +1460,30 @@ class DescribeInstanceTypesV20ApiResponseSchema(Schema):
 class DescribeInstanceTypesV20ApiRequestSchema(Schema):
     MaxResults = fields.Integer(
         required=False,
-        default=10,
-        missing=10,
-        description="entities list page size",
+        dump_default=10,
+        load_default=10,
         context="query",
+        metadata={"description": "entities list page size"},
     )
     NextToken = fields.Integer(
         required=False,
-        default=0,
-        missing=0,
-        description="entities list page selected",
+        dump_default=0,
+        load_default=0,
         context="query",
+        metadata={"description": "entities list page selected"},
     )
     owner_id = fields.String(
-        example="d35d19b3-d6b8-4208-b690-a51da2525497",
         required=True,
         context="query",
         data_key="owner-id",
-        description="account id of the instance type owner",
+        metadata={"example": "d35d19b3-d6b8-4208-b690-a51da2525497", "description": "account id of the instance type owner"},
     )
     InstanceType = fields.String(
-        example="d35d19b3-d6b8-4208-b690-a51da2525497",
         required=False,
         context="query",
-        missing=None,
+        load_default=None,
         data_key="InstanceType",
-        description="instance type id",
+        metadata={"example": "d35d19b3-d6b8-4208-b690-a51da2525497", "description": "instance type id"},
     )
 
 
@@ -1251,39 +1591,47 @@ class CloneInstancesV20ApiParamRequestSchema(Schema):
     Name = fields.String(
         required=False,
         allow_none=True,
-        missing="default istance name",
-        description="instance name",
+        load_default="default istance name",
+        metadata={"description": "instance name"},
     )
-    AdditionalInfo = fields.String(required=False, allow_none=True, description="instance description")
-    SubnetId = fields.String(required=False, example="12", description="instance id or uuid of the subnet")
+    AdditionalInfo = fields.String(required=False, allow_none=True, metadata={"description": "instance description"})
+    SubnetId = fields.String(
+        required=False,
+        metadata={"example": "12", "description": "instance id or uuid of the subnet"},
+    )
     # AccountId managed by AWS Wrapper
     owner_id = fields.String(
         required=True,
-        example="1",
         data_key="owner-id",
-        description="account id or uuid associated to compute zone",
+        metadata={"example": "1", "description": "account id or uuid associated to compute zone"},
     )
     InstanceType = fields.String(
         required=True,
-        example="small2",
-        description="service definition of the instance",
+        metadata={"example": "small2", "description": "service definition of the instance"},
     )
-    AdminPassword = fields.String(required=False, example="myPwd1$", description="admin password to set")
-    ImageId = fields.String(required=True, example="12", description="instance id or uuid of the image")
+    AdminPassword = fields.String(
+        required=False,
+        metadata={"example": "myPwd1$", "description": "admin password to set"},
+    )
+    ImageId = fields.String(
+        required=True,
+        metadata={"example": "12", "description": "instance id or uuid of the image"},
+    )
     SecurityGroupId_N = fields.List(
         fields.String(example="12"),
         required=False,
         allow_none=False,
         data_key="SecurityGroupId.N",
-        description="list of instance security group ids",
+        metadata={"description": "list of instance security group ids"},
     )
     KeyName = fields.String(
-        required=False, allow_none=True, example="my-keypair", description="The name of the key pair"
+        required=False,
+        allow_none=True,
+        metadata={"example": "my-keypair", "description": "The name of the key pair"},
     )
     PrivateIpAddress = fields.String(
         required=False,
-        example="###.###.###.###",
-        description="The primary IPv4 address. You must specify a value from the IPv4 " "address range of the subnet. ",
+        metadata={"example": "###.###.###.###", "description": "The primary IPv4 address. You must specify a value from the IPv4 " "address range of the subnet. "},
     )
     BlockDeviceMapping_N = fields.Nested(
         BlockDeviceMappingV20ApiRequestSchema,
@@ -1293,44 +1641,40 @@ class CloneInstancesV20ApiParamRequestSchema(Schema):
         allow_none=True,
     )
     Nvl_Hypervisor = fields.String(
-        example="vsphere",
-        missing="vsphere",
+        load_default="vsphere",
         required=False,
         validate=OneOf(["openstack", "vsphere"]),
-        description="hypervisor type",
+        metadata={"example": "vsphere", "description": "hypervisor type"},
     )
     Nvl_Metadata = fields.Dict(
-        example='{"cluster":"","dvp":""}',
         allow_none=True,
         required=False,
-        description="custom configuration keys",
+        metadata={"example": '{"cluster":"","dvp":""}', "description": "custom configuration keys"},
     )
     Nvl_MultiAvz = fields.Boolean(
-        example=True,
-        missing=True,
+        load_default=True,
         required=False,
-        description="Define if instance must be deployed to work in all the availability "
-        "zone or only in the selected one",
+        metadata={"example": True, "description": "Define if instance must be deployed to work in all the availability "
+        "zone or only in the selected one"},
     )
     Nvl_HostGroup = fields.String(
-        example="oracle",
-        missing=None,
+        load_default=None,
         required=False,
-        description="hypervisor host group",
+        metadata={"example": "oracle", "description": "hypervisor host group"},
     )
     CheckMainVolSize = fields.Boolean(
-        example=True,
-        missing=True,
+        load_default=True,
         required=False,
-        description="whether to explicitly check that the requested main volume size is at least as big as the minimum",
+        metadata={"example": True, "description": "whether to explicitly check that the requested main volume size is at least as big as the minimum"},
     )
     AdminPassword = fields.String(
-        required=False, allow_none=True, example="myPwd1$", description="admin password of source vm to be cloned"
+        required=False,
+        allow_none=True,
+        metadata={"example": "myPwd1$", "description": "admin password of source vm to be cloned"},
     )
     InstanceId = fields.String(
         required=False,
-        example="01d63d92-1b7a-42eb-8248-a1518d2d354c",
-        description="VM uuid, this field should be specified only when cloning a vsphere VM",
+        metadata={"example": "01d63d92-1b7a-42eb-8248-a1518d2d354c", "description": "VM uuid, this field should be specified only when cloning a vsphere VM"},
     )
 
 
@@ -1343,8 +1687,8 @@ class CloneInstancesV20ApiBodyRequestSchema(Schema):
 
 
 class CloneInstancesV20Api3ResponseSchema(Schema):
-    code = fields.Integer(required=False, default=0)
-    name = fields.String(required=True, example="PENDING")
+    code = fields.Integer(required=False, dump_default=0)
+    name = fields.String(required=True, metadata={"example": "PENDING"})
 
 
 class CloneInstancesV20Api2ResponseSchema(Schema):
@@ -1353,6 +1697,7 @@ class CloneInstancesV20Api2ResponseSchema(Schema):
 
 
 class CloneInstancesV20Api1ResponseSchema(Schema):
+    xmlns = fields.String(required=False, data_key="__xmlns")
     requestId = fields.String(required=True, allow_none=True)
     instancesSet = fields.Nested(CloneInstancesV20Api2ResponseSchema, many=True, required=True)
 
@@ -1406,7 +1751,7 @@ class CloneInstancesV20(ServiceApiView):
         )
         self.logger.warn(service_defs)
         if total < 1:
-            raise ApiManagerError("InstanceType is wrong")
+            raise ApiManagerError(f"InstanceType {service_definition_id} is wrong")
 
         # MUST be specified only when cloning a vsphere VM
         instance_id = inner_data.get("InstanceId")
@@ -1441,6 +1786,7 @@ class ComputeInstanceV2API(ApiView):
         base = module.base_path + "/computeservices/instance"
         rules = [
             # instance
+            ("%s/describesimpleinstances" % base, "GET", DescribeSimpleInstancesV20, {}),
             ("%s/describeinstances" % base, "GET", DescribeInstancesV20, {}),
             ("%s/runinstances" % base, "POST", RunInstancesV20, {}),
             ("%s/cloneinstances" % base, "POST", CloneInstancesV20, {}),

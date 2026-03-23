@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from marshmallow.validate import OneOf
 
@@ -38,7 +38,7 @@ class ListCatalogRequestSchema(
 
 
 class ListCatalogParamsResponseSchema(ApiObjectResponseSchema):
-    version = fields.String(required=False, default="1.0")
+    version = fields.String(required=False, dump_default="1.0")
 
 
 class ListCatalogResponseSchema(PaginatedResponseSchema):
@@ -86,24 +86,19 @@ class GetCatalogPerms(ServiceApiView):
 class GetCatalogDefsRequestSchema(PaginatedRequestQuerySchema):
     oid = fields.String(
         required=True,
-        description='id, uuid or name. If value is "all" select definitions for all the' "catalogs you can view",
         context="path",
+        metadata={"description": 'id, uuid or name. If value is "all" select definitions for all the' "catalogs you can view"},
     )
-    plugintype = fields.String(required=False, context="query", description="plugin type name")
+    plugintype = fields.String(required=False, context="query", metadata={"description": "plugin type name"})
     flag_container = fields.Boolean(
         required=False,
         context="query",
-        description="if True select only definition with type that is a container",
+        metadata={"description": "if True select only definition with type that is a container"},
     )
 
 
 class GetCatalogDefsResponseSchema(PaginatedResponseSchema):
-    servicedefs = fields.Nested(
-        GetServiceDefinitionParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
+    servicedefs = fields.Nested(GetServiceDefinitionParamsResponseSchema, many=True, required=True, allow_none=True)
 
 
 class GetCatalogDefs(ServiceApiView):
@@ -133,7 +128,7 @@ class GetCatalogDefs(ServiceApiView):
 
 
 class CatalogDefParamRequestSchema(Schema):
-    oids = fields.List(fields.String(default=""), required=True)
+    oids = fields.List(fields.String(dump_default=""), required=True)
 
 
 class CatalogDefRequestSchema(Schema):
@@ -215,8 +210,8 @@ class GetCatalog(ServiceApiView):
 
 
 class CreateCatalogParamRequestSchema(Schema):
-    name = fields.String(required=True, example="default catalog")
-    desc = fields.String(required=True, allow_none=True, example="default catalog")
+    name = fields.String(required=True, metadata={"example": "default catalog"})
+    desc = fields.String(required=True, allow_none=True, metadata={"example": "default catalog"})
 
 
 class CreateCatalogRequestSchema(Schema):
@@ -247,10 +242,10 @@ class CreateCatalog(ServiceApiView):
 
 
 class UpdateCatalogParamRequestSchema(Schema):
-    name = fields.String(required=False, default="default catalog")
-    desc = fields.String(required=False, allow_none=True, default="default catalog")
-    active = fields.Boolean(default=False)
-    version = fields.String(default="1.0")
+    name = fields.String(required=False, dump_default="default catalog")
+    desc = fields.String(required=False, allow_none=True, dump_default="default catalog")
+    active = fields.Boolean(dump_default=False)
+    version = fields.String(dump_default="1.0")
 
 
 class UpdateCatalogRequestSchema(Schema):
@@ -326,8 +321,8 @@ class DeleteCatalog(ServiceApiView):
 
 
 class GetCatalogRolesItemResponseSchema(Schema):
-    name = fields.String(required=True, example="master")
-    desc = fields.String(required=True, example="Service Catalog administrator")
+    name = fields.String(required=True, metadata={"example": "master"})
+    desc = fields.String(required=True, metadata={"example": "Service Catalog administrator"})
 
 
 class GetCatalogRolesResponseSchema(Schema):
@@ -354,11 +349,14 @@ class GetCatalogRoles(ServiceApiView):
 
 
 class ApiObjectResponseDateLoginSchema(ApiObjectResponseDateSchema):
-    last_login = fields.DateTime(required=True, example="1990-12-31T23:59:59Z", description="last login date")
+    last_login = fields.DateTime(
+        required=True,
+        metadata={"example": "1990-12-31T23:59:59Z", "description": "last login date"},
+    )
 
 
 class GetCatalogUsersItemResponseSchema(ApiObjectResponseSchema):
-    role = fields.String(required=True, example="master")
+    role = fields.String(required=True, metadata={"example": "master"})
     date = fields.Nested(ApiObjectResponseDateLoginSchema, required=True)
     email = fields.String(required=False)
 
@@ -387,12 +385,12 @@ class GetCatalogUsers(ServiceApiView):
 
 
 class SetCatalogUsersParamRequestSchema(Schema):
-    user_id = fields.String(required=False, default="prova", description="User name, id or uuid")
+    user_id = fields.String(required=False, dump_default="prova", metadata={"description": "User name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiServiceCatalog.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -427,12 +425,12 @@ class SetCatalogUsers(ServiceApiView):
 
 
 class UnsetCatalogUsersParamRequestSchema(Schema):
-    user_id = fields.String(required=False, default="prova", description="User name, id or uuid")
+    user_id = fields.String(required=False, dump_default="prova", metadata={"description": "User name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiServiceCatalog.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -467,7 +465,7 @@ class UnsetCatalogUsers(ServiceApiView):
 
 
 class GetCatalogGroupsItemResponseSchema(ApiObjectResponseSchema):
-    role = fields.String(required=True, example="master")
+    role = fields.String(required=True, metadata={"example": "master"})
 
 
 class GetCatalogGroupsResponseSchema(Schema):
@@ -494,12 +492,12 @@ class GetCatalogGroups(ServiceApiView):
 
 
 class SetCatalogGroupsParamRequestSchema(Schema):
-    group_id = fields.String(required=False, default="prova", description="Group name, id or uuid")
+    group_id = fields.String(required=False, dump_default="prova", metadata={"description": "Group name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiServiceCatalog.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -534,12 +532,12 @@ class SetCatalogGroups(ServiceApiView):
 
 
 class UnsetCatalogGroupsParamRequestSchema(Schema):
-    group_id = fields.String(required=False, default="prova", description="Group name, id or uuid")
+    group_id = fields.String(required=False, dump_default="prova", metadata={"description": "Group name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiServiceCatalog.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 

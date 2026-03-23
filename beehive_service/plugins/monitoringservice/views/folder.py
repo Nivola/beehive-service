@@ -1,14 +1,14 @@
 # SPDX# SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import re
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf, Length, Range
 from marshmallow.decorators import validates_schema
 from marshmallow.exceptions import ValidationError
-from six import ensure_text
+from beecell.util import ensure_text
 from beehive_service.controller import ServiceController
 from beehive_service.controller.api_account import ApiAccount
 from beehive_service.model import Division, Organization
@@ -35,21 +35,23 @@ from beehive.common.data import operation
 class CreateFolderApiParamRequestSchema(Schema):
     owner_id = fields.String(
         required=True,
-        example="1",
         data_key="owner-id",
-        description="account id or uuid associated to compute zone",
+        metadata={"example": "1", "description": "account id or uuid associated to compute zone"},
     )
-    Name = fields.String(required=False, example="test", missing=None, description="folder name")
-    AdditionalInfo = fields.String(required=False, example="test", missing=None, description="folder description")
+    Name = fields.String(required=False, load_default=None, metadata={"example": "test", "description": "folder name"})
+    AdditionalInfo = fields.String(
+        required=False,
+        load_default=None,
+        metadata={"example": "test", "description": "folder description"},
+    )
     definition = fields.String(
         required=False,
-        example="monitoring.folder.xxx",
-        description="service definition of the folder",
+        metadata={"example": "monitoring.folder.xxx", "description": "service definition of the folder"},
     )
     norescreate = fields.Boolean(
         required=False,
         allow_none=True,
-        description="don't create physical resource of the folder",
+        metadata={"description": "don't create physical resource of the folder"},
     )
 
 
@@ -63,17 +65,15 @@ class CreateFolderApiBodyRequestSchema(Schema):
 
 class CreateFolderApiResponse1Schema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
-    requestId = fields.String(required=True, example="", allow_none=True)
+    requestId = fields.String(required=True, allow_none=True)
     folderId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="folder id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "folder id"},
     )
     nvl_activeTask = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
         data_key="nvl-activeTask",
-        description="task id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "task id"},
     )
 
 
@@ -158,25 +158,22 @@ class CreateFolder(ServiceApiView):
 class DeleteFolderApiRequestSchema(Schema):
     FolderId = fields.String(
         required=False,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="folder id",
         context="query",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "folder id"},
     )
 
 
 class DeleteFolderApiResponse1Schema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
-    requestId = fields.String(required=True, example="", description="operation id")
+    requestId = fields.String(required=True, metadata={"description": "operation id"})
     folderId = fields.String(
         required=False,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="folder id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "folder id"},
     )
     nvl_activeTask = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
         data_key="nvl-activeTask",
-        description="task id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "task id"},
     )
 
 
@@ -224,114 +221,113 @@ class MonitoringFolderStateReasonResponseSchema(Schema):
     nvl_code = fields.Integer(
         required=False,
         allow_none=True,
-        example="",
-        description="state code",
         data_key="nvl-code",
+        metadata={"description": "state code"},
     )
     nvl_message = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="state message",
         data_key="nvl-message",
+        metadata={"description": "state message"},
     )
 
 
 class MonitoringFolderEndpointResponseSchema(Schema):
     home = fields.String(
         required=True,
-        example="https://localhost/s/prova/app/home#/",
-        description="folder home endpoint",
+        metadata={"example": "https://localhost/s/prova/app/home#/", "description": "folder home endpoint"},
     )
     discover = fields.String(
-        required=True,
-        example="https://localhost/s/prova/app/discover#/",
-        description="folder discover view endpoint",
+        required=False,
+        allow_none=True,
+        metadata={"example": "https://localhost/s/prova/app/discover#/", "description": "folder discover view endpoint"},
+    )
+
+
+class MonitoringFolderPermissionResponseSchema(Schema):
+    teamId = fields.Integer(required=False, allow_none=True, metadata={"description": "id of the team"})
+    teamName = fields.String(required=False, allow_none=True, metadata={"description": "team name"})
+    permissionName = fields.String(required=False, allow_none=True, metadata={"description": "team name"})
+    modificationDate = fields.String(
+        required=False,
+        allow_none=True,
+        metadata={"example": "2022-01-25T10:21:26.772Z", "description": "team modification date"},
     )
 
 
 class MonitoringFolderDashboardResponseSchema(Schema):
-    dashboardId = fields.String(
-        required=True,
-        example="c6772ba4-0fc2-493b-86a3-6edf717cb2ff",
-        description="id of the dashboard",
-    )
+    dashboardId = fields.Integer(required=False, allow_none=True, metadata={"description": "id of the dashboard"})
     dashboardName = fields.String(
         required=True,
-        example="[Filebeat MySQL] Overview ECS",
-        description="name of the dashboard",
+        metadata={"example": "[Filebeat MySQL] Overview ECS", "description": "name of the dashboard"},
     )
-    dashboardVersion = fields.String(required=True, example="WzE3Mjk0MTksMTRd", description="dashboard version")
-    dashboardScore = fields.Int(required=True, example=1, description="dashboard score")
+    dashboardVersion = fields.String(required=False, allow_none=True, metadata={"description": "dashboard version"})
+    dashboardScore = fields.Int(required=False, allow_none=True, metadata={"description": "dashboard score"})
     modificationDate = fields.String(
-        required=True,
-        example="2022-01-25T10:21:26.772Z",
-        description="dashboard modification date",
+        required=False,
+        allow_none=True,
+        metadata={"example": "2022-01-25T10:21:26.772Z", "description": "dashboard modification date"},
     )
     endpoint = fields.String(
         required=True,
-        description="folder dashboard endpoint",
-        example="https://localhost/s/prova/app/dashboards#/view/dusnawiu7cnsdiu",
+        metadata={"description": "folder dashboard endpoint", "example": "https://localhost/s/prova/app/dashboards#/view/dusnawiu7cnsdiu"},
     )
 
 
 class MonitoringFolderItemParameterResponseSchema(Schema):
     id = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="id of the folder",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "id of the folder"},
     )
-    name = fields.String(required=True, example="test", description="name of the folder")
-    creationDate = fields.DateTime(required=True, example="2022-01-25T11:20:18Z", description="creation date")
-    description = fields.String(required=True, example="test", description="description of the folder")
+    name = fields.String(required=True, metadata={"example": "test", "description": "name of the folder"})
+    creationDate = fields.DateTime(
+        required=True,
+        metadata={"example": "2022-01-25T11:20:18Z", "description": "creation date"},
+    )
+    description = fields.String(required=True, metadata={"example": "test", "description": "description of the folder"})
     ownerId = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="account id of the owner of the folder",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "account id of the owner of the folder"},
     )
     ownerAlias = fields.String(
         required=True,
         allow_none=True,
-        example="test",
-        description="account name of the owner of the folder",
+        metadata={"example": "test", "description": "account name of the owner of the folder"},
     )
     state = fields.String(
         required=True,
-        example="available",
-        description="state of the folder",
         data_key="state",
+        metadata={"example": "available", "description": "state of the folder"},
     )
     stateReason = fields.Nested(
         MonitoringFolderStateReasonResponseSchema,
         many=False,
         required=True,
-        description="state folder description",
+        metadata={"description": "state folder description"},
     )
     templateId = fields.String(
         required=True,
-        example="075df680-2560-421c-aeaa-8258a6b733f0",
-        description="id of the folder template",
+        metadata={"example": "075df680-2560-421c-aeaa-8258a6b733f0", "description": "id of the folder template"},
     )
-    templateName = fields.String(required=True, example="test", description="name of the folder template")
+    templateName = fields.String(
+        required=True,
+        metadata={"example": "test", "description": "name of the folder template"},
+    )
     endpoints = fields.Nested(MonitoringFolderEndpointResponseSchema, many=False, required=True)
     dashboards = fields.Nested(MonitoringFolderDashboardResponseSchema, many=True, required=True)
+    permissions = fields.Nested(MonitoringFolderPermissionResponseSchema, many=True, required=True)
+    resource_uuid = fields.String(required=False, allow_none=True)
 
 
 class DescribeMonitoringFolders1ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="$xmlns")
     next_token = fields.String(required=True, allow_none=True)
     requestId = fields.String(required=True, allow_none=True)
-    folderInfo = fields.Nested(
-        MonitoringFolderItemParameterResponseSchema,
-        many=True,
-        required=False,
-        allow_none=True,
-    )
+    folderInfo = fields.Nested(MonitoringFolderItemParameterResponseSchema, many=True, required=False, allow_none=True)
     folderTotal = fields.Integer(
         required=False,
-        example="0",
-        descriptiom="total monitoring instance",
         data_key="folderTotal",
+        metadata={"example": "0", "description": "total monitoring instance"},
     )
 
 
@@ -347,9 +343,9 @@ class DescribeFoldersRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="owner-id.N",
-        description="account id",
+        metadata={"description": "account id"},
     )
-    FolderName = fields.String(required=False, description="folder name", context="query")
+    FolderName = fields.String(required=False, context="query", metadata={"description": "folder name"})
     folder_id_N = fields.List(
         fields.String(),
         required=False,
@@ -357,21 +353,20 @@ class DescribeFoldersRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="folder-id.N",
-        description="list of folder id",
+        metadata={"description": "list of folder id"},
     )
     MaxItems = fields.Integer(
         required=False,
-        missing=100,
+        load_default=100,
         validation=Range(min=1),
         context="query",
-        description="max number elements to return in the response",
+        metadata={"description": "max number elements to return in the response"},
     )
     Marker = fields.String(
         required=False,
-        missing="0",
-        example="",
-        description="pagination token",
+        load_default="0",
         context="query",
+        metadata={"description": "pagination token"},
     )
 
 
@@ -443,26 +438,33 @@ class SyncUsersFolderApi1ResponseSchema(Schema):
     xmlns = fields.String(
         required=False,
         data_key="__xmlns",
-        example="https://nivolapiemonte.it/XMLdoc/2022-05-16/folder/",
+        metadata={"example": "https://nivolapiemonte.it/XMLdoc/2022-05-16/folder/"},
     )
-    Return = fields.Boolean(required=True, example=True, allow_none=False, data_key="return")
-    requestId = fields.String(required=True, example="folderXX-3525-4f95-880d-479acdb463a4", allow_none=True)
+    Return = fields.Boolean(required=True, allow_none=False, data_key="return", metadata={"example": True})
+    requestId = fields.String(
+        required=True,
+        allow_none=True,
+        metadata={"example": "folderXX-3525-4f95-880d-479acdb463a4"},
+    )
     nvl_activeTask = fields.String(
         required=True,
         allow_none=True,
         data_key="nvl-activeTask",
-        description="active task id",
+        metadata={"description": "active task id"},
     )
 
 
 class SyncUsersFolderApiResponseSchema(Schema):
     SyncFolderUsersResponse = fields.Nested(
-        SyncUsersFolderApi1ResponseSchema, required=True, many=False, allow_none=False
+        SyncUsersFolderApi1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
     )
 
 
 class SyncUsersFolderApiRequestSchema(Schema):
-    FolderId = fields.String(required=True, description="monitoring folder id", context="query")
+    FolderId = fields.String(required=True, context="query", metadata={"description": "monitoring folder id"})
 
 
 class SyncUsersFolderApiBodyRequestSchema(Schema):
@@ -502,27 +504,29 @@ class SyncUsersFolder(ServiceApiView):
 
 class DescribeFolderConfigApiV2RequestSchema(Schema):
     owner_id = fields.String(
-        example="d35d19b3-d6b8-4208-b690-a51da2525497",
         required=True,
         context="query",
         data_key="owner-id",
-        description="account id of the instance type owner",
+        metadata={"example": "d35d19b3-d6b8-4208-b690-a51da2525497", "description": "account id of the instance type owner"},
     )
 
 
 class DescribeFolderConfigParamsApiV2ResponseSchema(Schema):
     name = fields.String(
         required=True,
-        example="tomcat",
-        description="name of the monitoring configuration",
+        metadata={"example": "tomcat", "description": "name of the monitoring configuration"},
     )
+    default = fields.Boolean(required=False, allow_none=True)
 
 
 class DescribeFolderConfigApi1V2ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="$xmlns")
-    requestId = fields.String(required=True, description="api request id")
-    logConfigSet = fields.Nested(DescribeFolderConfigParamsApiV2ResponseSchema, many=True, allow_none=False)
-    logConfigTotal = fields.Integer(required=True, example=10, description="Total number of configuration available")
+    requestId = fields.String(required=True, metadata={"description": "api request id"})
+    monitorConfigSet = fields.Nested(DescribeFolderConfigParamsApiV2ResponseSchema, many=True, allow_none=False)
+    monitorConfigTotal = fields.Integer(
+        required=True,
+        metadata={"example": 10, "description": "Total number of configuration available"},
+    )
 
 
 class DescribeFolderConfigApiV2ResponseSchema(Schema):
@@ -589,29 +593,31 @@ class DescribeFolderConfig(ServiceApiView):
 
 class EnableDashConfigApi1ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
-    Return = fields.Boolean(required=True, example=True, allow_none=False, data_key="return")
+    Return = fields.Boolean(required=True, allow_none=False, data_key="return", metadata={"example": True})
     requestId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="api request id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "api request id"},
     )
     nvl_activeTask = fields.String(
         required=True,
         allow_none=True,
         data_key="nvl-activeTask",
-        description="active task id",
+        metadata={"description": "active task id"},
     )
 
 
 class EnableDashConfigApiResponseSchema(Schema):
     EnableDashConfigResponse = fields.Nested(
-        EnableDashConfigApi1ResponseSchema, required=True, many=False, allow_none=False
+        EnableDashConfigApi1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
     )
 
 
 class EnableDashConfigApiRequestSchema(Schema):
-    FolderId = fields.String(required=False, description="monitoring folder id", context="query")
-    Config = fields.String(required=False, example="LinResource", description="name of dashboard")
+    FolderId = fields.String(required=False, context="query", metadata={"description": "monitoring folder id"})
+    Config = fields.String(required=False, metadata={"example": "LinResource", "description": "name of dashboard"})
 
 
 class EnableDashConfigApiBodyRequestSchema(Schema):
@@ -695,29 +701,31 @@ class EnableDashConfig(ServiceApiView):
 
 class DisableDashConfigApi1ResponseSchema(Schema):
     xmlns = fields.String(required=False, data_key="__xmlns")
-    Return = fields.Boolean(required=True, example=True, allow_none=False, data_key="return")
+    Return = fields.Boolean(required=True, allow_none=False, data_key="return", metadata={"example": True})
     requestId = fields.String(
         required=True,
-        example="29647df5-5228-46d0-a2a9-09ac9d84c099",
-        description="api request id",
+        metadata={"example": "29647df5-5228-46d0-a2a9-09ac9d84c099", "description": "api request id"},
     )
     nvl_activeTask = fields.String(
         required=True,
         allow_none=True,
         data_key="nvl-activeTask",
-        description="active task id",
+        metadata={"description": "active task id"},
     )
 
 
 class DisableDashConfigApiResponseSchema(Schema):
     DisableDashConfigResponse = fields.Nested(
-        DisableDashConfigApi1ResponseSchema, required=True, many=False, allow_none=False
+        DisableDashConfigApi1ResponseSchema,
+        required=True,
+        many=False,
+        allow_none=False,
     )
 
 
 class DisableDashConfigApiRequestSchema(Schema):
-    FolderId = fields.String(required=False, description="monitoring folder id", context="query")
-    Config = fields.String(required=False, example="LinResource", description="name of dashboard")
+    FolderId = fields.String(required=False, context="query", metadata={"description": "monitoring folder id"})
+    Config = fields.String(required=False, metadata={"example": "LinResource", "description": "name of dashboard"})
 
 
 class DisableDashConfigApiBodyRequestSchema(Schema):

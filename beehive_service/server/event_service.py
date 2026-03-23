@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 # Usage: event.py config_file
 # Options:
@@ -10,7 +10,7 @@
 #                          Require args = service name
 
 import sys
-from six.moves.configparser import ConfigParser
+from configparser import ConfigParser
 
 # import ConfigParser
 from collections import OrderedDict

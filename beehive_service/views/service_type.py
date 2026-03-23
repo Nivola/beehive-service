@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.data import transaction
 from beehive.common.apimanager import (
@@ -90,19 +90,14 @@ class ListServiceType(ServiceApiView):
 
 
 class ListServicePluginTypeParamsResponseSchema(Schema):
-    id = fields.String(Required=True)
+    id = fields.Integer(Required=True)
     name = fields.String(Required=True)
     objclass = fields.String(Required=True)
 
 
 class ListServicePluginTypeResponseSchema(Schema):
     count = fields.Integer(Required=True)
-    plugintypes = fields.Nested(
-        ListServicePluginTypeParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
+    plugintypes = fields.Nested(ListServicePluginTypeParamsResponseSchema, many=True, required=True, allow_none=True)
 
 
 class ListServicePluginType(ServiceApiView):
@@ -121,7 +116,7 @@ class ListServicePluginType(ServiceApiView):
 
 
 class CreateServiceTypeParamRequestSchema(ApiServiceObjectCreateRequestSchema):
-    status = fields.String(required=False, default=SrvStatusType.DRAFT)
+    status = fields.String(required=False, dump_default=SrvStatusType.DRAFT)
     objclass = fields.String(required=True, allow_none=False)
     flag_container = fields.Boolean(required=True, allow_none=False)
     template_cfg = fields.String(required=True, allow_none=False)

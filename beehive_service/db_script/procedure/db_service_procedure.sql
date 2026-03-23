@@ -1,7 +1,7 @@
 /*
 SPDX-License-Identifier: EUPL-1.2
 
-(C) Copyright 2018-2024 CSI-Piemonte
+(C) Copyright 2018-2026 CSI-Piemonte
 
 */
 -- MySQL dump 10.16  Distrib 10.1.48-MariaDB, for debian-linux-gnu (x86_64)

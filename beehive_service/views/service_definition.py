@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 from beehive_service.controller import ServiceController
 from beecell.simple import dict_get
 from beehive.common.data import transaction
@@ -42,12 +42,7 @@ class GetServiceDefinitionParamsResponseSchema(ApiServiceObjectResponseSchema):
 
 
 class GetServiceDefinitionResponseSchema(Schema):
-    servicedef = fields.Nested(
-        GetServiceDefinitionParamsResponseSchema,
-        required=True,
-        many=True,
-        allow_none=True,
-    )
+    servicedef = fields.Nested(GetServiceDefinitionParamsResponseSchema, required=True, allow_none=True)
 
 
 class GetServiceDefinition(ServiceApiView):
@@ -79,12 +74,7 @@ class ListServiceDefinitionRequestSchema(
 
 
 class ListServiceDefinitionResponseSchema(PaginatedResponseSchema):
-    servicedefs = fields.Nested(
-        GetServiceDefinitionParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
+    servicedefs = fields.Nested(GetServiceDefinitionParamsResponseSchema, many=True, required=True, allow_none=True)
 
 
 class ListServiceDefinition(ServiceApiView):
@@ -111,8 +101,8 @@ class CreateServiceDefinitionParamRequestSchema(ApiServiceObjectCreateRequestSch
     service_type_id = fields.String(required=True)
     parent_id = fields.String(required=False, allow_none=True)
     priority = fields.Integer(required=False, allow_none=True)
-    status = fields.String(required=False, missing=SrvStatusType.ACTIVE)
-    is_default = fields.Bool(required=False, missing=False)
+    status = fields.String(required=False, load_default=SrvStatusType.ACTIVE)
+    is_default = fields.Bool(required=False, load_default=False)
 
 
 class CreateServiceDefinitionRequestSchema(Schema):
@@ -136,25 +126,25 @@ class CreateServiceDefinition(ServiceApiView):
     responses = ServiceApiView.setResponses({201: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
-    def post(self, controller, data, *args, **kwargs):
+    def post(self, controller: ServiceController, data, *args, **kwargs):
         resp = controller.add_service_def(**data.get("servicedef"))
         return {"uuid": resp}, 201
 
 
 class UpdateServiceDefinitionConfigParamRequestSchema(Schema):
-    key = fields.String(required=False, allow_none=True, description="Service config key")
-    value = fields.String(required=False, allow_none=True, description="Service config value")
+    key = fields.String(required=False, allow_none=True, metadata={"description": "Service config key"})
+    value = fields.String(required=False, allow_none=True, metadata={"description": "Service config value"})
 
 
 class UpdateServiceDefinitionParamRequestSchema(Schema):
-    name = fields.String(required=False, allow_none=True, description="Service definition name")
-    desc = fields.String(required=False, allow_none=True, description="Service definition description")
-    status = fields.String(required=False, allow_none=True, description="Service definition statue")
+    name = fields.String(required=False, allow_none=True, metadata={"description": "Service definition name"})
+    desc = fields.String(required=False, allow_none=True, metadata={"description": "Service definition description"})
+    status = fields.String(required=False, allow_none=True, metadata={"description": "Service definition statue"})
     config = fields.String(
         required=False,
         allow_none=True,
         many=False,
-        description="Service definition config key:value",
+        metadata={"description": "Service definition config key:value"},
     )
 
 
@@ -258,6 +248,7 @@ class ServiceConfigParamsResponseSchema(ApiObjectResponseSchema):
     service_definition_id = fields.String(required=True)
     params = fields.Dict(Required=True)
     params_type = fields.String(Required=True)
+    version = fields.String(Required=False, allow_none=True)
 
 
 class ListServiceConfigsResponseSchema(PaginatedResponseSchema):
@@ -307,7 +298,7 @@ class GetServiceConfig(ServiceApiView):
 
 class CreateServiceConfigParamRequestSchema(ApiServiceObjectCreateRequestSchema):
     service_definition_id = fields.String(required=True, allow_none=False)
-    params = fields.Dict(required=True, example={})
+    params = fields.Dict(required=True, metadata={"example": {}})
     params_type = fields.String(required=True)
 
 
@@ -332,7 +323,7 @@ class CreateServiceConfig(ServiceApiView):
     responses = ServiceApiView.setResponses({201: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
-    def post(self, controller, data, *args, **kwargs):
+    def post(self, controller: ServiceController, data, *args, **kwargs):
         resp = controller.add_service_cfg(**data.get("servicecfg"))
         return {"uuid": resp}, 201
 
@@ -342,7 +333,8 @@ class UpdateServiceConfigParamRequestSchema(Schema):
     desc = fields.String(required=False, allow_none=True)
     service_definition_id = fields.String(required=False)
     params = fields.Dict(required=False)
-    params_type = fields.Integer(required=False)
+    params_type = fields.String(required=True)
+    version = fields.String(required=True)
 
 
 class UpdateServiceConfigRequestSchema(Schema):
@@ -366,9 +358,14 @@ class UpdateServiceConfig(ServiceApiView):
     responses = ServiceApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
-    def put(self, controller, data, oid, *args, **kwargs):
+    def put(self, controller: ServiceController, data, oid, *args, **kwargs):
         srv_cfg = controller.get_service_cfg(oid)
         data = data.get("servicecfg")
+
+        service_definition_id = data.get("service_definition_id")
+        service_def = controller.get_service_def(service_definition_id)
+        data.update({"service_definition_id": service_def.oid})
+
         resp = srv_cfg.update(**data)
         return {"uuid": resp}, 200
 
@@ -411,12 +408,10 @@ class ListProductCodeRequestSchema(Schema):
 
 
 class ListProductCodeResponseSchema(Schema):
-    codes = fields.List(
-        fields.String(
+    codes = fields.List(fields.String(
             required=True,
             allow_none=True,
-        )
-    )
+        ))
 
 
 class ListProductCode(ServiceApiView):

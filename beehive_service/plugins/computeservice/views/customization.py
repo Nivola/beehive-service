@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from typing import Dict
 from flasgger import fields, Schema
@@ -18,12 +18,17 @@ from beehive.common.data import operation
 
 
 class DescribeCustomizationsApiRequestSchema(Schema):
-    MaxResults = fields.Integer(required=False, default=10, context="query", description="number of results")
+    MaxResults = fields.Integer(
+        required=False,
+        dump_default=10,
+        context="query",
+        metadata={"description": "number of results"},
+    )
     NextToken = fields.String(
         required=False,
-        default=0,
+        dump_default=0,
         context="query",
-        description="result list page number",
+        metadata={"description": "result list page number"},
     )
     owner_id_N = fields.List(
         fields.String(example=""),
@@ -32,38 +37,34 @@ class DescribeCustomizationsApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="owner-id.N",
-        description="account ID of the customization owner",
+        metadata={"description": "account ID of the customization owner"},
     )
     customization_name_N = fields.List(
         fields.String(),
         required=False,
-        example="",
-        description="name of the customization",
         context="query",
         collection_format="multi",
         data_key="customization-name.N",
+        metadata={"description": "name of the customization"},
     )
     customization_id_N = fields.List(
         fields.String(),
         required=False,
         context="query",
         data_key="customization-id.N",
-        example="348970ea-0c4a-46e3-99d4-2b0cbb467655",
-        description="list of customization id",
+        metadata={"example": "348970ea-0c4a-46e3-99d4-2b0cbb467655", "description": "list of customization id"},
     )
     customization_type_N = fields.List(
         fields.String(),
         required=False,
         context="query",
         data_key="customization-type.N",
-        example="348970ea-0c4a-46e3-99d4-2b0cbb467655",
-        description="list of customization type id",
+        metadata={"example": "348970ea-0c4a-46e3-99d4-2b0cbb467655", "description": "list of customization type id"},
     )
     instance_id = fields.String(
         required=False,
         context="query",
-        example="348970ea-0c4a-46e3-99d4-2b0cbb467655",
-        description="compute instance id",
+        metadata={"example": "348970ea-0c4a-46e3-99d4-2b0cbb467655", "description": "compute instance id"},
     )
     launch_time_N = fields.List(
         fields.String(example=""),
@@ -71,7 +72,7 @@ class DescribeCustomizationsApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="launch-time.N",
-        description="time when the customization was created",
+        metadata={"description": "time when the customization was created"},
     )
     tag_key_N = fields.List(
         fields.String(example=""),
@@ -79,7 +80,7 @@ class DescribeCustomizationsApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="tag-key.N",
-        description="value of a tag assigned to the resource",
+        metadata={"description": "value of a tag assigned to the resource"},
     )
     state_name_N = fields.List(
         fields.String(
@@ -99,26 +100,23 @@ class DescribeCustomizationsApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="state-name.N",
-        description="state name of the customization",
+        metadata={"description": "state name of the customization"},
     )
 
 
 class DescribeCustomizationSetArgResponseSchema(Schema):
-    name = fields.String(required=True, example="test", description="parameter name")
-    value = fields.String(required=True, example="test", description="parameter value")
+    name = fields.String(required=True, metadata={"example": "test", "description": "parameter name"})
+    value = fields.String(required=True, metadata={"example": "test", "description": "parameter value"})
 
 
 class CustomizationStateResponseSchema(Schema):
     code = fields.Integer(
         required=False,
         allow_none=True,
-        example="0",
-        description="code of customization state",
+        metadata={"example": "0", "description": "code of customization state"},
     )
     name = fields.String(
         required=False,
-        example="pending | running | ....",
-        description="name of customization state",
         validate=OneOf(
             [
                 getattr(ApiComputeCustomization.state_enum, x)
@@ -126,6 +124,7 @@ class CustomizationStateResponseSchema(Schema):
                 if not x.startswith("__")
             ]
         ),
+        metadata={"example": "pending | running | ....", "description": "name of customization state"},
     )
     # ['pending', 'running', 'shutting-down', 'terminated', 'stopping', 'stopped', 'error', 'unknown']
 
@@ -134,50 +133,42 @@ class DescribeCustomizationSetResponseSchema(Schema):
     customizationId = fields.String(
         required=False,
         allow_none=True,
-        example="5d1277c7-a69f-4dd3-9248-ccb080ee8c9f",
-        description="customization id",
+        metadata={"example": "5d1277c7-a69f-4dd3-9248-ccb080ee8c9f", "description": "customization id"},
     )
     customizationName = fields.String(
         required=False,
         allow_none=True,
-        example="test",
-        description="customization name",
+        metadata={"example": "test", "description": "customization name"},
     )
     customizationType = fields.String(
         required=False,
         allow_none=True,
-        example="5d1277c7-a69f-4dd3-9248-ccb080ee8c9f",
-        description="customization definition for the customization",
+        metadata={"example": "5d1277c7-a69f-4dd3-9248-ccb080ee8c9f", "description": "customization definition for the customization"},
     )
     customizationState = fields.Nested(CustomizationStateResponseSchema, many=False, required=False)
     reason = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="reason for the current state of the customization",
+        metadata={"description": "reason for the current state of the customization"},
     )
     ownerAlias = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="name of the account that owns the customization",
+        metadata={"description": "name of the account that owns the customization"},
     )
     ownerId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="ID of the account that owns the customization",
+        metadata={"description": "ID of the account that owns the customization"},
     )
     launchTime = fields.DateTime(
         required=False,
-        example="",
-        description="the timestamp the customization was launched",
+        metadata={"description": "the timestamp the customization was launched"},
     )
     resourceId = fields.String(
         required=False,
         allow_none=True,
-        example="",
-        description="ID of the customization resource",
+        metadata={"description": "ID of the customization resource"},
     )
     # instances = fields.List(fields.String, required=True, exmaple='["6ee1916d-28b9-4d54-9676-63bb20784669"]',
     #                        description='list of compute instance id')
@@ -186,21 +177,21 @@ class DescribeCustomizationSetResponseSchema(Schema):
         required=True,
         many=True,
         allow_none=False,
-        description="customization type args",
+        metadata={"description": "customization type args"},
     )
     instances = fields.List(fields.String(required=False, allow_none=True, many=True))
 
 
 class DescribeCustomizationsApi1ResponseSchema(Schema):
-    requestId = fields.String(required=True, example="123", description="api request id")
+    requestId = fields.String(required=True, metadata={"example": "123", "description": "api request id"})
     customizationsSet = fields.Nested(
         DescribeCustomizationSetResponseSchema,
         required=True,
         many=True,
         allow_none=True,
-        description="list of customization info",
+        metadata={"description": "list of customization info"},
     )
-    customizationTotal = fields.Integer(required=True, description="total number of customizations")
+    customizationTotal = fields.Integer(required=True, metadata={"description": "total number of customizations"})
     xmlns = fields.String(required=False, data_key="__xmlns")
 
 
@@ -305,43 +296,45 @@ class DescribeCustomizations(ServiceApiView):
 
 
 class CustomizationTypeArgResponseSchema(Schema):
-    name = fields.String(required=True, example="test", description="parameter name")
-    desc = fields.String(required=True, example="test", description="parameter description")
-    type = fields.String(required=True, example="str", description="parameter type like int, str")
-    default = fields.String(required=False, example="test", description="parameter default value")
-    allowed = fields.String(required=False, example="", description="parameter allowed value")
-    required = fields.String(required=False, example="", description="set if parameter is required")
+    name = fields.String(required=True, metadata={"example": "test", "description": "parameter name"})
+    desc = fields.String(required=True, metadata={"example": "test", "description": "parameter description"})
+    type = fields.String(required=True, metadata={"example": "str", "description": "parameter type like int, str"})
+    default = fields.String(required=False, metadata={"example": "test", "description": "parameter default value"})
+    allowed = fields.String(required=False, metadata={"description": "parameter allowed value"})
+    required = fields.String(required=False, metadata={"description": "set if parameter is required"})
 
 
 class CustomizationTypeResponseSchema(Schema):
-    id = fields.String(required=True, example="", description="customization type id")
-    uuid = fields.String(required=True, example="", description="customization type uuid")
-    name = fields.String(required=True, example="", description="customization type name")
+    id = fields.String(required=True, metadata={"description": "customization type id"})
+    uuid = fields.String(required=True, metadata={"description": "customization type uuid"})
+    name = fields.String(required=True, metadata={"description": "customization type name"})
     description = fields.String(
         required=True,
         allow_none=True,
-        example="",
-        description="customization type description",
+        metadata={"description": "customization type description"},
     )
     args = fields.Nested(
         CustomizationTypeArgResponseSchema,
         required=False,
         many=False,
         allow_none=False,
-        description="customization type args",
+        metadata={"description": "customization type args"},
     )
 
 
 class DescribeCustomizationTypesApi1ResponseSchema(Schema):
-    requestId = fields.String(required=True, example="123", description="api request id")
+    requestId = fields.String(required=True, metadata={"example": "123", "description": "api request id"})
     customizationTypesSet = fields.Nested(
         CustomizationTypeResponseSchema,
         required=True,
         many=True,
         allow_none=True,
-        description="list of customization type info",
+        metadata={"description": "list of customization type info"},
     )
-    customizationTypesTotal = fields.Integer(required=True, description="total number of customization type")
+    customizationTypesTotal = fields.Integer(
+        required=True,
+        metadata={"description": "total number of customization type"},
+    )
 
 
 class DescribeCustomizationTypesApiResponseSchema(Schema):
@@ -356,31 +349,30 @@ class DescribeCustomizationTypesApiResponseSchema(Schema):
 class DescribeCustomizationTypesApiRequestSchema(Schema):
     MaxResults = fields.Integer(
         required=False,
-        default=10,
-        missing=10,
-        description="entities list page size",
+        dump_default=10,
+        load_default=10,
         context="query",
+        metadata={"description": "entities list page size"},
     )
     NextToken = fields.Integer(
         required=False,
-        default=0,
-        missing=0,
-        description="entities list page selected",
+        dump_default=0,
+        load_default=0,
         context="query",
+        metadata={"description": "entities list page selected"},
     )
     owner_id = fields.String(
-        example="d35d19b3-d6b8-4208-b690-a51da2525497",
         required=True,
         context="query",
         data_key="owner-id",
-        description="account id of the instance type owner",
+        metadata={"example": "d35d19b3-d6b8-4208-b690-a51da2525497", "description": "account id of the instance type owner"},
     )
     CustomizationType = fields.String(
         required=False,
         allow_none=True,
         context="query",
-        missing=None,
-        description="list of customization type uuid",
+        load_default=None,
+        metadata={"description": "list of customization type uuid"},
     )
 
 
@@ -468,31 +460,30 @@ class DescribeCustomizationTypes(ServiceApiView):
 
 
 class RunCustomizationsApiParamArgRequestSchema(Schema):
-    Name = fields.String(required=True, example="test", description="parameter name")
-    Value = fields.String(required=True, example="test", description="parameter value")
+    Name = fields.String(required=True, metadata={"example": "test", "description": "parameter name"})
+    Value = fields.String(required=True, metadata={"example": "test", "description": "parameter value"})
 
 
 class RunCustomizationsApiParamRequestSchema(Schema):
-    Name = fields.String(required=True, example="test", description="customization name")
+    Name = fields.String(required=True, metadata={"example": "test", "description": "customization name"})
     owner_id = fields.String(
         required=True,
-        example="test",
         data_key="owner-id",
-        description="parent account id",
+        metadata={"example": "test", "description": "parent account id"},
     )
-    CustomizationType = fields.String(required=True, example="nginx", description="customization type")
+    CustomizationType = fields.String(required=True, metadata={"example": "nginx", "description": "customization type"})
     Instances = fields.List(
         fields.String,
         required=True,
         exmaple='["6ee1916d-28b9-4d54-9676-63bb20784669"]',
-        description="list of compute instance id",
+        metadata={"description": "list of compute instance id"},
     )
     Args = fields.Nested(
         RunCustomizationsApiParamArgRequestSchema,
         required=True,
         many=True,
         allow_none=False,
-        description="customization type args",
+        metadata={"description": "customization type args"},
     )
 
 
@@ -505,11 +496,10 @@ class RunCustomizationsApiBodyRequestSchema(Schema):
 
 
 class RunCustomizationsApi1ResponseSchema(Schema):
-    requestId = fields.String(required=True, example="123", description="api request id")
+    requestId = fields.String(required=True, metadata={"example": "123", "description": "api request id"})
     customizationId = fields.String(
         required=True,
-        example="6ee1916d-28b9-4d54-9676-63bb20784669",
-        description="customization id created",
+        metadata={"example": "6ee1916d-28b9-4d54-9676-63bb20784669", "description": "customization id created"},
     )
 
 
@@ -568,11 +558,10 @@ class RunCustomization(ServiceApiView):
 
 
 class UpdateCustomizationResponseItemSchema(Schema):
-    requestId = fields.String(required=True, example="123", description="api request id")
+    requestId = fields.String(required=True, metadata={"example": "123", "description": "api request id"})
     customizationId = fields.String(
         required=True,
-        example="3dd726eb-a303-4e97-9f99-d3b79e255b46",
-        description="customization id",
+        metadata={"example": "3dd726eb-a303-4e97-9f99-d3b79e255b46", "description": "customization id"},
     )
 
 
@@ -588,9 +577,8 @@ class UpdateCustomizationResponseSchema(Schema):
 class UpdateCustomizationRequestSchema(Schema):
     CustomizationId = fields.String(
         required=True,
-        example="3dd726eb-a303-4e97-9f99-d3b79e255b46",
         context="query",
-        description="customization id",
+        metadata={"example": "3dd726eb-a303-4e97-9f99-d3b79e255b46", "description": "customization id"},
     )
 
 
@@ -632,11 +620,10 @@ class UpdateCustomization(ServiceApiView):
 
 
 class TerminateCustomizationResponseItemSchema(Schema):
-    requestId = fields.String(required=True, example="123", description="api request id")
+    requestId = fields.String(required=True, metadata={"example": "123", "description": "api request id"})
     customizationId = fields.String(
         required=True,
-        example="3dd726eb-a303-4e97-9f99-d3b79e255b46",
-        description="customization id",
+        metadata={"example": "3dd726eb-a303-4e97-9f99-d3b79e255b46", "description": "customization id"},
     )
 
 
@@ -652,9 +639,8 @@ class TerminateCustomizationResponseSchema(Schema):
 class TerminateCustomizationRequestSchema(Schema):
     CustomizationId = fields.String(
         required=True,
-        example="3dd726eb-a303-4e97-9f99-d3b79e255b46",
         context="query",
-        description="customization id",
+        metadata={"example": "3dd726eb-a303-4e97-9f99-d3b79e255b46", "description": "customization id"},
     )
 
 

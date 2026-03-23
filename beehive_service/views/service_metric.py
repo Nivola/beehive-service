@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.data import transaction
+
 from beehive.common.apimanager import (
     PaginatedRequestQuerySchema,
     PaginatedResponseSchema,
@@ -12,14 +13,17 @@ from beehive.common.apimanager import (
     ApiView,
     ApiObjectResponseDateSchema,
 )
+
 from flasgger import fields, Schema, ValidationError
 from beecell.swagger import SwaggerHelper
+
 from beehive_service.views import (
     ServiceApiView,
     ApiServiceObjectResponseSchema,
     ApiServiceObjectRequestSchema,
     ApiObjectRequestFiltersSchema,
 )
+
 from marshmallow.validate import OneOf
 from marshmallow.decorators import validates_schema
 from beecell.simple import format_date
@@ -35,7 +39,7 @@ from beehive_service.service_util import __SRV_METRICTYPE__
 
 # # get
 class GetServiceMetricParamsResponseSchema(Schema):
-    id = fields.Integer(required=True, example=10)
+    id = fields.Integer(required=True, metadata={"example": 10})
     value = fields.Float(required=True)
     metric_type = fields.String(required=True)
     metric_num = fields.Integer(required=True)
@@ -50,11 +54,17 @@ class GetServiceMetricResponseSchema(Schema):
 
 class GetServiceMetric(ServiceApiView):
     tags = ["service"]
+
     definitions = {
         "GetServiceMetricResponseSchema": GetServiceMetricResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = ServiceApiView.setResponses({200: {"description": "success", "schema": GetServiceMetricResponseSchema}})
+
+    responses = ServiceApiView.setResponses({
+        200: {"description": "success", "schema": GetServiceMetricResponseSchema}
+    })
+
     response_schema = GetServiceMetricResponseSchema
 
     def get(self, controller, data, oid, *args, **kwargs):
@@ -129,49 +139,60 @@ class ListServiceMetric(ServiceApiView):
 
 # # create
 class CreateServiceMetricParamRequestSchema(Schema):
-    # value = fields.Float(required=True)
-    # metric_type_id = fields.Integer(required=True)
-    # metric_num = fields.Integer(required=True)
-    # service_instance_oid = fields.String(required=True)
-    # job_id = fields.Integer(required=True)
-    # creation_date = fields.DateTime(required=True)
-    value = fields.Float(required=True, allow_none=True, description="Value of the metrics")
+    value = fields.Float(required=True, allow_none=True, metadata={"description": "Value of the metrics"})
     metric_type_id = fields.Integer(
         required=False,
         allow_none=True,
-        missing=None,
-        description="metric numeric id equivalent to metric_type One of metric_type_id or metric_type is required",
+        load_default=None,
+        metadata={
+            "description": (
+                "metric numeric id equivalent to metric_type One of "
+                "metric_type_id or metric_type is required"
+            )
+        },
     )
     metric_type = fields.String(
         required=False,
         allow_none=True,
-        missing=None,
-        description="metric name equvalent to metric_type_id One of metric_type_id or metric_type is required",
+        load_default=None,
+        metadata={
+            "description": "metric name equvalent to metric_type_id One of metric_type_id or metric_type is required"
+        },
     )
     metric_num = fields.Integer(
         required=False,
         allow_none=True,
-        missing=None,
-        description="daily acquistion number",
+        load_default=None,
+        metadata={"description": "daily acquistion number"},
     )
     service_instance_oid = fields.String(
         required=False,
         allow_none=True,
-        missing=None,
-        description="service instance which generate the metrics. One of service_instance_oid or resource_uuid is required",
+        load_default=None,
+        metadata={
+            "description": (
+                "service instance which generate the metrics. "
+                "One of service_instance_oid or resource_uuid is required"
+            )
+        },
     )
     resource_uuid = fields.String(
         required=False,
         allow_none=True,
-        missing=None,
-        description="resource uuid which generate the metric. One of service_instance_oid or resource_uuid is required",
+        load_default=None,
+        metadata={
+            "description": (
+                "resource uuid which generate the metric. "
+                "One of service_instance_oid or resource_uuid is required"
+            )
+        },
     )
-    job_id = fields.Integer(required=False, description="job acquisition number deprecated")
+    job_id = fields.Integer(required=False, metadata={"description": "job acquisition number deprecated"})
     creation_date = fields.DateTime(
         required=False,
         allow_none=True,
-        missing=None,
-        description="creation date if not presente curtrente timestamp will be used",
+        load_default=None,
+        metadata={"description": "creation date if not presente curtrente timestamp will be used"},
     )
 
     @validates_schema
@@ -184,13 +205,26 @@ class CreateServiceMetricParamRequestSchema(Schema):
 
 class CreateServiceMetricRequestSchema(Schema):
     account = fields.String(
-        required=False, allow_none=True, missing=None, description="account only when bulk inserting"
+        required=False,
+        allow_none=True,
+        load_default=None,
+        metadata={"description": "account only when bulk inserting"},
     )
     metrics = fields.Nested(
-        CreateServiceMetricParamRequestSchema, required=False, allow_none=True, missing=None, context="body", many=True
+        CreateServiceMetricParamRequestSchema,
+        required=False,
+        allow_none=True,
+        load_default=None,
+        context="body",
+        many=True,
     )
     metric = fields.Nested(
-        CreateServiceMetricParamRequestSchema, required=False, allow_none=True, missing=None, context="body", many=False
+        CreateServiceMetricParamRequestSchema,
+        required=False,
+        allow_none=True,
+        load_default=None,
+        context="body",
+        many=False,
     )
 
     @validates_schema
@@ -346,65 +380,63 @@ class DeleteServiceMetric(ServiceApiView):
 class ServiceMetricTypeLimitParamRequestSchema(Schema):
     name = fields.String(
         required=True,
-        example="vpc-bundle-bronze",
-        description="service metrics type limit name",
+        metadata={"example": "vpc-bundle-bronze", "description": "service metrics type limit name"},
     )
     desc = fields.String(
         required=False,
-        example="vpc bundle bronze",
-        default="",
-        missing="",
+        dump_default="",
+        load_default="",
         allow_none=True,
-        description="service metrics type limit description",
+        metadata={"example": "vpc bundle bronze", "description": "service metrics type limit description"},
     )
-    value = fields.Float(required=True, example="0.00", description="service metrics type limit value")
-    metric_type_id = fields.String(required=True, example="10", description="service metrics type id")
+    value = fields.Float(required=True, metadata={"example": "0.00", "description": "service metrics type limit value"})
+    metric_type_id = fields.String(required=True, metadata={"example": "10", "description": "service metrics type id"})
 
 
 # # create
 class CreateServiceMetricTypeParamRequestSchema(Schema):
-    name = fields.String(required=True, example="GBRam", description="service metrics type name")
+    name = fields.String(required=True, metadata={"example": "GBRam", "description": "service metrics type name"})
+
     desc = fields.String(
         required=False,
-        example="Gb Ram",
-        default="",
-        missing="",
+        dump_default="",
+        load_default="",
         allow_none=True,
-        description="service metrics type description",
+        metadata={"example": "Gb Ram", "description": "service metrics type description"},
     )
+
     metric_type = fields.String(
         required=True,
-        example="BUNDLE",
         validate=OneOf(__SRV_METRICTYPE__),
-        description="service metrics type description. Can be one of the following value: "
-        "CONSUME|BUNDLE|OPTIONAL_BUNDLE|PROFESSIONAL_SERVICE|UNKNOWN",
+        metadata={
+            "example": "BUNDLE",
+            "description": (
+                "service metrics type description. Can be one of the following value: "
+                "CONSUME|BUNDLE|OPTIONAL_BUNDLE|PROFESSIONAL_SERVICE|UNKNOWN"
+            )
+        },
     )
+
     group_name = fields.String(
         required=False,
-        example="cpaas",
-        default="UNKNOWN",
-        missing="UNKNOWN",
-        description="service metrics type group",
+        dump_default="UNKNOWN",
+        load_default="UNKNOWN",
+        metadata={"example": "cpaas", "description": "service metrics type group"},
     )
+
     measure_unit = fields.String(
         required=False,
-        example="Gb",
-        default="None",
-        missing="None",
-        description="service metrics type unit",
+        dump_default="None",
+        load_default="None",
+        metadata={"example": "Gb", "description": "service metrics type unit"},
     )
-    limits = fields.Nested(
-        ServiceMetricTypeLimitParamRequestSchema,
-        required=False,
-        many=True,
-        allow_none=True,
-    )
+
+    limits = fields.Nested(ServiceMetricTypeLimitParamRequestSchema, required=False, many=True, allow_none=True)
     status = fields.String(
         required=False,
-        example="ACTIVE",
-        default="DRAFT",
-        missing="DRAFT",
-        description="service metrics type status: ACTIVE|DRAFT",
+        dump_default="DRAFT",
+        load_default="DRAFT",
+        metadata={"example": "ACTIVE", "description": "service metrics type status: ACTIVE|DRAFT"},
     )
 
 
@@ -422,12 +454,15 @@ class CreateServiceMetricTypeResponseSchema(Schema):
 
 class CreateServiceMetricType(ServiceApiView):
     tags = ["service"]
+
     definitions = {
         "CreateServiceMetricTypeRequestSchema": CreateServiceMetricTypeRequestSchema,
         "CreateServiceMetricTypeResponseSchema": CreateServiceMetricTypeResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateServiceMetricTypeBodyRequestSchema)
     parameters_schema = CreateServiceMetricTypeRequestSchema
+
     responses = ServiceApiView.setResponses(
         {
             201: {
@@ -436,6 +471,7 @@ class CreateServiceMetricType(ServiceApiView):
             }
         }
     )
+
     response_schema = CreateServiceMetricTypeResponseSchema
 
     def post(self, controller: ServiceController, data, *args, **kwargs):
@@ -450,21 +486,19 @@ class CreateServiceMetricType(ServiceApiView):
 
 # # get
 class GetServiceMetricTypeLimitParamsResponseSchema(Schema):
-    id = fields.Integer(required=True, example="1", description="service metrics type limit id")
+    id = fields.Integer(required=True, metadata={"example": "1", "description": "service metrics type limit id"})
     name = fields.String(
         required=True,
-        example="vpc-bundle-bronze",
-        description="service metrics type limit name",
+        metadata={"example": "vpc-bundle-bronze", "description": "service metrics type limit name"},
     )
     desc = fields.String(
         required=False,
-        example="vpc bundle bronze",
-        default="",
-        missing="",
-        description="service metrics type limit description",
+        dump_default="",
+        load_default="",
+        metadata={"example": "vpc bundle bronze", "description": "service metrics type limit description"},
     )
-    value = fields.Float(required=True, example="0.00", description="service metrics type limit value")
-    metric_type_id = fields.String(required=True, example="10", description="service metrics type id")
+    value = fields.Float(required=True, metadata={"example": "0.00", "description": "service metrics type limit value"})
+    metric_type_id = fields.String(required=True, metadata={"example": "10", "description": "service metrics type id"})
 
 
 class GetServiceMetricTypeParamsResponseSchema(ApiServiceObjectResponseSchema):
@@ -474,12 +508,7 @@ class GetServiceMetricTypeParamsResponseSchema(ApiServiceObjectResponseSchema):
     metric_type = fields.String(required=True)
     desc = fields.String(required=False)
     measure_unit = fields.String(required=False)
-    limits = fields.Nested(
-        GetServiceMetricTypeLimitParamsResponseSchema,
-        required=False,
-        many=True,
-        allow_none=True,
-    )
+    limits = fields.Nested(GetServiceMetricTypeLimitParamsResponseSchema, required=False, many=True, allow_none=True)
 
 
 class GetServiceMetricTypeResponseSchema(Schema):
@@ -488,13 +517,17 @@ class GetServiceMetricTypeResponseSchema(Schema):
 
 class GetServiceMetricType(ServiceApiView):
     tags = ["service"]
+
     definitions = {
         "GetServiceMetricTypeResponseSchema": GetServiceMetricTypeResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = ServiceApiView.setResponses(
         {200: {"description": "success", "schema": GetServiceMetricTypeResponseSchema}}
     )
+
     response_schema = GetServiceMetricTypeResponseSchema
 
     def get(self, controller, data, oid, *args, **kwargs):
@@ -537,25 +570,24 @@ class ListServiceMetricTypeRequestSchema(
 
 
 class ListServiceMetricTypeResponseSchema(Schema):
-    metric_types = fields.Nested(
-        GetServiceMetricTypeParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
+    metric_types = fields.Nested(GetServiceMetricTypeParamsResponseSchema, many=True, required=True, allow_none=True)
 
 
 class ListServiceMetricType(ServiceApiView):
     tags = ["service"]
+
     definitions = {
         "ListServiceMetricTypeResponseSchema": ListServiceMetricTypeResponseSchema,
         "ListServiceMetricTypeRequestSchema": ListServiceMetricTypeRequestSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListServiceMetricTypeRequestSchema)
     parameters_schema = ListServiceMetricTypeRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListServiceMetricTypeResponseSchema}}
     )
+
     response_schema = ListServiceMetricTypeResponseSchema
 
     def get(self, controller, data, *args, **kwargs):
@@ -568,43 +600,63 @@ class ListServiceMetricType(ServiceApiView):
 class UpdateServiceMetricTypeLimitParamRequestSchema(Schema):
     name = fields.String(
         required=False,
-        example="vpc-bundle-bronze",
-        description="service metrics type limit name",
+        metadata={"example": "vpc-bundle-bronze", "description": "service metrics type limit name"},
     )
+
     desc = fields.String(
         required=False,
-        example="vpc bundle bronze",
-        default="",
-        missing="",
-        description="service metrics type limit description",
+        dump_default="",
+        load_default="",
+        metadata={"example": "vpc bundle bronze", "description": "service metrics type limit description"},
     )
-    value = fields.Float(required=False, example="0.00", description="service metrics type limit value")
-    metric_type_id = fields.String(required=True, example="10", description="service metrics type id")
+
+    value = fields.Float(
+        required=False,
+        metadata={"example": "0.00", "description": "service metrics type limit value"},
+    )
+
+    metric_type_id = fields.String(required=True, metadata={"example": "10", "description": "service metrics type id"})
 
 
 class UpdateServiceMetricTypeParamRequestSchema(Schema):
-    name = fields.String(required=False, example="GBRam", description="service metrics type name")
-    desc = fields.String(required=False, example="Gb Ram", description="service metrics type description")
+    name = fields.String(required=False, metadata={"example": "GBRam", "description": "service metrics type name"})
+
+    desc = fields.String(
+        required=False,
+        metadata={"example": "Gb Ram", "description": "service metrics type description"},
+    )
+
     metric_type = fields.String(
         required=False,
-        example="BUNDLE",
         validate=OneOf(__SRV_METRICTYPE__),
-        description="service metrics type description. Can be one of the following value: "
-        "CONSUME|BUNDLE|OPT_BUNDLE|PROF_SERVICE|UNKNOWN",
+        metadata={
+            "example": "BUNDLE",
+            "description": (
+                "service metrics type description. Can be one of the following value: "
+                "CONSUME|BUNDLE|OPT_BUNDLE|PROF_SERVICE|UNKNOWN"
+            )
+        },
     )
+
     status = fields.String(
         required=False,
-        example="DRAFT",
-        description="service metrics type status. Status can be " "one of the following value: DRAFT|ACTIVE",
+        metadata={
+            "example": "DRAFT",
+            "description": "service metrics type status. Status can be one of the following value: DRAFT|ACTIVE"
+        },
     )
-    group_name = fields.String(required=False, example="cpaas", description="service metrics type group")
-    measure_unit = fields.String(required=False, example="Gb", description="service metrics type unit")
-    limits = fields.Nested(
-        UpdateServiceMetricTypeLimitParamRequestSchema,
+
+    group_name = fields.String(
         required=False,
-        many=True,
-        allow_none=True,
+        metadata={"example": "cpaas", "description": "service metrics type group"},
     )
+
+    measure_unit = fields.String(
+        required=False,
+        metadata={"example": "Gb", "description": "service metrics type unit"}
+    )
+
+    limits = fields.Nested(UpdateServiceMetricTypeLimitParamRequestSchema, required=False, many=True, allow_none=True)
 
 
 class UpdateServiceMetricTypeRequestSchema(Schema):
@@ -617,10 +669,12 @@ class UpdateServiceMetricTypeBodyRequestSchema(GetApiObjectRequestSchema):
 
 class UpdateServiceMetricType(ServiceApiView):
     tags = ["service"]
+
     definitions = {
         "UpdateServiceMetricTypeRequestSchema": UpdateServiceMetricTypeRequestSchema,
         "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateServiceMetricTypeBodyRequestSchema)
     parameters_schema = UpdateServiceMetricTypeRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
@@ -660,12 +714,7 @@ class GetInstantConsumeServiceParamsResponseSchema(Schema):
 class GetInstantConsumeService1ResponseSchema(Schema):
     account_id = fields.String(required=True)
     request_date = fields.DateTime(required=True)
-    metrics = fields.Nested(
-        GetInstantConsumeServiceParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
+    metrics = fields.Nested(GetInstantConsumeServiceParamsResponseSchema, many=True, required=True, allow_none=True)
 
 
 class GetInstantConsumeServiceResponseSchema(Schema):
@@ -678,12 +727,15 @@ class GetInstantConsumeServiceRequestSchema(GetApiObjectRequestSchema):
 
 class GetInstantConsumeService(ServiceApiView):
     tags = ["service"]
+
     definitions = {
         "GetInstantConsumeServiceResponseSchema": GetInstantConsumeServiceResponseSchema,
         "GetInstantConsumeServiceRequestSchema": GetInstantConsumeServiceRequestSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetInstantConsumeServiceRequestSchema)
     parameters_schema = GetInstantConsumeServiceRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -692,9 +744,10 @@ class GetInstantConsumeService(ServiceApiView):
             }
         }
     )
+
     response_schema = GetInstantConsumeServiceResponseSchema
 
-    def get(self, controller, dummydata, oid, *args, **kwargs):
+    def get(self, controller: ServiceController, dummydata, oid, *args, **kwargs):
         request_date = format_date(datetime.today())
         data = controller.get_service_instantconsume(oid, request_date)
         res_dict = {"data": data}

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiView,
@@ -23,7 +23,7 @@ except ImportError as ex:
 
 
 class GetReportCostParamsResponseSchema(Schema):
-    id = fields.Integer(required=True, example=10)
+    id = fields.Integer(required=True, metadata={"example": 10})
     plugin_name = fields.String(required=True)
     report_date = fields.DateTime(required=False)
     is_reported = fields.Boolean(required=False)
@@ -39,7 +39,7 @@ class GetReportCostResponseSchema(Schema):
 
 
 class GetReportCostRequestSchema(GetApiObjectRequestSchema):
-    rid = fields.String(required=True, description="id, uuid or name", context="path")
+    rid = fields.String(required=True, context="path", metadata={"description": "id, uuid or name"})
 
 
 class GetReportCost(ServiceApiView):
@@ -92,20 +92,19 @@ class ListReportCostRequestSchema(
     ApiObjectRequestFiltersSchema,
     PaginatedRequestQuerySchema,
 ):
-    oid = fields.String(required=True, description="id, uuid or name", context="path")
+    oid = fields.String(required=True, context="path", metadata={"description": "id, uuid or name"})
     plugin_name = fields.String(required=False, context="query")
     is_reported = fields.Boolean(required=False, context="query")  # True se report_data is not null
     period = fields.String(required=False, context="query")
     period_start = fields.String(required=False, context="query")
     period_end = fields.String(required=False, context="query")
     job_id = fields.Integer(required=False, allow_none=True, context="query")
+
     field = fields.String(
         validate=OneOf(["id", "period"], error="Field can be id, period"),
-        description="enitities list order field. Ex. id, period",
-        default="id",
-        example="id",
-        missing="id",
+        load_default="id",
         context="query",
+        metadata={"description": "entities list order field. Ex. id, period", "example": "id"},
     )
 
 

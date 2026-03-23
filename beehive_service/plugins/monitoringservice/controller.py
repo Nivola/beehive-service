@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from copy import deepcopy
 import logging
@@ -13,6 +13,7 @@ from sqlalchemy.sql.functions import array_agg
 from beecell.simple import format_date, obscure_data, dict_get
 from beecell.types.type_string import truncate
 from beehive_service.controller.api_account import ApiAccount
+from beehive_service.entity.service_definition import ApiServiceDefinition
 from beehive_service.entity.service_instance import ApiServiceInstance
 from beehive_service.entity.service_type import (
     ApiServiceTypePlugin,
@@ -420,8 +421,10 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
         # instance_item['grafanaFolderName'] = grafana_folder_name
 
         # endpoints
-        # self.logger.debug('aws_info - self.resource: %s' % self.resource)
-        base_endpoint = self.get_config("dashboard_endpoint")
+        # base_endpoint = self.get_config("dashboard_endpoint")
+        apiServiceDefinition: ApiServiceDefinition = self.controller.get_service_def(self.instance.service_definition_id)
+        base_endpoint = apiServiceDefinition.get_config("dashboard_endpoint")
+
         # grafana_folder_name = self.instance.config.get('grafana_folder_name')
         # grafana_folder_ext_id = self.instance.config.get('grafana_folder_ext_id')
         grafana_folder_ext_id = self.resource.get("physical_ext_id")
@@ -862,8 +865,8 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # set resource uuid
         if uuid is not None and taskid is not None:
@@ -945,7 +948,7 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
     #         ext_id = monitoring_folder.get('ext_id', None)
     #     except Exception as ex:
     #         self.logger.error(ex, exc_info=True)
-    #         raise ApiManagerError(ex.message)
+    #         raise ApiManagerError(str(ex))
 
     #     self.logger.debug('__get_folder - ext_id %s' % ext_id)
     #     return ext_id
@@ -992,8 +995,8 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # wait job
         if taskid is not None:
@@ -1085,8 +1088,8 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
                 raise
             except Exception as ex:
                 self.logger.error(ex, exc_info=True)
-                self.update_status(SrvStatusType.ERROR, error=ex.message)
-                raise ApiManagerError(ex.message)
+                self.update_status(SrvStatusType.ERROR, error=str(ex))
+                raise ApiManagerError(str(ex))
 
             # wait job
             if taskid is not None:
@@ -1147,8 +1150,8 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
                 raise
             except Exception as ex:
                 self.logger.error(ex, exc_info=True)
-                self.update_status(SrvStatusType.ERROR, error=ex.message)
-                raise ApiManagerError(ex.message)
+                self.update_status(SrvStatusType.ERROR, error=str(ex))
+                raise ApiManagerError(str(ex))
 
             # wait job
             if taskid is not None:
@@ -1187,8 +1190,8 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # wait job
         if taskid is not None:
@@ -1235,8 +1238,8 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # wait job
         if taskid is not None:
@@ -1297,8 +1300,8 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
             raise
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            self.update_status(SrvStatusType.ERROR, error=ex.message)
-            raise ApiManagerError(ex.message)
+            self.update_status(SrvStatusType.ERROR, error=str(ex))
+            raise ApiManagerError(str(ex))
 
         # wait job
         if taskid is not None:
@@ -1376,7 +1379,7 @@ class ApiMonitoringFolder(AsyncApiServiceTypePlugin):
         self.logger.debug("delete_resource - kvargs {}".format(kvargs))
 
         self.__delete_team(task)
-        # self.__delete_alert(task)
+        self.__delete_alert(task)
 
         # delete current resource entities - folder
         res_folder = ApiServiceTypePlugin.delete_resource(self, task, *args, **kvargs)

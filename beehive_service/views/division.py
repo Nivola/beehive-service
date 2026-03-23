@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from typing import Dict
 from beehive.common.apimanager import (
@@ -45,8 +45,8 @@ class ListDivisionsRequestSchema(
 
 
 class ListDivisionsParamsResponseSchema(ApiObjectResponseSchema):
-    service_status_id = fields.Integer(required=False, default=5)
-    version = fields.String(required=False, default="x")
+    service_status_id = fields.Integer(required=False, dump_default=5)
+    version = fields.String(required=False, dump_default="x")
     organization_id = fields.String(required=True)
     contact = fields.String(required=False, allow_none=True)
     email = fields.String(required=False, allow_none=True)
@@ -116,10 +116,11 @@ class GetDivisionPerms(ServiceApiView):
 
 
 class GetDivisionParamsResponseSchema(ApiObjectResponseSchema):
-    service_status_id = fields.Integer(required=False, default=5)
+    service_status_id = fields.Integer(required=False, dump_default=5)
     price_lists_id = fields.Integer(required=False)
     accounts = fields.Integer(required=False)
-    version = fields.String(required=False, default="x")
+    version = fields.String(required=False, dump_default="x")
+    status = fields.String(required=False, dump_default="")
     organization_id = fields.String(required=True)
     contact = fields.String(required=False, allow_none=True)
     email = fields.String(required=False, allow_none=True)
@@ -182,7 +183,7 @@ class CreateDivisionParamRequestSchema(Schema):
     price_list_id = fields.String(
         required=False,
         allow_none=True,
-        description="DEPRECATED Price List are not managed any more",
+        metadata={"description": "DEPRECATED Price List are not managed any more"},
     )
 
 
@@ -215,7 +216,7 @@ class CreateDivision(ServiceApiView):
 
 
 class UpdateDivisionParamRequestSchema(Schema):
-    name = fields.String(required=False, description="DEPRECATED renaming is disabled")
+    name = fields.String(required=False, metadata={"description": "DEPRECATED renaming is disabled"})
     desc = fields.String(required=False, allow_none=True)
     contact = fields.String(required=False, allow_none=True)
     email = fields.String(required=False, allow_none=True)
@@ -224,7 +225,7 @@ class UpdateDivisionParamRequestSchema(Schema):
     price_list_id = fields.String(
         required=False,
         allow_none=True,
-        description="DEPRECATED Price List are not managed any more",
+        metadata={"description": "DEPRECATED Price List are not managed any more"},
     )
 
 
@@ -300,9 +301,9 @@ class DeleteDivision(ServiceApiView):
 
 
 class GetDivisionRolesItemResponseSchema(Schema):
-    role = fields.String(required=True, example="DivAdminRole-123456")
-    name = fields.String(required=True, example="master")
-    desc = fields.String(required=True, example="")
+    role = fields.String(required=True, metadata={"example": "DivAdminRole-123456"})
+    name = fields.String(required=True, metadata={"example": "master"})
+    desc = fields.String(required=True)
 
 
 class GetDivisionRolesResponseSchema(Schema):
@@ -329,11 +330,14 @@ class GetDivisionRoles(ServiceApiView):
 
 
 class GetDivisionUsersItemDateResponseSchema(ApiObjectResponseDateSchema):
-    last_login = fields.DateTime(required=False, example="1990-12-31T23:59:59Z", description="last login date")
+    last_login = fields.DateTime(
+        required=False,
+        metadata={"example": "1990-12-31T23:59:59Z", "description": "last login date"},
+    )
 
 
 class GetDivisionUsersItemResponseSchema(ApiObjectResponseSchema):
-    role = fields.String(required=True, example="master")
+    role = fields.String(required=True, metadata={"example": "master"})
     email = fields.String(required=False, allow_none=True)
     taxcode = fields.String(required=False, allow_none=True)
     ldap = fields.String(required=False, allow_none=True)
@@ -364,12 +368,12 @@ class GetDivisionUsers(ServiceApiView):
 
 
 class SetDivisionUsersParamRequestSchema(Schema):
-    user_id = fields.String(required=False, default="prova", description="User name, id or uuid")
+    user_id = fields.String(required=False, dump_default="prova", metadata={"description": "User name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiDivision.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -396,20 +400,20 @@ class SetDivisionUsers(ServiceApiView):
     )
     response_schema = CrudApiObjectSimpleResponseSchema
 
-    def post(self, controller, data, oid, *args, **kwargs):
+    def post(self, controller:ServiceController, data, oid, *args, **kwargs):
         division = controller.get_division(oid)
         data = data.get("user")
         resp = division.set_user(**data)
-        return {"uuid": resp}, 200
+        return {"res": resp}, 200
 
 
 class UnsetDivisionUsersParamRequestSchema(Schema):
-    user_id = fields.String(required=False, default="prova", description="User name, id or uuid")
+    user_id = fields.String(required=False, dump_default="prova", metadata={"description": "User name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiDivision.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -435,20 +439,20 @@ class UnsetDivisionUsers(ServiceApiView):
         {200: {"description": "success", "schema": CrudApiObjectSimpleResponseSchema}}
     )
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller:ServiceController, data, oid, *args, **kwargs):
         division = controller.get_division(oid)
         data = data.get("user")
         resp = division.unset_user(**data)
-        return {"uuid": resp}, 200
+        return {"res": resp}, 200
 
 
 class GetDivisionGroupsItemResponseSchema(ApiObjectResponseSchema):
-    role = fields.String(required=True, example="master")
+    role = fields.String(required=True, metadata={"example": "master"})
 
 
 class GetDivisionGroupsResponseSchema(Schema):
     groups = fields.Nested(GetDivisionGroupsItemResponseSchema, required=True, many=True, allow_none=True)
-    count = fields.Integer(required=True, example=0)
+    count = fields.Integer(required=True, metadata={"example": 0})
 
 
 class GetDivisionGroups(ServiceApiView):
@@ -472,12 +476,12 @@ class GetDivisionGroups(ServiceApiView):
 
 
 class SetDivisionGroupsParamRequestSchema(Schema):
-    group_id = fields.String(required=False, default="prova", description="Group name, id or uuid")
+    group_id = fields.String(required=False, dump_default="prova", metadata={"description": "Group name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiDivision.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -504,20 +508,20 @@ class SetDivisionGroups(ServiceApiView):
     )
     response_schema = CrudApiObjectSimpleResponseSchema
 
-    def post(self, controller, data, oid, *args, **kwargs):
+    def post(self, controller:ServiceController, data, oid, *args, **kwargs):
         division = controller.get_division(oid)
         data = data.get("group")
         resp = division.set_group(**data)
-        return {"uuid": resp}, 200
+        return {"res": resp}, 200
 
 
 class UnsetDivisionGroupsParamRequestSchema(Schema):
-    group_id = fields.String(required=False, default="prova", description="Group name, id or uuid")
+    group_id = fields.String(required=False, dump_default="prova", metadata={"description": "Group name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiDivision.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -544,15 +548,15 @@ class UnsetDivisionGroups(ServiceApiView):
     )
     response_schema = CrudApiObjectSimpleResponseSchema
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller:ServiceController, data, oid, *args, **kwargs):
         division = controller.get_division(oid)
         data = data.get("group")
         resp = division.unset_group(**data)
-        return {"uuid": resp}, 200
+        return {"res": resp}, 200
 
 
 class GetActiveServicesByDivisionApiRequestSchema(Schema):
-    oid = fields.String(required=True, description="id, uuid", context="path")
+    oid = fields.String(required=True, context="path", metadata={"description": "id, uuid"})
 
 
 class GetActiveServicesByDivisionResponse1Schema(Schema):
@@ -562,12 +566,7 @@ class GetActiveServicesByDivisionResponse1Schema(Schema):
 
 
 class GetActiveServicesByDivisionResponseSchema(Schema):
-    services = fields.Nested(
-        GetActiveServicesByDivisionResponse1Schema,
-        required=True,
-        many=False,
-        allow_none=False,
-    )
+    services = fields.Nested(GetActiveServicesByDivisionResponse1Schema, required=True, many=False, allow_none=False)
 
 
 class GetActiveServicesByDivision(ServiceApiView):

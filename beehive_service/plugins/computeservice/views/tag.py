@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from urllib import response
 from flasgger import fields, Schema
@@ -28,7 +28,7 @@ class DescribeTagsApiRequestSchema(Schema):
         context="query",
         collection_format="multi",
         data_key="owner-id.N",
-        description="account ID of compute service",
+        metadata={"description": "account ID of compute service"},
     )
     key_N = fields.List(
         fields.String(example=""),
@@ -37,16 +37,16 @@ class DescribeTagsApiRequestSchema(Schema):
         context="query",
         data_key="key.N",
         collection_format="multi",
-        description="tag key",
+        metadata={"description": "tag key"},
     )
     resource_id_N = fields.List(
         fields.String(example=""),
-        description="resource type ID",
         required=False,
         allow_none=True,
         context="query",
         data_key="resource-id.N",
         collection_format="multi",
+        metadata={"description": "resource type ID"},
     )
     # AWS resource_type valid values
     resource_type_N = fields.List(
@@ -56,19 +56,18 @@ class DescribeTagsApiRequestSchema(Schema):
         context="query",
         data_key="resource-type.N",
         collection_format="multi",
-        description="resource type ID",
+        metadata={"description": "resource type ID"},
     )
     # MaxResults vedi  https://jira.csi.it/browse/NSP-355 con beneficio di inventario
     MaxResults = fields.Integer(
         required=False,
-        missing=10,
-        default=10,
+        load_default=10,
+        dump_default=10,
         validate=Range(min=-1, max=1000),
-        example="",
-        description="maximum number of results to return",
         context="query",
+        metadata={"description": "maximum number of results to return"},
     )
-    NextToken = fields.String(required=False, example="", description="pagination token", context="query")
+    NextToken = fields.String(required=False, context="query", metadata={"description": "pagination token"})
 
     @validates_schema
     def validate_unsupported_parameters(self, data, *args, **kvargs):
@@ -78,35 +77,32 @@ class DescribeTagsApiRequestSchema(Schema):
 
 
 class DescribeTagsApiItemResponseSchema(Schema):
-    resourceId = fields.String(required=False, allow_none=True, example="", description="resource type ID")
-    resourceType = fields.String(required=False, allow_none=True, example="", description="resource type")
-    key = fields.String(required=False, allow_none=True, example="", description="tag key")
+    resourceId = fields.String(required=False, allow_none=True, metadata={"description": "resource type ID"})
+    resourceType = fields.String(required=False, allow_none=True, metadata={"description": "resource type"})
+    key = fields.String(required=False, allow_none=True, metadata={"description": "tag key"})
     value = fields.String(
         required=False,
         allow_none=True,
-        missing="",
-        default="",
-        example="",
-        description="tag value",
+        load_default="",
+        dump_default="",
+        metadata={"description": "tag value"},
     )
 
 
 class DescribeTagsApi1ResponseSchema(Schema):
-    nextToken = fields.String(required=True, example="", description="next pagination token")
-    requestId = fields.String(required=True, example="", description="")
+    nextToken = fields.String(required=True, metadata={"description": "next pagination token"})
+    requestId = fields.String(required=True, metadata={"description": ""})
     tagSet = fields.Nested(
         DescribeTagsApiItemResponseSchema,
         many=True,
         required=True,
         allow_none=False,
-        example="",
-        description="list of tags",
+        metadata={"description": "list of tags"},
     )
     nvl_tagTotal = fields.Integer(
         required=False,
-        example="",
-        description="total number of tag items",
         data_key="nvl-tagTotal",
+        metadata={"description": "total number of tag items"},
     )
     xmlns = fields.String(required=False, data_key="__xmlns")
 
@@ -165,7 +161,7 @@ class DescribeTags(ServiceApiView):
 
 
 class TagRequestSchema(Schema):
-    Key = fields.String(required=True, example="", description="tag key")
+    Key = fields.String(required=True, metadata={"description": "tag key"})
 
     @validates_schema
     def validate_unsupported_parameters(self, data, *args, **kvargs):
@@ -181,7 +177,7 @@ class TagsApiParamRequestSchema(Schema):
         required=True,
         allow_none=False,
         data_key="owner-id",
-        description="account ID of compute service",
+        metadata={"description": "account ID of compute service"},
     )
     ResourceId_N = fields.List(
         fields.String(example=""),
@@ -189,7 +185,7 @@ class TagsApiParamRequestSchema(Schema):
         many=True,
         allow_none=False,
         data_key="ResourceId.N",
-        description="list of resource id",
+        metadata={"description": "list of resource id"},
     )
     Tag_N = fields.Nested(
         TagRequestSchema,
@@ -197,7 +193,7 @@ class TagsApiParamRequestSchema(Schema):
         many=True,
         allow_none=False,
         data_key="Tag.N",
-        description="list of tags",
+        metadata={"description": "list of tags"},
     )
 
 
@@ -294,7 +290,7 @@ class DeleteTagsApiParamRequestSchema(Schema):
         many=True,
         allow_none=False,
         data_key="ResourceId.N",
-        description="list of resource id",
+        metadata={"description": "list of resource id"},
     )
     Tag_N = fields.Nested(
         TagRequestSchema,
@@ -302,7 +298,7 @@ class DeleteTagsApiParamRequestSchema(Schema):
         many=True,
         allow_none=False,
         data_key="Tag.N",
-        description="one or more tags",
+        metadata={"description": "one or more tags"},
     )
 
 

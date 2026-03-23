@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from asyncio.log import logger
 from beecell.simple import format_date
@@ -61,23 +61,23 @@ class AccountServiceResponseSchema(Schema):
 
 
 class AccountResponseSchema(ApiObjectResponseSchema):
-    desc = fields.String(required=False, allow_none=True, default="test", example="test")
-    version = fields.String(required=False, default="1.0")
+    desc = fields.String(required=False, allow_none=True, dump_default="test", metadata={"example": "test"})
+    version = fields.String(required=False, dump_default="1.0")
     division_id = fields.String(required=True)
-    note = fields.String(required=False, allow_none=True, default="")
-    contact = fields.String(required=False, allow_none=True, default="")
-    email = fields.String(required=False, allow_none=True, default="")
-    email_support = fields.String(required=False, allow_none=True, default="")
-    email_support_link = fields.String(required=False, allow_none=True, default="")
-    managed = fields.Boolean(required=False, allow_none=True, default=False)
-    acronym = fields.String(required=False, allow_none=True, default="")
+    note = fields.String(required=False, allow_none=True, dump_default="")
+    contact = fields.String(required=False, allow_none=True, dump_default="")
+    email = fields.String(required=False, allow_none=True, dump_default="")
+    email_support = fields.String(required=False, allow_none=True, dump_default="")
+    email_support_link = fields.String(required=False, allow_none=True, dump_default="")
+    managed = fields.Boolean(required=False, allow_none=True, dump_default=False)
+    acronym = fields.String(required=False, allow_none=True, dump_default="")
     # fix
-    status = fields.String(required=False, allow_none=True, default="")
-    division_name = fields.String(required=False, allow_none=True, default="")
+    status = fields.String(required=False, allow_none=True, dump_default="")
+    division_name = fields.String(required=False, allow_none=True, dump_default="")
     services = fields.Nested(AccountServiceResponseSchema, required=False, allow_none=True)
-    account_type = fields.String(required=False, allow_none=True, default="")
-    management_model = fields.String(required=False, allow_none=True, default="")
-    pods = fields.String(required=False, allow_none=True, default="")
+    account_type = fields.String(required=False, allow_none=True, dump_default="")
+    management_model = fields.String(required=False, allow_none=True, dump_default="")
+    pods = fields.String(required=False, allow_none=True, dump_default="")
 
 
 class ListAccountsResponseSchema(PaginatedResponseSchema):
@@ -105,11 +105,15 @@ class ListAccounts(ServiceApiView):
         divs = self.get_division_idx(controller, division_id_list=division_ids)
         res = []
         for account in accounts:
-            info = account.info()
-            info["division_name"] = getattr(divs[f"{account.division_id}"], "name")
             account.services = services.get(account.oid, None)
             if account.services is None:
                 account.services = fall_back_service
+            info = account.info()
+
+            if f"{account.division_id}" in divs:
+                div = divs[f"{account.division_id}"]
+                info["division_name"] = getattr(div, "name")
+
             res.append(info)
         resp = self.format_paginated_response(res, "accounts", total, **data)
         return resp
@@ -120,10 +124,10 @@ class GetAccountResponseSchema(Schema):
 
 
 class GetAccountRequestSchema(Schema):
-    oid = fields.String(required=True, description="id, uuid or name", context="path")
+    oid = fields.String(required=True, context="path", metadata={"description": "id, uuid or name"})
     # filter_expired = fields.String(required=False, allow_none=True)
-    filter_expired = fields.Boolean(required=False, missing=False)
-    active = fields.Boolean(missing=True, allow_none=True)
+    filter_expired = fields.Boolean(required=False, load_default=False)
+    active = fields.Boolean(load_default=True, allow_none=True)
 
 
 class GetAccount(ServiceApiView):
@@ -160,31 +164,30 @@ class GetAccountPerms(ServiceApiView):
     responses = ServiceApiView.setResponses({200: {"description": "success", "schema": ApiObjectPermsResponseSchema}})
     response_schema = ApiObjectPermsResponseSchema
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller:ServiceController, data, oid, *args, **kwargs):
         account = controller.get_account(oid)
         res, total = account.authorization(**data)
         return self.format_paginated_response(res, "perms", total, **data)
 
 
 class CreateAccountServiceBaseRequestSchema(Schema):
-    name = fields.String(required=True, example="prova")
-    type = fields.String(required=True, example="medium")
+    name = fields.String(required=True, metadata={"example": "prova"})
+    type = fields.String(required=True, metadata={"example": "medium"})
 
 
 class CreateAccountServiceRequestSchema(CreateAccountServiceBaseRequestSchema):
     template = fields.String(required=False)
-    params = fields.Dict(required=False, missing={})
+    params = fields.Dict(required=False, load_default={})
     require = fields.Nested(CreateAccountServiceBaseRequestSchema, required=False)
 
 
 class CreateAccountParamRequestSchema(Schema):
-    name = fields.String(required=True, example="default", validate=validate_account_name)
+    name = fields.String(required=True, validate=validate_account_name, metadata={"example": "default"})
     acronym = fields.String(
         required=False,
-        default="default",
-        example="prova",
-        description="Account acronym. Set this for managed account",
+        dump_default="default",
         validate=validate_acronym,
+        metadata={"example": "prova", "description": "Account acronym. Set this for managed account"},
     )
     desc = fields.String(required=False, allow_none=True)
     division_id = fields.String(required=True)
@@ -193,8 +196,8 @@ class CreateAccountParamRequestSchema(Schema):
     contact = fields.String(required=False, allow_none=True)
     email = fields.String(required=False, allow_none=True)
     email_support = fields.String(required=False, allow_none=True)
-    email_support_link = fields.String(required=False, allow_none=True, default="")
-    managed = fields.Boolean(required=False, description="if True account is managed", missing=True)
+    email_support_link = fields.String(required=False, allow_none=True, dump_default="")
+    managed = fields.Boolean(required=False, load_default=True, metadata={"description": "if True account is managed"})
     account_type = fields.String(
         required=False,
         allow_none=True,
@@ -261,17 +264,17 @@ class CreateAccount(ServiceApiView):
 
 
 class UpdateAccountParamRequestSchema(Schema):
-    name = fields.String(required=False, default="default", validate=validate_account_name)
-    desc = fields.String(required=False, default="default")
-    note = fields.String(required=False, default="default")
+    name = fields.String(required=False, dump_default="default", validate=validate_account_name)
+    desc = fields.String(required=False, dump_default="default")
+    note = fields.String(required=False, dump_default="default")
     price_list_id = fields.String(required=False, allow_none=True)
-    contact = fields.String(required=False, default="default")
-    email = fields.String(required=False, default="default")
-    email_support = fields.String(required=False, default="default")
-    email_support_link = fields.String(required=False, default="default")
-    active = fields.Boolean(required=False, default=False)
+    contact = fields.String(required=False, dump_default="default")
+    email = fields.String(required=False, dump_default="default")
+    email_support = fields.String(required=False, dump_default="default")
+    email_support_link = fields.String(required=False, dump_default="default")
+    active = fields.Boolean(required=False, dump_default=False)
     ### aggiunto 5/7/19
-    acronym = fields.String(required=False, allow_none=True, default="", validate=validate_acronym)
+    acronym = fields.String(required=False, allow_none=True, dump_default="", validate=validate_acronym)
     account_type = fields.String(
         required=False,
         allow_none=True,
@@ -371,9 +374,9 @@ class DeleteAccount(ServiceApiView):
 
 
 class GetAccountRolesItemResponseSchema(Schema):
-    role = fields.String(required=True, example="AccountAdminRole-123456")
-    name = fields.String(required=True, example="master")
-    desc = fields.String(required=True, example="")
+    role = fields.String(required=True, metadata={"example": "AccountAdminRole-123456"})
+    name = fields.String(required=True, metadata={"example": "master"})
+    desc = fields.String(required=True)
 
 
 class GetAccountRolesResponseSchema(Schema):
@@ -400,11 +403,14 @@ class GetAccountRoles(ServiceApiView):
 
 
 class ApiObjectResponseDateUsersSchema(ApiObjectResponseDateSchema):
-    last_login = fields.DateTime(required=False, example="1990-12-31T23:59:59Z", description="last login date")
+    last_login = fields.DateTime(
+        required=False,
+        metadata={"example": "1990-12-31T23:59:59Z", "description": "last login date"},
+    )
 
 
 class GetAccountUsersItemResponseSchema(ApiObjectResponseSchema):
-    role = fields.String(required=True, example="master")
+    role = fields.String(required=True, metadata={"example": "master"})
     email = fields.String(required=False, allow_none=True)
     taxcode = fields.String(required=False, allow_none=True)
     ldap = fields.String(required=False, allow_none=True)
@@ -413,7 +419,7 @@ class GetAccountUsersItemResponseSchema(ApiObjectResponseSchema):
 
 class GetAccountUsersResponseSchema(Schema):
     users = fields.Nested(GetAccountUsersItemResponseSchema, required=True, many=True, allow_none=True)
-    count = fields.Integer(required=True, example=0)
+    count = fields.Integer(required=True, metadata={"example": 0})
 
 
 class GetAccountUsers(ServiceApiView):
@@ -435,12 +441,12 @@ class GetAccountUsers(ServiceApiView):
 
 
 class SetAccountUsersParamRequestSchema(Schema):
-    user_id = fields.String(required=False, default="prova", description="User name, id or uuid")
+    user_id = fields.String(required=False, dump_default="prova", metadata={"description": "User name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiAccount.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -478,16 +484,16 @@ class SetAccountUsers(ServiceApiView):
 
         data = data.get("user")
         resp = account.set_user(**data)
-        return {"uuid": resp}, 200
+        return {"res": resp}, 200
 
 
 class UnsetAccountUsersParamRequestSchema(Schema):
-    user_id = fields.String(required=False, default="prova", description="User name, id or uuid")
+    user_id = fields.String(required=False, dump_default="prova", metadata={"description": "User name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiAccount.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -522,16 +528,16 @@ class UnsetAccountUsers(ServiceApiView):
         account: ApiAccount = controller.get_account(oid)
         data = data.get("user")
         resp = account.unset_user(**data)
-        return {"uuid": resp}, 200
+        return {"res": resp}, 200
 
 
 class GetAccountGroupsItemResponseSchema(ApiObjectResponseSchema):
-    role = fields.String(required=True, example="master")
+    role = fields.String(required=True, metadata={"example": "master"})
 
 
 class GetAccountGroupsResponseSchema(Schema):
     groups = fields.Nested(GetAccountGroupsItemResponseSchema, required=True, many=True, allow_none=True)
-    count = fields.Integer(required=True, example=0)
+    count = fields.Integer(required=True, metadata={"example": 0})
 
 
 class GetAccountGroups(ServiceApiView):
@@ -553,12 +559,12 @@ class GetAccountGroups(ServiceApiView):
 
 
 class SetAccountGroupsParamRequestSchema(Schema):
-    group_id = fields.String(required=False, default="prova", description="Group name, id or uuid")
+    group_id = fields.String(required=False, dump_default="prova", metadata={"description": "Group name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiAccount.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -584,20 +590,20 @@ class SetAccountGroups(ServiceApiView):
         {200: {"description": "success", "schema": CrudApiObjectSimpleResponseSchema}}
     )
 
-    def post(self, controller, data, oid, *args, **kwargs):
+    def post(self, controller:ServiceController, data, oid, *args, **kwargs):
         account = controller.get_account(oid)
         data = data.get("group")
         resp = account.set_group(**data)
-        return {"uuid": resp}, 200
+        return {"res": resp}, 200
 
 
 class UnsetAccountGroupsParamRequestSchema(Schema):
-    group_id = fields.String(required=False, default="prova", description="Group name, id or uuid")
+    group_id = fields.String(required=False, dump_default="prova", metadata={"description": "Group name, id or uuid"})
     role = fields.String(
         required=False,
-        default="prova",
-        description="Role name, id or uuid",
+        dump_default="prova",
         validate=OneOf(ApiAccount.role_templates.keys()),
+        metadata={"description": "Role name, id or uuid"},
     )
 
 
@@ -624,50 +630,53 @@ class UnsetAccountGroups(ServiceApiView):
     )
     response_schema = CrudApiObjectSimpleResponseSchema
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller:ServiceController, data, oid, *args, **kwargs):
         account = controller.get_account(oid)
         data = data.get("group")
         resp = account.unset_group(**data)
-        return {"uuid": resp}, 200
+        return {"res": resp}, 200
 
 
 class GetAccountRolesParamsResponseSchema(Schema):
-    name = fields.String(required=True, example="master", description="Role name")
-    id = fields.Integer(required=False, default="", description="role id")
-    uuid = fields.String(required=False, default="", description="role uuid or objid")
-    desc = fields.String(required=False, default="", description="Generic description")
-    active = fields.Boolean(required=False, default=True, description="Describes if a user is active")
-    alias = fields.String(required=False, description="role alias")
+    name = fields.String(required=True, metadata={"example": "master", "description": "Role name"})
+    id = fields.Integer(required=False, dump_default="", metadata={"description": "role id"})
+    uuid = fields.String(required=False, dump_default="", metadata={"description": "role uuid or objid"})
+    desc = fields.String(required=False, dump_default="", metadata={"description": "Generic description"})
+    active = fields.Boolean(
+        required=False,
+        dump_default=True,
+        metadata={"description": "Describes if a user is active"},
+    )
+    alias = fields.String(required=False, metadata={"description": "role alias"})
 
 
 class GetAccountUsernameParamsResponseSchema(Schema):
-    name = fields.String(required=True, example="", description="Username")
-    id = fields.Integer(required=False, default="", description="user id")
-    uuid = fields.String(required=False, default="", description="user uuid or objid")
-    active = fields.Boolean(required=False, default=True, description="Describes if a user is active")
-    desc = fields.String(required=False, default="", description="Generic description")
-    contact = fields.String(required=False, allow_none=True, description="Primary contact Account")
-    email = fields.String(required=False, allow_none=True, description="email Account")
-    taxcode = fields.String(required=False, allow_none=True, description="taxcode Account")
-    ldap = fields.String(required=False, allow_none=True, description="ldap Account")
-    account_name = fields.String(required=False, default="", description="name of Account")
-    account_status = fields.String(required=False, default="", description="status of Account")
+    name = fields.String(required=True, metadata={"description": "Username"})
+    id = fields.Integer(required=False, dump_default="", metadata={"description": "user id"})
+    uuid = fields.String(required=False, dump_default="", metadata={"description": "user uuid or objid"})
+    active = fields.Boolean(
+        required=False,
+        dump_default=True,
+        metadata={"description": "Describes if a user is active"},
+    )
+    desc = fields.String(required=False, dump_default="", metadata={"description": "Generic description"})
+    contact = fields.String(required=False, allow_none=True, metadata={"description": "Primary contact Account"})
+    email = fields.String(required=False, allow_none=True, metadata={"description": "email Account"})
+    taxcode = fields.String(required=False, allow_none=True, metadata={"description": "taxcode Account"})
+    ldap = fields.String(required=False, allow_none=True, metadata={"description": "ldap Account"})
+    account_name = fields.String(required=False, dump_default="", metadata={"description": "name of Account"})
+    account_status = fields.String(required=False, dump_default="", metadata={"description": "status of Account"})
     roles = fields.Nested(
         GetAccountRolesParamsResponseSchema,
         required=True,
         many=True,
         allow_none=True,
-        description="List of roles associated with the user",
+        metadata={"description": "List of roles associated with the user"},
     )
 
 
 class GetAccountUserRolesResponseSchema(Schema):
-    usernames = fields.Nested(
-        GetAccountUsernameParamsResponseSchema,
-        required=True,
-        many=True,
-        allow_none=True,
-    )
+    usernames = fields.Nested(GetAccountUsernameParamsResponseSchema, required=True, many=True, allow_none=True)
 
 
 class GetAccountUserRoles(ServiceApiView):
@@ -706,12 +715,12 @@ class AccountCapabilityAssociationServicesRequireSchema(Schema):
 
 
 class AccountCapabilityAssociationServicesParamsSchema(Schema):
-    vpc = fields.String(required=False)
-    zone = fields.String(required=False)
-    cidr = fields.String(required=False)
-    protocol = fields.String(required=False)
-    traffic_type = fields.String(required=False)
-    persistence = fields.String(required=False)
+    vpc = fields.String(required=False, allow_none=True)
+    zone = fields.String(required=False, allow_none=True)
+    cidr = fields.String(required=False, allow_none=True)
+    protocol = fields.String(required=False, allow_none=True)
+    traffic_type = fields.String(required=False, allow_none=True)
+    persistence = fields.String(required=False, allow_none=True)
 
 
 class AccountCapabilityAssociationServicesSchema(Schema):
@@ -719,16 +728,8 @@ class AccountCapabilityAssociationServicesSchema(Schema):
     type = fields.String(required=True)
     name = fields.String(required=True)
     status = fields.String(required=True)
-    require = fields.Nested(
-        AccountCapabilityAssociationServicesRequireSchema,
-        required=False,
-        allow_none=True,
-    )
-    params = fields.Nested(
-        AccountCapabilityAssociationServicesParamsSchema,
-        required=False,
-        allow_none=True,
-    )
+    require = fields.Nested(AccountCapabilityAssociationServicesRequireSchema, required=False, allow_none=True)
+    params = fields.Nested(AccountCapabilityAssociationServicesParamsSchema, required=False, allow_none=True)
 
 
 class AccountCapabilityAssociationReportServicesSchema(Schema):
@@ -753,33 +754,21 @@ class AccountCapabilityAssociationReportDefinitionsSchema(Schema):
 
 
 class AccountCapabilityAssociationReportSchema(Schema):
-    services = fields.Nested(
-        AccountCapabilityAssociationReportServicesSchema,
-        required=False,
-        allow_none=True,
-    )
-    definitions = fields.Nested(
-        AccountCapabilityAssociationReportDefinitionsSchema,
-        required=False,
-        allow_none=True,
-    )
+    services = fields.Nested(AccountCapabilityAssociationReportServicesSchema, required=False, allow_none=True)
+    definitions = fields.Nested(AccountCapabilityAssociationReportDefinitionsSchema, required=False, allow_none=True)
 
 
 class AccountCapabilityAssociationSchema(Schema):
     name = fields.String(required=True)
     status = fields.String(required=True)
+    application_date = fields.DateTime(required=False, allow_none=True)
     definitions = fields.Nested(
         AccountCapabilityAssociationDefinitionsSchema,
         required=True,
         many=True,
         allow_none=True,
     )
-    services = fields.Nested(
-        AccountCapabilityAssociationServicesSchema,
-        required=True,
-        many=True,
-        allow_none=True,
-    )
+    services = fields.Nested(AccountCapabilityAssociationServicesSchema, required=True, many=True, allow_none=True)
     report = fields.Nested(AccountCapabilityAssociationReportSchema, required=False, allow_none=True)
 
 
@@ -788,7 +777,7 @@ class GetAccountCapabilitiesResponseSchema(Schema):
 
 
 class GetAccountCapabilitiesRequestSchema(GetApiObjectRequestSchema):
-    name = fields.String(required=False, description="name of the capability", context="query")
+    name = fields.String(required=False, context="query", metadata={"description": "name of the capability"})
 
 
 class GetAccountCapabilities(ServiceApiView):
@@ -836,9 +825,9 @@ class AddAccountCapabilitiesBodyRequestSchema(GetApiObjectRequestSchema):
 
 class AddAccountCapabilitiesResponseSchema(Schema):
     taskid = fields.UUID(
-        default="db078b20-19c6-4f0e-909c-94745de667d4",
-        example="6d960236-d280-46d2-817d-f3ce8f0aeff7",
+        dump_default="db078b20-19c6-4f0e-909c-94745de667d4",
         required=True,
+        metadata={"example": "6d960236-d280-46d2-817d-f3ce8f0aeff7"},
     )
 
 
@@ -892,9 +881,9 @@ class UpdateAccountCapabilitiesBodyRequestSchema(GetApiObjectRequestSchema):
 
 class UpdateAccountCapabilitiesResponseSchema(Schema):
     taskid = fields.UUID(
-        default="db078b20-19c6-4f0e-909c-94745de667d4",
-        example="6d960236-d280-46d2-817d-f3ce8f0aeff7",
+        dump_default="db078b20-19c6-4f0e-909c-94745de667d4",
         required=True,
+        metadata={"example": "6d960236-d280-46d2-817d-f3ce8f0aeff7"},
     )
 
 
@@ -939,8 +928,8 @@ class UpdateAccountCapabilities(ServiceApiView):
 
 
 class ListAccountTagsItemResponseSchema(ApiObjectResponseSchema):
-    services = fields.Integer(required=False, default=0, missing=0)
-    links = fields.Integer(required=False, default=0, missing=0)
+    services = fields.Integer(required=False, dump_default=0, load_default=0)
+    links = fields.Integer(required=False, dump_default=0, load_default=0)
     version = fields.Integer(required=False, allow_none=True)
     ownerAlias = fields.String(required=False, allow_none=True)
 
@@ -979,42 +968,38 @@ class ListAccountTags(ServiceApiView):
 
 
 class GetActiveServicesByAccountApiRequestSchema(Schema):
-    oid = fields.String(required=True, description="id, uuid", context="path")
-    plugin_name = fields.String(required=False, description="plugin name", context="query")
+    oid = fields.String(required=True, context="path", metadata={"description": "id, uuid"})
+    plugin_name = fields.String(required=False, context="query", metadata={"description": "plugin name"})
 
 
 class MetricsItemResponseSchema(Schema):
-    metric = fields.String(required=True, example="ram", description="metric name")
-    value = fields.Float(required=True, example=0.0, description="metric value consumed")
-    unit = fields.String(required=True, example="Gb", description="metric unit")
+    metric = fields.String(required=True, metadata={"example": "ram", "description": "metric name"})
+    value = fields.Float(required=True, metadata={"example": 0.0, "description": "metric value consumed"})
+    unit = fields.String(required=True, metadata={"example": "Gb", "description": "metric unit"})
     quota = fields.Float(
         required=False,
         allow_none=True,
-        example=0.0,
-        description="Total quota available on container",
+        metadata={"example": 0.0, "description": "Total quota available on container"},
     )
 
 
 class ContainerInstancesItemResponseSchema(Schema):
-    name = fields.String(required=True, example="computeservice-medium", description="service name")
+    name = fields.String(required=True, metadata={"example": "computeservice-medium", "description": "service name"})
     uuid = fields.String(
         required=True,
-        example="148175b2-948a-4567-9ecd-9c80425fc8f0",
-        description="service uuid",
+        metadata={"example": "148175b2-948a-4567-9ecd-9c80425fc8f0", "description": "service uuid"},
     )
-    status = fields.String(required=True, example="ACTIVE", description="service status")
+    status = fields.String(required=True, metadata={"example": "ACTIVE", "description": "service status"})
     plugin_type = fields.String(
         required=True,
-        example="ComputeService",
-        description="Service container plugin name",
+        metadata={"example": "ComputeService", "description": "Service container plugin name"},
     )
     desc = fields.String(required=False)
-    instances = fields.Integer(required=True, example=0, description="Num. instances")
+    instances = fields.Integer(required=True, metadata={"example": 0, "description": "Num. instances"})
     tot_metrics = fields.Nested(MetricsItemResponseSchema, many=True, required=True, allow_none=True)
     extraction_date = fields.DateTime(
         required=False,
-        example="1990-12-31T23:59:59Z",
-        description="metric extraction date",
+        metadata={"example": "1990-12-31T23:59:59Z", "description": "metric extraction date"},
     )
 
 
@@ -1024,12 +1009,7 @@ class GetActiveServicesByAccountResponse1Schema(Schema):
 
 
 class GetActiveServicesByAccountResponseSchema(Schema):
-    services = fields.Nested(
-        GetActiveServicesByAccountResponse1Schema,
-        required=True,
-        many=False,
-        allow_none=False,
-    )
+    services = fields.Nested(GetActiveServicesByAccountResponse1Schema, required=True, many=False, allow_none=False)
 
 
 class GetActiveServicesByAccount(ServiceApiView):
@@ -1074,7 +1054,7 @@ class SetSessionResponseSchema(Schema):
 
 
 class AccountOperationApiRequestSchema(Schema):
-    oid = fields.String(required=True, description="id, uuid", context="path")
+    oid = fields.String(required=True, context="path", metadata={"description": "id, uuid"})
 
 
 class AdministerAccount(ServiceApiView):

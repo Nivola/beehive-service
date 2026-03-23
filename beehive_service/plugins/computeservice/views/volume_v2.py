@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beecell.simple import id_gen, format_date
@@ -47,22 +47,22 @@ class DetachVolumeV20(DetachVolume):
 
 
 class InstanceTypeFeatureResponseSchema(Schema):
-    vcpus = fields.String(required=False, allow_none=True, example="", description="")
-    ram = fields.String(required=False, allow_none=True, example="", description="")
-    disk = fields.String(required=False, allow_none=True, example="", description="")
+    vcpus = fields.String(required=False, allow_none=True, metadata={"description": ""})
+    ram = fields.String(required=False, allow_none=True, metadata={"description": ""})
+    disk = fields.String(required=False, allow_none=True, metadata={"description": ""})
 
 
 class InstanceTypeConfigResponseSchema(Schema):
-    flavor = fields.String(required=False, allow_none=True, example="", description="")
-    container = fields.String(required=False, allow_none=True, example="", description="")
+    flavor = fields.String(required=False, allow_none=True, metadata={"description": ""})
+    container = fields.String(required=False, allow_none=True, metadata={"description": ""})
 
 
 class InstanceTypeResponseSchema(Schema):
-    id = fields.Integer(required=True, example="", description="")
-    uuid = fields.String(required=True, example="", description="")
-    name = fields.String(required=True, example="", description="")
+    id = fields.Integer(required=True, metadata={"description": ""})
+    uuid = fields.String(required=True, metadata={"description": ""})
+    name = fields.String(required=True, metadata={"description": ""})
     # resource_id = fields.String(required=False, allow_none=True, example="", description="")
-    description = fields.String(required=True, allow_none=True, example="", description="")
+    description = fields.String(required=True, allow_none=True, metadata={"description": ""})
     features = fields.Nested(InstanceTypeFeatureResponseSchema, required=True, many=False, allow_none=False)
     config = fields.Nested(InstanceTypeConfigResponseSchema, required=False, many=False, allow_none=False)
 
@@ -86,31 +86,30 @@ class DescribeVolumeTypesV20ApiResponseSchema(Schema):
 class DescribeVolumeTypesV20ApiRequestSchema(Schema):
     MaxResults = fields.Integer(
         required=False,
-        default=10,
-        missing=10,
-        description="entities list page size",
+        dump_default=10,
+        load_default=10,
         context="query",
+        metadata={"description": "entities list page size"},
     )
     NextToken = fields.Integer(
         required=False,
-        default=0,
-        missing=0,
-        description="entities list page selected",
+        dump_default=0,
+        load_default=0,
         context="query",
+        metadata={"description": "entities list page selected"},
     )
     owner_id = fields.String(
-        example="d35d19b3-d6b8-4208-b690-a51da2525497",
         required=True,
         context="query",
         data_key="owner-id",
-        description="account id of the instance type owner",
+        metadata={"example": "d35d19b3-d6b8-4208-b690-a51da2525497", "description": "account id of the instance type owner"},
     )
     VolumeType = fields.String(
         required=False,
         allow_none=True,
         context="query",
-        description="volume type uuid",
-        missing=None,
+        load_default=None,
+        metadata={"description": "volume type uuid"},
     )
 
 

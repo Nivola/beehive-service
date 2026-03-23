@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     SwaggerApiView,
@@ -24,39 +24,36 @@ portal_catalogs_roles = ["CatalogAdminRole", "CatalogViewerRole", "CatalogOperat
 class GetUserRolesAndServicesApiRequestSchema(Schema):
     user_name = fields.String(
         required=True,
-        example="user1",
-        description="id, uuid or name of the user",
         context="query",
+        metadata={"example": "user1", "description": "id, uuid or name of the user"},
     )
 
 
 class GetUserRolesAndServicesParamItemResponseSchema(Schema):
-    user_role = fields.String(required=True, description="user role")
-    org_id = fields.String(required=True, example="1", description="organization identifier")
-    org_name = fields.String(required=True, example="CSI Piemonte", description="organization name")
-    org_desc = fields.String(required=True, example="CSI Piemonte", description="organization description")
-    org_uuid = fields.String(required=True, example="234523545645", description="organization uuid")
-    div_id = fields.String(required=True, example="", description="division identifier")
-    div_name = fields.String(required=True, example="", description="division name")
-    div_desc = fields.String(required=True, example="", description="division description")
-    div_uuid = fields.String(required=True, example="", description="division uuid")
-    account_id = fields.String(required=True, example="", description="account identifier")
-    account_name = fields.String(required=True, example="", description="account name")
-    account_desc = fields.String(required=True, example="", description="account description")
-    account_uuid = fields.String(required=True, example="", description="account uuid")
-    catalog_id = fields.String(required=True, example="", description="catalog identifier")
-    catalog_name = fields.String(required=True, example="", description="catalog name")
-    catalog_desc = fields.String(required=True, example="", description="catalog description")
-    catalog_uuid = fields.String(required=True, example="", description="catalog uuid")
+    user_role = fields.String(required=True, metadata={"description": "user role"})
+    org_id = fields.String(required=True, metadata={"example": "1", "description": "organization identifier"})
+    org_name = fields.String(required=True, metadata={"example": "CSI Piemonte", "description": "organization name"})
+    org_desc = fields.String(
+        required=True,
+        metadata={"example": "CSI Piemonte", "description": "organization description"},
+    )
+    org_uuid = fields.String(required=True, metadata={"example": "234523545645", "description": "organization uuid"})
+    div_id = fields.String(required=True, metadata={"description": "division identifier"})
+    div_name = fields.String(required=True, metadata={"description": "division name"})
+    div_desc = fields.String(required=True, metadata={"description": "division description"})
+    div_uuid = fields.String(required=True, metadata={"description": "division uuid"})
+    account_id = fields.String(required=True, metadata={"description": "account identifier"})
+    account_name = fields.String(required=True, metadata={"description": "account name"})
+    account_desc = fields.String(required=True, metadata={"description": "account description"})
+    account_uuid = fields.String(required=True, metadata={"description": "account uuid"})
+    catalog_id = fields.String(required=True, metadata={"description": "catalog identifier"})
+    catalog_name = fields.String(required=True, metadata={"description": "catalog name"})
+    catalog_desc = fields.String(required=True, metadata={"description": "catalog description"})
+    catalog_uuid = fields.String(required=True, metadata={"description": "catalog uuid"})
 
 
 class GetUserRolesAndServicesResponseSchema(Schema):
-    services = fields.Nested(
-        GetUserRolesAndServicesParamItemResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
+    services = fields.Nested(GetUserRolesAndServicesParamItemResponseSchema, many=True, required=True, allow_none=True)
 
 
 class GetUserRolesAndServicesByUserName(ServiceApiView):
@@ -81,7 +78,7 @@ class GetUserRolesAndServicesByUserName(ServiceApiView):
         Filter service object by user name. Returns a list of objects of type organization, division, account, catalog with the user role associated to
         Filter service object by user name. Returns a list of objects of type organization, division, account, catalog with the user role associated to
         """
-        from beecell.debug import dbgprint
+        ## from beecell.debug import dbgprint
 
         ## dbgprint(data=data, **kwargs)
 
@@ -142,17 +139,17 @@ class GetUserRolesAndServicesByUserName(ServiceApiView):
         total = 0
 
         if len(orgs) > 0:
-            res_orgs, total_orgs = controller.get_organizations(id_list=org_ids, size=0)
+            res_orgs, total_orgs = controller.get_organizations(id_list=org_ids, size=0, filter_expired=False)
             objects.extend(controller.get_user_object_and_role_info_org(res_orgs, orgs))
             total += total_orgs
 
         if len(divs) > 0:
-            res_divs, total_divs = controller.get_divisions(id_list=div_ids, size=0)
+            res_divs, total_divs = controller.get_divisions(id_list=div_ids, size=0, filter_expired=False)
             objects.extend(controller.get_user_object_and_role_info_div(res_divs, divs))
             total += total_divs
 
         if len(accounts) > 0:
-            res_accounts, total_accounts = controller.get_accounts(id_list=account_ids, size=0)
+            res_accounts, total_accounts = controller.get_accounts(id_list=account_ids, size=0, filter_expired=False)
             objects.extend(controller.get_user_object_and_role_info_account(res_accounts, accounts))
             total += total_accounts
 
@@ -178,12 +175,7 @@ class GetNivolaActiveServicesResponse1Schema(Schema):
 
 
 class GetNivolaActiveServicesResponseSchema(Schema):
-    services = fields.Nested(
-        GetNivolaActiveServicesResponse1Schema,
-        required=True,
-        many=False,
-        allow_none=False,
-    )
+    services = fields.Nested(GetNivolaActiveServicesResponse1Schema, required=True, many=False, allow_none=False)
 
 
 class GetNivolaActiveServices(ServiceApiView):
@@ -202,7 +194,7 @@ class GetNivolaActiveServices(ServiceApiView):
         }
     )
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: 'ServiceController', data, *args, **kwargs):
         """
         Returns the active services list in the nivola domain, for each service are provided informations about resources usage.
         Returns the active services list in the nivola domain, for each service are provided informations about resources usage.
@@ -213,82 +205,6 @@ class GetNivolaActiveServices(ServiceApiView):
 
         self.logger.warning("active services=%s" % active_services)
         return {"services": active_services}
-
-
-class GetServiceInstantConsumeRequestSchema(Schema):
-    id = fields.Integer(required=True, description="id", context="path")
-
-
-class GetServiceInstantConsumeParamsResponseSchema(ApiObjectResponseDateSchema):
-    id = fields.Integer(required=True)
-    account_id = fields.String(required=True)
-    service_definition_id = fields.String(required=True)
-    plugin_name_type = fields.String(required=True)
-    metric_group_name = fields.String(required=True)
-    metric_instant_value = fields.Float(required=True)
-    metric_unit = fields.String(required=True)
-    metric_value = fields.Float(required=True)
-    job_id = fields.Integer(required=True)
-
-
-class GetServiceInstantConsumeResponseSchema(Schema):
-    serviceinst = fields.Nested(GetServiceInstantConsumeParamsResponseSchema, required=True, allow_none=True)
-
-
-class GetServiceInstantConsume(ServiceApiView):
-    tags = ["service"]
-    definitions = {
-        "GetServiceInstantConsumeResponseSchema": GetServiceInstantConsumeResponseSchema,
-    }
-    parameters = SwaggerHelper().get_parameters(GetServiceInstantConsumeRequestSchema)
-    responses = SwaggerApiView.setResponses(
-        {
-            200: {
-                "description": "success",
-                "schema": GetServiceInstantConsumeResponseSchema,
-            }
-        }
-    )
-
-    def get(self, controller, data, oid, *args, **kvargs):
-        """To be done"""
-        pass
-
-
-class ListServiceInstantConsumeRequestSchema(PaginatedRequestQuerySchema):
-    account_id = fields.String(required=False, context="query")
-    service_instance_id = fields.String(required=False, context="query")
-    plugin_name = fields.String(required=False, context="query")
-
-
-class ListServiceInstantConsumeResponseSchema(PaginatedResponseSchema):
-    service_instant_consumes = fields.Nested(
-        GetServiceInstantConsumeParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
-
-
-class ListServiceInstantConsume(ServiceApiView):
-    tags = ["service"]
-    definitions = {
-        "ListServiceInstantConsumeResponseSchema": ListServiceInstantConsumeResponseSchema,
-    }
-    parameters = SwaggerHelper().get_parameters(ListServiceInstantConsumeRequestSchema)
-    parameters_schema = ListServiceInstantConsumeRequestSchema
-    responses = SwaggerApiView.setResponses(
-        {
-            200: {
-                "description": "success",
-                "schema": ListServiceInstantConsumeResponseSchema,
-            }
-        }
-    )
-
-    def get(self, controller, data, *args, **kvargs):
-        """To be done"""
-        pass
 
 
 class NivolaAPI(ApiView):

@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_service.controller import ServiceController
-from marshmallow import fields, Schema
-
+from flasgger import fields, Schema
+from typing import Dict
 from beecell.swagger import SwaggerHelper
 from beehive.common.apimanager import (
     ApiObjectSmallResponseSchema,
@@ -37,9 +37,16 @@ class AccountResponseSchema(ApiObjectSmallResponseSchema):
 
 class ParentResponseSchema(Schema):
     uuid = fields.UUID(
-        required=False, example="6d960236-d280-46d2-817d-f3ce8f0aeff7", description="api object uuid", allow_none=True
+        required=False,
+        allow_none=True,
+        metadata={"example": "6d960236-d280-46d2-817d-f3ce8f0aeff7", "description": "api object uuid"},
     )
-    name = fields.String(required=False, default="test", example="test", description="entity name")
+    name = fields.String(
+        required=False,
+        dump_default="test",
+        allow_none=True,
+        metadata={"example": "test", "description": "entity name"},
+    )
 
 
 class CheckResponseSchema(Schema):
@@ -52,7 +59,7 @@ class GetServiceInstanceParamsResponseSchema(ApiObjectResponseSchema):
     account = fields.Nested(AccountResponseSchema, required=True, allow_none=True)
     definition_id = fields.String(required=True)
     definition_name = fields.String(required=True)
-    status = fields.String(required=False, default=SrvStatusType.RELEASED)
+    status = fields.String(required=False, dump_default=SrvStatusType.RELEASED)
     bpmn_process_id = fields.Integer(required=False, allow_none=True)
     resource_uuid = fields.String(required=False, allow_none=True)
     config = fields.Dict(required=False, allow_none=True)
@@ -64,6 +71,8 @@ class GetServiceInstanceParamsResponseSchema(ApiObjectResponseSchema):
     tags = fields.List(fields.String(required=False, allow_none=True))
     # per check resource
     check = fields.Nested(CheckResponseSchema, required=False, allow_none=True)
+    instance_version = fields.String(data_key="instance-version", required=False, allow_none=True)
+    resourceInfo = fields.String(required=False, allow_none=True)
 
 
 class GetServiceInstanceResponseSchema(Schema):
@@ -93,7 +102,7 @@ class GetServiceInstance(ServiceApiView):
 class CheckServiceInstanceParamsResponseSchema(ApiObjectResponseSchema):
     account_id = fields.String(required=True)
     service_definition_id = fields.String(required=True)
-    status = fields.String(required=False, default=SrvStatusType.RELEASED)
+    status = fields.String(required=False, dump_default=SrvStatusType.RELEASED)
     bpmn_process_id = fields.Integer(required=False, allow_none=True)
     resource_uuid = fields.String(required=False, allow_none=True)
     config = fields.Dict(required=False, allow_none=True)
@@ -136,23 +145,24 @@ class ListServiceInstancesRequestSchema(
     resource_uuid = fields.String(required=False, context="query")
     parent_id = fields.String(required=False, context="query")
     plugintype = fields.String(required=False, context="query")
+
     details = fields.Boolean(
-        required=False, description="if True and only one plugin type is selected show details (resource)", default=True
+        context="query",
+        required=False,
+        dump_default=True,
+        metadata={"description": "if True and only one plugin type is selected show details (resource)"},
     )
+
     tags = fields.String(
         context="query",
-        description="List of tags. Use comma as separator if tags are in or. Use + " "separator if tags are in and",
+        metadata={"description": "List of tags. Use comma as separator if tags are in or. Use + " "separator if tags are in and"},
     )
-    flag_container = fields.Boolean(context="query", description="if True show only container instances")
+
+    flag_container = fields.Boolean(context="query", metadata={"description": "if True show only container instances"})
 
 
 class ListServiceInstancesResponseSchema(PaginatedResponseSchema):
-    serviceinsts = fields.Nested(
-        GetServiceInstanceParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
+    serviceinsts = fields.Nested(GetServiceInstanceParamsResponseSchema, many=True, required=True, allow_none=True)
 
 
 class ListServiceInstances(ServiceApiView):
@@ -180,16 +190,16 @@ class ListServiceInstances(ServiceApiView):
 
 
 class CreateServiceInstanceParamRequestSchema(ApiServiceObjectCreateRequestSchema):
-    account_id = fields.String(required=True, description="id of the account")
-    service_def_id = fields.String(required=True, description="id of the service definition")
+    account_id = fields.String(required=True, metadata={"description": "id of the account"})
+    service_def_id = fields.String(required=True, metadata={"description": "id of the service definition"})
     parent_id = fields.String(
         required=False,
         allow_none=True,
-        missing=None,
-        description="id of the parent service instance",
+        load_default=None,
+        metadata={"description": "id of the parent service instance"},
     )
-    config = fields.Dict(required=False, missing={}, description="Service instance confgiuration")
-    status = fields.String(required=False, default=SrvStatusType.DRAFT)
+    config = fields.Dict(required=False, load_default={}, metadata={"description": "Service instance confgiuration"})
+    status = fields.String(required=False, dump_default=SrvStatusType.DRAFT)
     # bpmn_process_id = fields.Integer(required=False, allow_none=True)
 
 
@@ -245,17 +255,23 @@ class CreateServiceInstance(ServiceApiView):
 class ImportInstanceParamRequestSchema(Schema):
     name = fields.String(required=True)
     desc = fields.String(required=False, allow_none=True)
-    account_id = fields.String(required=True, description="id of the account")
-    plugintype = fields.String(required=True, description="plugin type name")
-    container_plugintype = fields.String(required=True, description="container plugin type name")
-    service_definition_id = fields.String(required=False, missing=None, description="id of the service definition")
+    account_id = fields.String(required=True, metadata={"description": "id of the account"})
+    plugintype = fields.String(required=True, metadata={"description": "plugin type name"})
+    container_plugintype = fields.String(required=True, metadata={"description": "container plugin type name"})
+    service_definition_id = fields.String(
+        required=False,
+        load_default=None,
+        metadata={"description": "id of the service definition"},
+    )
     parent_id = fields.String(
         required=False,
         allow_none=True,
-        missing=None,
-        description="id of the parent service instance",
+        load_default=None,
+        metadata={"description": "id of the parent service instance"},
     )
-    resource_id = fields.String(required=True, allow_none=False, description="id of the resource")
+    resource_id = fields.String(required=True, allow_none=False, metadata={"description": "id of the resource"})
+    additional_config = fields.Dict(required=False, metadata={"description": "additional service instance config data"})
+    instance_version = fields.String(required=False, dump_default="1.0")
 
 
 class ImportInstanceRequestSchema(Schema):
@@ -279,7 +295,7 @@ class ImportInstance(ServiceApiView):
     responses = SwaggerApiView.setResponses({201: {"description": "success", "schema": CrudApiObjectResponseSchema}})
     response_schema = CrudApiObjectResponseSchema
 
-    def post(self, controller: ServiceController, data: dict, *args, **kvargs):
+    def post(self, controller: ServiceController, data: Dict, *args, **kvargs):
         data = data.get("serviceinst")
         account_id = data.get("account_id")
         service_definition_id = data.get("service_definition_id")
@@ -289,7 +305,8 @@ class ImportInstance(ServiceApiView):
         container_plugintype = data.get("container_plugintype")
         parent_id = data.get("parent_id")
         resource_id = data.get("resource_id")
-
+        additional_config = data.get("additional_config", None)
+        instance_version = data.get("instance_version","1.0")
         # check account with compute service
         # account, container_plugin = self.check_parent_service(controller, data.get('account_id'),
         #                                                       plugintype=container_plugintype)
@@ -335,6 +352,9 @@ class ImportInstance(ServiceApiView):
             "service_definition_id": service_definition_id,
             "computeZone": compute_zone,
         }
+        if additional_config:
+            config.update(additional_config)
+
         plugin = controller.import_service_type_plugin(
             service_definition_id,
             account.oid,
@@ -343,14 +363,15 @@ class ImportInstance(ServiceApiView):
             parent_plugin=parent_plugin,
             instance_config=config,
             resource_id=resource_id,
+            instance_version=instance_version
         )
 
         return {"uuid": plugin.instance.uuid}, 201
 
 
 class UpdateServiceInstanceTagRequestSchema(Schema):
-    cmd = fields.String(default="add", required=True)
-    values = fields.List(fields.String(default="test"), required=True)
+    cmd = fields.String(dump_default="add", required=True)
+    values = fields.List(fields.String(dump_default="test"), required=True)
 
 
 class UpdateServiceInstanceParamRequestSchema(Schema):
@@ -361,9 +382,13 @@ class UpdateServiceInstanceParamRequestSchema(Schema):
     # status = fields.String(required=False, default=SrvStatusType.DRAFT)
     active = fields.Boolean(required=False)
     # bpmn_process_id = fields.Integer(required=False, allow_none=True)
-    resource_uuid = fields.String(required=False, description="uuid of the new resource")
+    resource_uuid = fields.String(required=False, metadata={"description": "uuid of the new resource"})
     tags = fields.Nested(UpdateServiceInstanceTagRequestSchema, allow_none=True)
-    parent_id = fields.String(required=False, allow_none=True, description="id of the parent service instance")
+    parent_id = fields.String(
+        required=False,
+        allow_none=True,
+        metadata={"description": "id of the parent service instance"},
+    )
 
 
 class UpdateServiceInstanceRequestSchema(Schema):
@@ -511,6 +536,10 @@ class PatchServiceInstance(ServiceApiView):
 
     def patch(self, controller, data, oid, *args, **kvargs):
         type_plugin = controller.get_service_type_plugin(oid)
+        # NB: gli passa sempre None, poi in realtà
+        # è la pre_patch specifica, se implementata, che
+        # deve ritornare un dizionario, altrimenti il task
+        # va in eccezione
         type_plugin.patch(**data.get("serviceinst"))
 
         uuid = type_plugin.uuid
@@ -521,10 +550,10 @@ class PatchServiceInstance(ServiceApiView):
 class DeleteServiceInstanceRequestSchema(Schema):
     propagate = fields.Boolean(
         required=False,
-        default=True,
-        description="If True propagate delete to all cmp modules",
+        dump_default=True,
+        metadata={"description": "If True propagate delete to all cmp modules"},
     )
-    force = fields.Boolean(required=False, default=False, description="If True force delete")
+    force = fields.Boolean(required=False, dump_default=False, metadata={"description": "If True force delete"})
 
 
 class DeleteServiceInstanceBodyRequestSchema(GetApiObjectRequestSchema):
@@ -556,7 +585,7 @@ class DeleteServiceInstance(ServiceApiView):
 
 
 class UpdateServiceInstanceStatusParamRequestSchema(Schema):
-    status = fields.String(required=True, example=SrvStatusType.DRAFT)
+    status = fields.String(required=True, metadata={"example": SrvStatusType.DRAFT})
 
 
 class UpdateServiceInstanceStatusRequestSchema(Schema):
@@ -635,11 +664,25 @@ class UpdateServiceInstanceStatus(ServiceApiView):
 class GetLinkedServiceInstancesRequestSchema(PaginatedRequestQuerySchema):
     type = fields.String(context="query")
     link_type = fields.String(context="query")
-    oid = fields.String(required=True, description="id, uuid", context="path")
+    oid = fields.String(required=True, context="path", metadata={"description": "id, uuid"})
+
+
+class GetLinkedServiceInstanceResponseSchema(ApiObjectResponseSchema):
+    version = fields.String(required=False, allow_none=True)
+    account_id = fields.String(required=True)
+    service_definition_id = fields.String(required=True)
+    bpmn_process_id = fields.Integer(required=False, allow_none=True)
+    resource_uuid = fields.String(required=False, allow_none=True)
+    status = fields.String(required=False, dump_default=SrvStatusType.RELEASED)
+    parent = fields.Nested(ParentResponseSchema, required=False, allow_none=True)
+    is_container = fields.Boolean(required=False, allow_none=True)
+    config = fields.Dict(required=False, allow_none=True)
+    last_error = fields.String(required=False, allow_none=True)
+    params = fields.String(required=False, allow_none=True)
 
 
 class GetLinkedServiceInstancesResponseSchema(PaginatedResponseSchema):
-    serviceinsts = fields.Nested(GetServiceInstanceResponseSchema, many=True, required=True, allow_none=True)
+    serviceinsts = fields.Nested(GetLinkedServiceInstanceResponseSchema, many=True, required=True, allow_none=True)
 
 
 class GetLinkedServiceInstances(ServiceApiView):
@@ -669,17 +712,17 @@ class GetLinkedServiceInstances(ServiceApiView):
 
 
 class UpdateServiceConfigParamRequestSchema(Schema):
-    key = fields.String(default="test", required=True, description="config key like key1.key2")
-    value = fields.String(default="test", required=False, missing=None, description="config value")
+    key = fields.String(dump_default="test", required=True, metadata={"description": "config key like key1.key2"})
+    value = fields.String(
+        dump_default="test",
+        required=False,
+        load_default=None,
+        metadata={"description": "config value"},
+    )
 
 
 class UpdateServiceConfigRequestSchema(Schema):
-    config = fields.Nested(
-        UpdateServiceConfigParamRequestSchema,
-        required=True,
-        many=False,
-        allow_none=True,
-    )
+    config = fields.Nested(UpdateServiceConfigParamRequestSchema, required=True, many=False, allow_none=True)
 
 
 class UpdateServiceConfigBodyRequestSchema(GetApiObjectRequestSchema):

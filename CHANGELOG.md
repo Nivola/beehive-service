@@ -1,18 +1,210 @@
 # Changelog
 
+## Version 1.18.2 (2026-03-12)
+
+Rilascio nuove funzionalità
+* Aggiunto
+  - Edb + TDE
+  - Check in dbaas definitions
+  - db simple list
+* Risolto
+  - fix db instance aws_simple_info (case of status failed)
+  - Remove some dead commented code
+  - map[fix CreateBackupJob:cast int in random_start_in_window, swagger response]
+  - fix ApiComputeInstance customize_simple_list resource_uuid None
+
+## Version 1.18.1 (2026-02-12)
+
+Rilascio nuove funzionalità
+* Aggiunto
+  - add missing license headers
+  - Update requirements
+  - ecaas namespace update application to the last version
+* Risolto
+  - beautify code
+  - Bug fixing NSX firewall rules optimization
+  - describesimpleinstances fix param customize_simple_list
+  - describesimpleinstances add division info, params info to add
+  - describesimpleinstances default aws_simple_info
+  - fix GetUserRolesAndServicesByUserName filter expired accounts
+  - new get_paginated_service_type_plugins_optimized
+
+## Version 1.18.0 (2026-01-22)
+
+Rilascio nuove funzionalità
+* Aggiunto
+  - type hints
+  - lbaas as paas using stack
+  - 
+  - 
+* Risolto
+  - updated python version, labraries and dependencies
+  - schema definitions
+  - some ninor errors
+* Rimosso
+  - unused files
+  - six direct usage
+
+## Version 1.17.13 (2025-12-11)
+
+Rilascio nuove funzionalità
+* Aggiunto
+  - minor ecaas namespace remove check_environment in update (namspaces created with no rules)
+
+## Version 1.17.12 (2025-11-27)
+
+Rilascio nuove funzionalità
+* Aggiunto
+  - staas_ontap_v2 goldencopy (compliance) management for shared volumes
+  - ApiComputeInstace add middleware info
+  - ecaas manage networkPolicyActive, list filter name
+  - new method delete account definitions
+* Risolto
+  - minor fix namespace filter NamespaceName
+  - staas v2 enable/disable compliance bug fix
+  - Add volume_types validation in RunInstanceV2 schema for anco and sirmet account
+
+## Version 1.17.11 (2025-11-06)
+
+Rilascio nuove funzionalità
+* Aggiunto
+  - ecaas: create/update namespace calling ns-provisioning-api
+  - ecaas namespace: check valid mandatory fields, complete delete
+  - ecaas namespace: fix allowed fields empty
+  - ecaas namespace: fix allowed... fields
+  - minor ecaas namespace: add check changes to namespace to avoid update task
+  - STAAS v2: aggiunto attributo CreationToken in share_data di DR e volume unlinked
+
+## Version 1.17.10 (2025-10-09)
+
+Rilascio nuove funzionalità
+* Aggiunto
+  - map[ecaas:namespace crud api]
+  - dbaas metric as parameter in definition
+  - vpc ip availability
+
+## Version 1.17.7 (2025-08-05)
+
+Rilascio nuove funzionalità
+* Aggiunto
+  - SecurityGroup rule apply to NSX security group not to NSX distribuited firewall
+* Risolto
+  - fix validate AddAccountDefinitionsResponseSchema
+  - Update sg info to view ingress and egress rules correctly  when rules optimization is enabled
+  - call sqlstack delete when deleting dbaas
+  - Add check not to create egress rule when a general egress rule to any destination already exists
+  - Sg rule logging
+
+## Version 1.17.6 (2025-06-10)
+
+Rilascio nuove funzionalità
+* Risolto
+  - removed useless code (ServiceMetricConsume)
+  - Dbaas instance allocated storage now use value in config and don't use value computed by resource component
+  - Crashed  vm state management
+
+## Version 1.17.5 (2025-05-22)
+
+Rilascio nuove funzionalità
+* Aggiunto
+  - Staas v2 replica rpo update  and replica policy
+  - Staas V2 snaplock and replica policies
+  - Staas v2 multiple grants deletion
+
+## Version 1.17.4 (2025-04-17)
+
+Rilascio nuove funzionalità
+* Risolto
+  - map[logging instance:check database instance version before creating (ComputeStack not suppported)]
+  - backup fast load instance and add plugintype, restore point for databaseservice
+  - keypair, efs mount list filter accounts
+  - security group delete vm must have al least one security group
+
+## Version 1.17.3 (2025-03-28)
+
+Rilascio nuove funzionalità
+* Risolto
+  - NSP-3823 add variable part to resource volume name to avoid name collisions on resource
+  - fix volumes openapi exposed documentation
+* Migliorato
+  - staas improved grant rule creation and deletion
+  - type hints
+  - ssh key GET request during creation now done as admin user
+
+## Version 1.17.2 (2025-03-12)
+
+Rilascio nuove funzionalità
+* Risolto
+  - staas
+  - result validation
+
+## Version 1.17.2 (2025-03-6)
+
+Rilascio nuove funzionalità
+* Risolto
+  - staas share_data filesystem type when service definition not passed
+  - staas bugfix... disable openstack service definition
+  - bugfix staas cont.d
+  - staas updatefilesystem disable request view validation
+  - view cpaas vm InstanceState
+  - avoid ssh key length security check
+  - describekeys response Schema
+  - Remove 15m from staas replica rpo values
+  - some result schemas used in openapi descriptions and result validation
+
+## Version 1.17.0 (2025-02-24)
+rilascio funzionalità
+
+* Aggiunto
+  - staas new on_tap managment v2
+  - some optimizations
+  - some dbaas creation parameter
+  - capability add application_date
+  - new encription logic and key managment (rsa 4096) ssh key is now mandatory on Linux
+  - type hints
+* Risolto
+  - some feature and logic when cloning
+  - openapi response schema
+  - many minor
+* Rimosso
+  - no longer useful data from srv instance config
+  - pricelist added deprecation
+  - unused code
+
+## Version 1.16.9 (2025-01-08)
+
+Rilascio nuove funzionalità
+* Aggiunto
+  - parameters for oracle starter pack when provisioning oracle dbaas
+* Risolto
+  - fix errore cancellazione volume se None (NSP-3617)
+  - fix UpdateServiceConfigParamRequestSchema (before useless)
+* Migliorato
+  - logging instance also for db, add/delete space dashboard
+
+## Version 1.16.8 (2024-11-25)
+
+Rilascio nuove funzionalità
+* Risolto
+  - map[monitoring:disable dashboard]
+  - map[alert:fix len user group name]
+  - logging_instance with triplet, site
+* Migliorato
+  - map[close account:expire roles, set expire date]
+
 ## Version 1.16.7 (2024-10-03)
 
 Rilascio nuove funzionalità
-* Added
+* Aggiunto
   - nuovi parametri opzionali ricevuti i fase di creazione di db postgresql
-* Fixed
+* Risolto
   - permessi verificati oe job_list
   - fix alert triplet
   - cancellazione dei tags proma della cancellazione deglli account
   - changelog
   - parametri posgresql creando risorsa
   - wip
-* Changed
+* Migliorato
   - check_parent_service aggiunta parametro action per verificare permissi altrii che update
   - disabilitata validazione per pg-extensions
   - parametri ino9ltrati a resource in fase di creazione di dbaas postgresql
@@ -20,7 +212,7 @@ Rilascio nuove funzionalità
 ## Version 1.16.6 (2024-09-23)
 rilascio di correttive
 
-* Added
+* Aggiunto
   - Refactoring tag, unique name for account
   - UpdateAccountServiceInstance Adds tag to all vms, volumes, dbs of the account
   - check case sensitive product code
@@ -29,37 +221,37 @@ rilascio di correttive
   - rsa key 4096 bit create
   - added nvl-resourceId, nvl-hypervisor in dbaas instances
   - some type hint
-* Fixed
+* Risolto
   - definitions checks
   - fix db create
   - fix db flavour not updated NSP-3314
   - vm state before create/delete log, monitor instance
-* Removed
+* Rimosso
   - some deprecated code
 
 ## Version 1.16.5 (2024-08-07)
 rilascio di correttive
 
-* Added
+* Aggiunto
   - refactoringo vsphere dfw rules
-* Fixed
+* Risolto
   - map[grafana:from version 11 alert notrification doesn't exist!]
   - comment problem monitoring alert
-* Changed
+* Migliorato
   - error message if provider image does not have an availability zone child
 
 ## Version 1.16.4 (2024-07-09)
 rilascio di correttive
 
-* Fixed
+* Risolto
   - missing uuid after account update
 
 ## Version 1.16.3 (2024-06-27)
 rilascio di correttive
 
-* Added
+* Aggiunto
   - ful version and metadata in db engines list
-* Fixed
+* Risolto
   - bug when db-instances update
 
 ## Version 1.16.2 (2024-06-13)
@@ -69,12 +261,12 @@ rilascio di correttive
 ## Version 1.16.1 (2024-06-04)
 rilascio di correttive
 
-* Added
+* Aggiunto
   - account management model, and pods
   - check for capablity  using new attribitess account_type, pods
   - CheckAccount service
   - view for consumes by service
-* Fixed
+* Risolto
   - minor
   - restore previous api signature for backward compatibility
   - error due to server's name length
@@ -83,7 +275,7 @@ rilascio di correttive
 ## Version 1.16.0 (2024-03-26)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - fix log sync user if ldap is none
   - fix delete account expiry date, active
   - fix wrong permission objid that resulted in error while creating account
@@ -113,19 +305,19 @@ rilascio di funzionalità
 ## Version 1.15.0 (2025-10-12)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - new metrics collecting logic
   - monitoring alert service
-* Fixed
+* Risolto
   - minor fixies
 
 ## Version 1.14.0 (2023-06-22)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - method to get avz by site
   - set session for playing a sigle account's role
-* Fixed
+* Risolto
   - refacoring load balancer
   - service def get require no permissions
   - database name check
@@ -136,16 +328,16 @@ rilascio di funzionalità
 ## Version 1.13.0 (2023-02-24)
 rilascio di funzionalità
 
-* Fixed
+* Risolto
   - grafana dashboard copy
   - minor fixies
 
 ## Version 1.12.0 ()
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - eleasticsearch upgrade
-* Fixed
+* Risolto
   - security group rule deletion
   - instant consumes
   - error while deleting a sopped server when monitoring is enabled
@@ -155,13 +347,13 @@ rilascio di funzionalità
 ## Version v.1.15.3 ()
 rilascio di correttive
 
-* Added
+* Aggiunto
   - Added support for mariadb
   - MariaDB nuovo engine
   - add check acronym inactive - account name cannot be changed
   - added org, div roles returne role name
   - account roles get return role name
-* Fixed
+* Risolto
   - account: fix in delete check service exists in order
 
   - fix swagger: serviceinsts list/get v1-v2
@@ -191,13 +383,13 @@ rilascio di correttive
 ## Version 1.11.0 (2022-10-21)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - now compute instance support static ip passed from api
   - map[add compute instance host_group openstack:bck and nobck]
   - add field nvl_HostGroup in DescribeInstancesV20 api
   - add LoggingServiceAPI, MonitoringSpaceServiceAPI, MonitoringInstanceServiceAPI,
   - add ApiMonitoringService, ApiMonitoringSpace, ApiMonitoringInstance
-* Fixed
+* Risolto
   - fixed problem with default name of logging space
   - fixed problem with icmp rule in security group
   - fixed problem with instance host_group when show flavor
@@ -205,7 +397,7 @@ rilascio di funzionalità
 ## Version 1.10.0 (2022-02-11)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - modified now return 404 if core service is not present when getting or modifying account's attributes
   - add method v2.0/nws/accounts/.../definitions to get which definition are available for the account
   - add AccountServiceDefinition. Now the Account knows which definition can instantiate
@@ -224,7 +416,7 @@ rilascio di funzionalità
   - add model method get_service_definition_by_config
   - add ComputeVolume check when delete api is invoked. If volume is in-use error is returned
   - update capabilities and account capabilities to support account definitions
-* Fixed
+* Risolto
   - fixed bug in SecurityGroup set_service_info. It Does not manage icmp sub protocol field
   - fixed api /v2.0/nws/computeservices/instance/describeinstancetypes to support new account service catalog. Now required filter by account
   - fixed api /v2.0/nws/databaseservices/instance/describedbinstancetypes to support new account service catalog Now required filter by account
@@ -239,7 +431,7 @@ rilascio di funzionalità
 ## Version 1.9.0 (2021-06-11)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - add service instance set config api
   - add ComputeInstance import
   - add ComputeInstance create from existing volume
@@ -263,25 +455,25 @@ rilascio di funzionalità
 ## Version 1.8.0 (2020-02-05)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - add service instance check api
   - add new api ping (with sql check), capabilities and version to /v1.0/nws
   - add service instance name validation
   - add owner propagation from keypair to ssh key
-* Fixed
+* Risolto
   - removed error propagation that block dbaas instance query
   - fixed implementation of share delete
 
 ## Version 1.7.0 (2020-10-23)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - added dbaas api v2.0. Class ApiDatabaseServiceInstance was replaced with ApiDatabaseServiceInstanceV2
   - added ApiComputeInstance action to add/remove security group
   - added ApiComputeInstance action to add/remove/revert snapshots
   - added ApiServiceDefinition field config in update api
   - added ApiStorageEFS api param PerformanceMode used to manage share based on netapp and new share base on local openstack server
-* Fixed
+* Risolto
   - some minor fixed in schema fields definitions in order to get better swagger descriptions
   - api oid field declaration for post services with {oid} in path
   - set for all the business service state unknown when state is not known
@@ -291,11 +483,11 @@ rilascio di funzionalità
 ## Version 1.6.1 (2020-08021)
 rilascio di correttive
 
-* Added
+* Aggiunto
   - added share quotas check
   - added private vpc and subnet
   - added delete of compute volumes after delete of compute instance
-* Fixed
+* Risolto
   - set resource api query size to -1
   - correct bug api sql stack invocation from db instance
   - correct bug during update and delete of some service instance
@@ -307,10 +499,10 @@ rilascio di correttive
 ## Version 1.6.0 (2020-06-21)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - add scheduled start e stop for compute instance
   - add compute volume management
-* Fixed
+* Risolto
   - fixed view schema bug after marshmallow update
   - integrated service config api in service_defnition module
   - correct bug that preclude ComputeInstance elimination when some inputs checks fail
@@ -320,7 +512,7 @@ rilascio di funzionalità
   - correct bug in service keypair. Create keypair does not return fingerprint and private key
   - correct bug in ApiStorageEFS that print info incorrectly
   - correct describe of file share mount target. A mount target is showed also if it does not exist
-* Removed
+* Rimosso
   - removed agreement api
   - removed division cost api
   - removed organization cost api
@@ -332,7 +524,7 @@ rilascio di funzionalità
 ## Version 1.5.0 (2019-09-04)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - ApiComputeTemplate controller per la gestione della nuova tipologia di service ComputeTemplate
   - api GET /computeservices/template/describetemplates
   - api POST /computeservices/template/createtemplate
@@ -347,7 +539,7 @@ rilascio di funzionalità
   - api /v1.0/nws/plugins/import [POST] to create a service instance from an existing resource. Extend method pre_import and post_import in a plugin type class to define the behaviour
   - aggiunto metodo ApiComputeKeyPairs pre_import  per la gestione dell'import di una ssh key esistente
   - agginuta stampa nvl_ownerAlias, nvl_ownerId nella Describe di ApiComputeKeyPairs
-* Fixed
+* Risolto
   - inserimento parametro context='query' nel request schema delle restAPI
   - /v1.0/nws/computeservices/instance/describeinstances
   - /v1.0/nws/computeservices/securitygroup/describesecuritygroups
@@ -375,7 +567,7 @@ rilascio di funzionalità
 ## Version 1.4.0 (2019-05-24)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - Inserimento restApi GET /databaseservices/instance/enginetypes
   - inserimento dei seguenti moduli .py e classi
   - DivisionCost per la gestione delle DivisionCostAPI
@@ -409,7 +601,7 @@ rilascio di funzionalità
   - class ApiComputeKeyPairs è stato aggiornato il metodo get_resource invocazione del corrispondente servizio ssh tramite una user_request
   - Class ServiceDbManager metodo get_tags() inserimento parametro di ricerca objid
   - Model class Wallet  inserimento in  relationship agreements parametro lazy='dynamic'
-* Fixed
+* Risolto
   - restAPI DELETE /computeservices/tags corretto il request schema, inserito per il filtro Tag_N  l'attributo load_from=u'Tag.N'
   - aggiornamento restAPI GET computeservices/keypair/describekeypair
   - fixing schema response restAPI /computeservices/securitygroup/describesecuritygroups
@@ -478,7 +670,7 @@ rilascio di funzionalità
   - validazione swagger restAPI /databaseservices/instancedescribedbinstances /databaseservices/instancecreatedbinstance /databaseservices/instancedeletedbinstance
   - ApiDatabaseServiceInstance def aws-info aggiornamento attributi per validazione swagger
   - pre-delete ApiWallet inserimento check su presenza agreement
-* Removed
+* Rimosso
   - Class ServiceDbManager eliminazione di tutti i metodi di gestione subwallet e consume
   - def add_subwallet (), def update_subwallet (),
   - def delete_subwallet (), def get_subwallets, def add_consume (),
@@ -501,13 +693,13 @@ rilascio di funzionalità
 ## Version 1.3.0 (2019-02-27)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - aggiunta la action come task di default per ogni service type plugin instance
   - aggiunto il riferimento al task celery nelle operazioni asincrone del controller
   - aggiunto controllo dimesione minima imamgine
   - aggiunto elenco hypervisor nelle imamgini
   - DatabaseService corretti errori nei parametri di filtro della get
-* Fixed
+* Risolto
   - AppengineService revisione metodi di interrogazione, creazione, cancellazione e modifica
   - aggiunto il salvataggio dei job nel db mysql
   - ComputeSecurityGroup modificata creazione e cancellazione rule utilizzando le action
@@ -516,12 +708,12 @@ rilascio di funzionalità
 ## Version 1.2.0 (2019-02-01)
 
 Rilascio nuove funzionalità
-* Added
+* Aggiunto
   - aggiunta gestione autorizzazione gruppi su ServiceCatalog, Account, Division, Organization
   - account capability
   - ComputeService aggiunte api describeaccountattributes, modifyaccountattributes, describeavailabilityzones
   - ComputeService aggiunto invio campo managed_by in fase di creazione
-* Fixed
+* Risolto
   - ComputeVpc revisione metodi di interrogazione, creazione, cancellazione e modifica
   - ComputeImage revisione metodi di interrogazione, creazione, cancellazione e modifica
   - ComputeSubnet revisione metodi di interrogazione, creazione, cancellazione e modifica
@@ -540,10 +732,10 @@ Rilascio nuove funzionalità
 ## Version 1.1.0 (2019-01-13)
 rilascio di funzionalità
 
-* Added
+* Aggiunto
   - Creata nuova classe ServiceTypePlugin con i metodi di add, get e list nel controller. Creati tutti i task e i job per gestire il ciclo di vita della creazione, cancellazione e modifica
   - ComputeInstance aggiunti metodi di start, stop e cambio instance_type
-* Fixed
+* Risolto
   - ServiceInstance refactoring
   - ServiceType refactoring
   - ServiceDefinition refactoring

@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from gevent import sleep
 from beehive.common.task.job import Job, JobTask, task_local, job_task, job, JobError
 from beehive.common.task.util import end_task, start_task
-from beehive.common.task.manager import task_manager
+from beehive.common.task.manager import get_task_manager
 from beehive.common.data import operation
 from beehive.common.apimanager import ApiManagerError, ApiManagerWarning
 from beecell.simple import id_gen
@@ -15,6 +15,7 @@ from beehive_service.model import SrvStatusType, ServiceJob as ServiceJobModel
 from .common import MAX_CONCURRENT_TASKS_CELERY
 from .metrics import AbstractServiceTask
 
+task_manager = get_task_manager()
 
 class ACJobSettings(object):
     RETRY_CONTDOWN = 10

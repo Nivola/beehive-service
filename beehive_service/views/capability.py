@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiView,
@@ -35,25 +35,33 @@ DEFAULT_DEFAULT_SERVICE_TYPES = [
 
 # start added by ahmad 21-10-2020
 class ParamsServiceParamsDescriptionSchema(Schema):
-    cidr = fields.String(required=False, example="###.###.###.###/##")
-    zone = fields.String(required=False, example="SiteVercelli01")
-    vpc = fields.String(required=False, example="VpcRUPAR04")
+    cidr = fields.String(required=False, allow_none=True, metadata={"example": "###.###.###.###/##"})
+    zone = fields.String(required=False, allow_none=True, metadata={"example": "SiteVercelli01"})
+    vpc = fields.String(required=False, allow_none=True, metadata={"example": "VpcRUPAR04"})
+    protocol = fields.String(required=False, allow_none=True, metadata={"example": "https"})
+    traffic_type = fields.String(required=False, allow_none=True, metadata={"example": "tcp"})
+    persistence = fields.String(required=False, allow_none=True, metadata={"example": "sourceip"})
 
 
 class RequireServiceParamsDescriptionSchema(Schema):
-    name = fields.String(required=False, example="ComputeService")
-    type = fields.String(required=False, example="ComputeService")
+    name = fields.String(required=False, metadata={"example": "ComputeService"})
+    type = fields.String(required=False, metadata={"example": "ComputeService"})
 
 
 class ServiceParamsDescriptionSchema(Schema):
-    params = fields.Nested(ParamsServiceParamsDescriptionSchema, required=True, allow_none=True)
-    type = fields.String(required=False, example="ComputeImage")
-    name = fields.String(required=False, example="Windows2016")
+    # params = fields.Nested(ParamsServiceParamsDescriptionSchema, required=False, allow_none=True)
+    params = fields.Dict(required=False, allow_none=True)
+    type = fields.String(required=False, metadata={"example": "ComputeImage"})
+    name = fields.String(required=False, metadata={"example": "Windows2016"})
     template = fields.String(required=False)
     require = fields.Nested(RequireServiceParamsDescriptionSchema, required=False)
 
 
 class ParamsDescriptionSchema(Schema):
+    definitions = fields.List(fields.String, many=True, required=False)
+    # definitions = fields.String( many=True,  required=False,  )
+    pods = fields.String(required=False, allow_none=True)
+    account_type = fields.String(required=False, allow_none=True)
     services = fields.Nested(ServiceParamsDescriptionSchema, many=True, required=False)
 
 
@@ -69,19 +77,15 @@ class ListAccountCapabilitiesRequestSchema(
 
 
 class ListAccountCapabilitiesParamsResponseSchema(ApiObjectResponseSchema):
-    status_id = fields.Integer(required=False, default=1)
-    version = fields.String(required=False, default="1.0")
-    plugin_name = fields.String(required=False, default="")
-    params = fields.Nested(ParamsDescriptionSchema, allow_none=True, default="")
+    status = fields.String(required=False, dump_default=1)
+    status_id = fields.Integer(required=False, dump_default=1)
+    version = fields.String(required=False, dump_default="1.0")
+    plugin_name = fields.String(required=False, dump_default="")
+    params = fields.Nested(ParamsDescriptionSchema, allow_none=True, dump_default="")
 
 
 class ListAccountCapabilitiesResponseSchema(PaginatedResponseSchema):
-    capabilities = fields.Nested(
-        ListAccountCapabilitiesParamsResponseSchema,
-        many=True,
-        required=True,
-        allow_none=True,
-    )
+    capabilities = fields.Nested(ListAccountCapabilitiesParamsResponseSchema, many=True, required=True, allow_none=True)
 
 
 class ListAccountCapabilities(ServiceApiView):
@@ -114,18 +118,25 @@ class ListAccountCapabilities(ServiceApiView):
         return resp
 
 
-class GetAccountCapabilityParamsResponseSchema(ApiObjectResponseSchema):
-    status_id = fields.Integer(required=False, default=1)
-    version = fields.String(required=False, default="1.0")
-    params = fields.String(required=False, allow_none=True, default="")
+class GetAccountCapabilityParamsResponseSchema(Schema):
+    services = fields.Nested(ServiceParamsDescriptionSchema, required=False, allow_none=True, many=True)
+    definitions = fields.List(fields.String(required=False, allow_none=True))
+    account_type = fields.String(required=False, allow_none=True)
+    pods = fields.String(required=False, allow_none=True)
+
+
+class GetAccountCapabilityParamsDetailResponseSchema(ApiObjectResponseSchema):
+    version = fields.String(required=False, dump_default="1.0")
+    status = fields.String(required=False, dump_default="ACTIVE")
+    params = fields.Nested(GetAccountCapabilityParamsResponseSchema, required=False, allow_none=True)
 
 
 class GetAccountCapabilityResponseSchema(Schema):
-    capabilities = fields.Nested(
-        GetAccountCapabilityParamsResponseSchema,
+    capability = fields.Nested(
+        GetAccountCapabilityParamsDetailResponseSchema,
         required=True,
         allow_none=True,
-        description="The Capability description",
+        metadata={"description": "The Capability description"},
     )
 
 
@@ -150,47 +161,49 @@ class GetAccountCapability(ServiceApiView):
 
 
 class BaseServiceDescriptonSchema(Schema):
-    name = fields.String(required=True, example="prova", description="The name of the Service Instance")
+    name = fields.String(
+        required=True,
+        metadata={"example": "prova", "description": "The name of the Service Instance"},
+    )
     type = fields.String(
         required=True,
-        example="ComputeService",
-        description="The Service Type for the Service Instance",
+        metadata={"example": "ComputeService", "description": "The Service Type for the Service Instance"},
     )
 
 
 class ServiceDescriptionSchema(BaseServiceDescriptonSchema):
     template = fields.String(
         required=False,
-        description="The Service Definition describing the Service Instance template",
+        metadata={"description": "The Service Definition describing the Service Instance template"},
     )
     params = fields.Dict(
         required=False,
-        description="the parameter used for creating the Service instance",
+        metadata={"description": "the parameter used for creating the Service instance"},
     )
     require = fields.Nested(
         BaseServiceDescriptonSchema,
         required=False,
-        description="List of Service definition added by the capability",
+        metadata={"description": "List of Service definition added by the capability"},
     )
 
 
 class CreateAccountCapabilityParamRequestSchema(Schema):
-    name = fields.String(required=True, example="default")
+    name = fields.String(required=True, metadata={"example": "default"})
     desc = fields.String(required=False, allow_none=True)
-    version = fields.String(required=False, default="1.0")
+    version = fields.String(required=False, dump_default="1.0")
     services = fields.Nested(
         ServiceDescriptionSchema,
         required=True,
         allow_none=False,
         many=True,
-        description="List of Service Instances added by the capability",
+        metadata={"description": "List of Service Instances added by the capability"},
     )
     definitions = fields.List(
         fields.String(required=False, allow_none=True, example=""),
         required=True,
         allow_none=True,
         many=True,
-        description="List of Service definition added by the capability",
+        metadata={"description": "List of Service definition added by the capability"},
     )
     account_type = fields.String(required=False, allow_none=True)
     pods = fields.String(required=False, allow_none=True)
@@ -246,14 +259,14 @@ class UpdateAccountCapabilityParamRequestSchema(Schema):
         required=False,
         allow_none=True,
         many=True,
-        description="List of ServiceInstanced added by the capability",
+        metadata={"description": "List of ServiceInstanced added by the capability"},
     )
     definitions = fields.List(
         fields.String(required=False, allow_none=True, example="compute.medium"),
         required=False,
         allow_none=True,
         many=True,
-        description="List of Service definition added by the capability",
+        metadata={"description": "List of Service definition added by the capability"},
     )
     account_type = fields.String(required=False, allow_none=True)
     pods = fields.String(required=False, allow_none=True)

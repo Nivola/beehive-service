@@ -1,30 +1,28 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
+
 from __future__ import annotations
-
 from time import sleep
-
+from typing import TYPE_CHECKING
 import ujson as json
 from beecell.db import TransactionError
 from beecell.db.util import QueryError
 from beecell.password import obscure_data
-from beecell.types.type_dict import dict_get, dict_set
+from beecell.simple import import_class, jsonDumps
+from beecell.types.type_dict import dict_get, dict_set, dict_unset, recursive_update
 from beecell.types.type_string import truncate
-from beecell.simple import import_class
 from beehive.common.apimanager import ApiObject, ApiManagerWarning, ApiManagerError
 from beehive.common.data import transaction, trace, operation
 from beehive_service.entity import ServiceApiObject, ApiServiceLink
 from beehive_service.model import ServiceInstance
 from beehive_service.model.base import SrvStatusType
 from beehive_service.service_util import ServiceUtil
-from six import text_type, binary_type
-from beecell.simple import jsonDumps
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:  # <-try this,
+if TYPE_CHECKING:
     from .service_type import AsyncApiServiceTypePlugin
     from beehive_service.controller.api_account import ApiAccount
+    from beehive_service.entity.service_definition import ApiServiceDefinition
 
 
 class ApiServiceInstance(ServiceApiObject):
@@ -160,6 +158,17 @@ class ApiServiceInstance(ServiceApiObject):
         if self.config_object is not None:
             self.config_object.set_json_property(attr_key, attr_value)
 
+    def set_config_properties(self, data: dict):
+        """Set property in config
+
+        :param data: a dictionary containd data to be set
+        :return:
+        """
+
+        if self.config_object is None:
+            self.get_main_config()
+        self.config_object.set_json_properties(data=data)
+
     #
     # params
     #
@@ -231,6 +240,19 @@ class ApiServiceInstance(ServiceApiObject):
         info = self.info()
         return info
 
+    def update_name(self, name, error=None):
+        """Update service instance name
+
+        :param name: name
+        :param error: error [optional]
+        """
+        if self.update_object is not None:
+            data = {"oid": self.oid, "name": name}
+            if error is not None:
+                data["last_error"] = error
+            self.update_object(**data)
+            self.logger.debug("Update name of %s to %s" % (self.uuid, name))
+
     def update_status(self, status, error=None):
         """Update service instance status
 
@@ -284,6 +306,9 @@ class ApiServiceInstance(ServiceApiObject):
 
     def get_service_type_plugin(self) -> AsyncApiServiceTypePlugin:
         """Get ServiceType Plugin
+            execute a dynamic import of the plugin class defined in self.model.service_definition.service_type.objclass
+            then instantiate the plugin class using the servicetype_model
+            and set self as the plugin instance
 
         :return: Plugin instance  object info.
         :raises ApiManagerWarning: raise :class:`.ApiManagerWarning`
@@ -311,7 +336,7 @@ class ApiServiceInstance(ServiceApiObject):
 
         return plugin
 
-    def get_main_config(self):
+    def get_main_config(self) -> ApiServiceInstanceConfig:
         """Get ServiceInstance main configuration
 
         :return: ApiServiceInstanceConfig instance
@@ -334,7 +359,7 @@ class ApiServiceInstance(ServiceApiObject):
             self.config_object = config
         return self.config_object
 
-    def get_definition(self):
+    def get_definition(self) -> ApiServiceDefinition:
         """Get service instance definition
 
         :return: ServiceDefinition instance
@@ -836,7 +861,7 @@ class ApiServiceInstanceConfig(ServiceApiObject):
             if isinstance(self.model.json_cfg, dict):
                 self.json_cfg.update(self.model.json_cfg)
             # elif isinstance(self.model.json_cfg, str) or isinstance(self.model.json_cfg, unicode):
-            elif isinstance(self.model.json_cfg, (text_type, binary_type)):
+            elif isinstance(self.model.json_cfg, (str, bytes)):
                 self.json_cfg.update(json.loads(self.model.json_cfg))
 
         # child classes
@@ -883,6 +908,26 @@ class ApiServiceInstanceConfig(ServiceApiObject):
         else:
             res = dict_get(self.json_cfg, attr_key)
             return res
+
+    def unset_json_property(self, attr_key):
+        """Unset property in config
+
+        :param attr_key: property name. Can be a composite name like k1.k2.k3
+        :type attr_key: str
+        """
+        if self.json_cfg:
+            dict_unset(self.json_cfg, attr_key)
+            self.update(json_cfg=self.json_cfg)
+
+    def set_json_properties(self, data: dict):
+        """Set property in config
+
+        :param data: a dictionary that contains properties to set property
+        :return:
+        """
+        if self.json_cfg is not None:
+            self.json_cfg = recursive_update(self.json_cfg, data)
+            self.update(json_cfg=self.json_cfg)
 
     def set_json_property(self, attr_key, attr_value):
         """Set property in config
@@ -972,6 +1017,7 @@ class ApiServiceInstanceLink(ServiceApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ServiceApiObject.info(self)
+        info.pop("version", None)  # remove field for backward compatibility
 
         # get start and end services
         start_service = self.get_start_service()

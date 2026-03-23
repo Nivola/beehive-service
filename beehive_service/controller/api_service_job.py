@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import ApiObject
 from beehive_service.entity import ServiceApiObject
@@ -64,4 +64,4 @@ class ApiServiceJob(ServiceApiObject):
         :return: ApiServiceJob
         :raises ApiManagerError: raise :class:`ApiManagerError`
         """
-        return ApiObject.update(status=status, last_error=last_error)
+        return self.update(status=status, last_error=last_error)

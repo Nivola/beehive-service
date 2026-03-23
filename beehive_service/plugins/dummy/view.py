@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiView,
@@ -24,7 +24,7 @@ from beehive_service.views import (
 )
 
 from beecell.swagger import SwaggerHelper
-from beehive_service.views.service_instance import (
+from beehive_service.views.service_instance_v2 import (
     UpdateServiceInstance,
     DeleteServiceInstance,
     GetServiceInstance,
@@ -113,6 +113,7 @@ class ListSTChildrenDummy(ServiceApiView):
 
     def get(self, controller, data, oid, *args, **kwargs):
         """ """
+        raise NotImplementedError("broken, do not use")
         plugin_container = self.instancePlugin(oid)
         if plugin_container.flag_container is True:
             return (plugin_container.getResourceInfo(plugin_container.oid), 200)
@@ -205,7 +206,7 @@ class DummySTPlugin(ApiView):
         rules = [
             ("%s/dummystcontainer/<oid>" % base, "GET", InfoSTContainer, {}),
             ("%s/dummystcontainer" % base, "POST", CreateSTContainerDummy, {}),
-            ("%s/dummystcontainer/<oid>/list" % base, "GET", ListSTChildrenDummy, {}),
+            #("%s/dummystcontainer/<oid>/list" % base, "GET", ListSTChildrenDummy, {}),
             ("%s/dummystcontainer/<oid>" % base, "PUT", UpdateSTDummyContainer, {}),
             ("%s/dummystcontainer/<oid>" % base, "DELETE", DeleteSTDummyContainer, {}),
             ("%s/dummystchild/<oid>" % base, "GET", InfoSTChildDummy, {}),

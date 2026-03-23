@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beehive.common.data import operation
@@ -24,7 +24,7 @@ class DescribeAppengineServiceRequestSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
 
 
@@ -36,10 +36,10 @@ class DescribeAppengineServiceResponseSchema(Schema):
     account_name = fields.String(required=True)
     template_id = fields.String(required=True)
     template_name = fields.String(required=True)
-    state = fields.String(required=False, default=SrvStatusType.DRAFT)
+    state = fields.String(required=False, dump_default=SrvStatusType.DRAFT)
     resource_uuid = fields.String(required=False, allow_none=True)
-    stateReason = fields.String(required=False, default="")
-    limits = fields.Dict(required=False, default={})
+    stateReason = fields.String(required=False, dump_default="")
+    limits = fields.Dict(required=False, dump_default={})
 
 
 class DescribeAppengineService(ServiceApiView):
@@ -82,10 +82,10 @@ class DescribeAppengineService(ServiceApiView):
 
 class CreateAppengineServiceApiRequestSchema(Schema):
     owner_id = fields.String(required=True)
-    name = fields.String(required=False, default="")
-    desc = fields.String(required=False, default="")
-    service_def_id = fields.String(required=True, example="")
-    resource_desc = fields.String(required=False, default="")
+    name = fields.String(required=False, dump_default="")
+    desc = fields.String(required=False, dump_default="")
+    service_def_id = fields.String(required=True)
+    resource_desc = fields.String(required=False, dump_default="")
 
 
 class CreateAppengineServiceApiBodyRequestSchema(Schema):
@@ -131,11 +131,11 @@ class UpdateAppengineServiceApiRequestParamSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
-    name = fields.String(required=False, default="")
-    desc = fields.String(required=False, default="")
-    service_def_id = fields.String(required=False, default="")
+    name = fields.String(required=False, dump_default="")
+    desc = fields.String(required=False, dump_default="")
+    service_def_id = fields.String(required=False, dump_default="")
 
 
 class UpdateAppengineServiceApiRequestSchema(Schema):
@@ -188,12 +188,12 @@ class DescribeAccountAttributesRequestSchema(Schema):
         allow_none=False,
         context="query",
         data_key="owner-id",
-        description="account ID of the instance owner",
+        metadata={"description": "account ID of the instance owner"},
     )
 
 
 class DescribeAccountAttributeSetResponseSchema(Schema):
-    uuid = fields.String(required=True, example="")
+    uuid = fields.String(required=True)
 
 
 class DescribeAccountAttributeResponseSchema(Schema):
@@ -252,7 +252,7 @@ class DescribeAccountAttributes(ServiceApiView):
 
 class ModifyAccountAttributeBodyRequestSchema(Schema):
     owner_id = fields.String(required=True)
-    quotas = fields.Dict(required=True, example="")
+    quotas = fields.Dict(required=True)
 
 
 class ModifyAccountAttributesBodyRequestSchema(Schema):
@@ -260,7 +260,7 @@ class ModifyAccountAttributesBodyRequestSchema(Schema):
 
 
 class ModifyAccountAttributeSetResponseSchema(Schema):
-    uuid = fields.String(required=True, example="")
+    uuid = fields.String(required=True)
 
 
 class ModifyAccountAttributeResponseSchema(Schema):
@@ -319,7 +319,7 @@ class ModifyAccountAttributes(ServiceApiView):
 
 
 class DeleteAppengineServiceResponseSchema(Schema):
-    uuid = fields.String(required=True, description="Instance name")
+    uuid = fields.String(required=True, metadata={"description": "Instance name"})
 
 
 class DeleteAppengineServiceRequestSchema(Schema):
@@ -327,7 +327,7 @@ class DeleteAppengineServiceRequestSchema(Schema):
         required=True,
         allow_none=True,
         context="query",
-        description="Instance uuid or name",
+        metadata={"description": "Instance uuid or name"},
     )
 
 
